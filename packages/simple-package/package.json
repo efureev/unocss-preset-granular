@@ -1,0 +1,83 @@
+{
+  "name": "@feugene/simple-package",
+  "description": "Composite Vue 3 components built on top of @feugene/granularity primitives (DsFormField, DsInput, DsButton, …).",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Evgeniy Fureev",
+    "url": "https://github.com/efureev"
+  },
+  "homepage": "https://github.com/efureev/unocss-preset-granular",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/efureev/unocss-preset-granular.git",
+    "directory": "packages/simple-package"
+  },
+  "bugs": {
+    "url": "https://github.com/efureev/unocss-preset-granular/issues"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "components",
+    "ui",
+    "granular",
+    "design-system",
+    "composite-components",
+    "tree-shakeable"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "types": "./dist/types/src/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/src/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./components/XTest1": {
+      "types": "./dist/types/src/components/XTest1/index.d.ts",
+      "import": "./dist/components/XTest1/index.js"
+    },
+    "./components/XTestStyled": {
+      "types": "./dist/types/src/components/XTestStyled/index.d.ts",
+      "import": "./dist/components/XTestStyled/index.js"
+    },
+    "./granular-provider": {
+      "types": "./dist/types/src/granular-provider/index.d.ts",
+      "import": "./dist/granular-provider.js",
+      "default": "./dist/granular-provider.js"
+    },
+    "./granular-provider/node": {
+      "types": "./dist/types/src/granular-provider/node.d.ts",
+      "import": "./dist/granular-provider-node.js",
+      "default": "./dist/granular-provider-node.js"
+    }
+  },
+  "peerDependencies": {
+    "@feugene/unocss-preset-granular": "^0.1.0",
+    "vue": "^3.5.32"
+  },
+  "devDependencies": {
+    "@feugene/unocss-preset-granular": "^0.1.0",
+    "@types/node": "^25.5.2",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.7",
+    "vue": "^3.5.32",
+    "vue-tsc": "^3.2.6"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "dev": "vite build --watch",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "lib": ["ESNext", "DOM"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@feugene/granularity": [
+        "../../packages/granularity/src/index.ts"
+      ],
+      "@feugene/granularity/components/*": [
+        "../../packages/granularity/src/components/*/index.ts"
+      ],
+      "@feugene/granularity/granular-provider": [
+        "../../packages/granularity/src/granular-provider/index.ts"
+      ],
+      "@feugene/granularity/granular-provider/node": [
+        "../../packages/granularity/src/granular-provider/node.ts"
+      ],
+      "@feugene/unocss-preset-granular": [
+        "../../packages/unocss-preset-granular/src/index.ts"
+      ],
+      "@feugene/unocss-preset-granular/node": [
+        "../../packages/unocss-preset-granular/src/node.ts"
+      ],
+      "@feugene/unocss-preset-granular/contract": [
+        "../../packages/unocss-preset-granular/src/contract/index.ts"
+      ]
+    }
+  },
+  "vueCompilerOptions": {
+    "target": 3.3
+  },
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "vite-env.d.ts",
+    "uno.config.ts",
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,7 @@
+/dist
+/node_modules
+/.idea
+/coverage
+junit-report.xml
+.env
+.eslintcache

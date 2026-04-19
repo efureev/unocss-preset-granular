@@ -1,0 +1,13 @@
+{
+  "name": "@feugene/granular-workspace",
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:granular": "yarn workspace @feugene/unocss-preset-granular build",
+    "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run"
+  }
+}

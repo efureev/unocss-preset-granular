@@ -1,0 +1,14 @@
+.xg-quick {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+
+.xg-quick > :last-child {
+    align-self: flex-start;
+}
+
+/*.xg-quick .text-styled {
+    @apply text-lg font-bold text-red-500;
+}*/

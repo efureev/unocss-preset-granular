@@ -1,0 +1,80 @@
+{
+  "name": "@feugene/unocss-preset-granular",
+  "description": "Universal UnoCSS preset that aggregates component styles, themes and safelist from any number of GranularProvider packages. Framework-agnostic, tree-shake friendly.",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Evgeniy Fureev",
+    "url": "https://github.com/efureev"
+  },
+  "homepage": "https://github.com/efureev/unocss-preset-granular#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/efureev/unocss-preset-granular.git",
+    "directory": "packages/unocss-preset-granular"
+  },
+  "bugs": {
+    "url": "https://github.com/efureev/unocss-preset-granular/issues"
+  },
+  "keywords": [
+    "unocss",
+    "unocss-preset",
+    "granular",
+    "tree-shakeable",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "types": "./dist/types/src/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/src/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/types/src/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./contract": {
+      "types": "./dist/types/src/contract/index.d.ts",
+      "import": "./dist/contract.js",
+      "default": "./dist/contract.js"
+    }
+  },
+  "peerDependencies": {
+    "unocss": "^66.0.0"
+  },
+  "peerDependenciesMeta": {
+    "unocss": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@vitest/coverage-v8": "^4.1.3",
+    "typescript": "^6.0.2",
+    "unocss": "^66.6.8",
+    "vite": "^8.0.7",
+    "vitest": "^4.1.3"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "test": "vitest --config vitest.config.ts",
+    "test:run": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage"
+  }
+}
