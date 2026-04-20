@@ -1,233 +1,111 @@
 # `@feugene/unocss-preset-granular`
 
-A universal UnoCSS preset that aggregates styles, themes and safelist from an
-arbitrary number of **granular providers** (component packages). The preset is
-not aware of any particular UI package — it works purely on top of the public
-`GranularProvider` contract. All decisions about the set of components and
-themes are made by the end application in its `uno.config.ts`.
+A universal UnoCSS preset that aggregates styles, themes and `safelist` from
+any number of **granular providers** (component packages). The preset itself
+is UI‑agnostic — it works on top of the public `GranularProvider` contract.
 
 - **ESM only**, Node ≥ 22, TypeScript strict.
-- Three entries: `.` (browser), `./node` (build‑time FS), `./contract` (types +
-  helpers for provider authors).
-- Transitive `dependencies` are resolved through a single component registry —
-  a composite provider declares only its own classes, the rest are collected
-  automatically.
-- Cross‑provider `dependencies` are supported (`'providerId:Name'` or the
-  object form `{ provider, components }`).
-- Themes are a flat `Record<themeName, cssUrl>` on the provider; the app lists
-  the names it needs. By default one theme — `light` — is enabled.
+- Three entries: `.` (browser), `./node` (build‑time FS),
+  `./contract` (types + helpers for provider authors).
+- Transitive `dependencies` (including cross‑provider) are resolved from a
+  single component registry.
+- Static classes from provider components are picked up by UnoCSS via
+  `content.filesystem` — no duplication in `safelist`.
 
+## Why this preset
 
-## Installation
+- **Ship only the CSS you actually use.** Only styles of explicitly selected
+  components (+ their transitive `dependencies`) get into the final bundle.
+- **Single source of truth.** Static classes live in component templates;
+  no parallel list in app‑level `safelist`.
+- **UI‑agnostic.** Works with any component library that implements the
+  `GranularProvider` contract (Vue, React, Svelte, web components, raw CSS).
+- **Cross‑package dependencies.** One component can depend on another from
+  a different provider — the preset resolves the graph.
+- **Built‑in themes & tokens.** Aggregates CSS variables / theme files from
+  providers with a single `themes.names` switch.
+
+## Results
+
+- Zero manual `safelist` for static component classes.
+- Smaller CSS: no styles of unused components reach the user.
+- Provider upgrades don't require app‑side changes — new component styles
+  are picked up automatically when the component is selected.
+- Consistent theming: same `light`/`dark`/custom themes across providers.
+
+## Use cases
+
+- **Design system as an npm package** — publish components with their own
+  CSS/tokens; apps pull in only what they render.
+- **Monorepo with multiple UI packages** — one app consumes several
+  component libraries, dependencies across them resolved automatically.
+- **White‑label / multi‑tenant apps** — swap themes per tenant without
+  re‑authoring components.
+- **Micro‑frontends** — each MFE picks its own component subset from
+  shared providers; no cross‑team `safelist` coordination.
+- **Incremental migration to UnoCSS** — adopt granular packages one at a
+  time while keeping existing styles intact.
+
+## Quick start
 
 ```bash
-yarn add -D @feugene/unocss-preset-granular unocss
-yarn add -D @feugene/granularity            # or any other granular provider
+yarn add -D @feugene/unocss-preset-granular unocss @unocss/preset-wind4
 ```
-
-A composite provider (e.g. `@feugene/extra-granularity`) must declare
-`peerDependencies` on the donor providers it uses in `dependencies`. The end
-application is responsible for installing all involved providers itself.
-
-## Quick start (node / build‑time)
 
 ```ts
 // uno.config.ts
-import {defineConfig} from 'unocss'
+import { defineConfig } from 'unocss'
 import presetWind4 from '@unocss/preset-wind4'
-import {presetGranularNode} from '@feugene/unocss-preset-granular/node'
-import granularityProvider from '@feugene/granularity/granular-provider/node'
-import extraProvider from '@feugene/extra-granularity/granular-provider/node'
+import { presetGranularNode, granularContent } from '@feugene/unocss-preset-granular/node'
+import simpleProvider from '@feugene/simple-package/granular-provider/node'
+
+const granularOptions = {
+  providers: [simpleProvider],
+  components: [{ provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] }],
+  themes: { names: ['light', 'dark'] },
+  layer: 'granular' as const,
+}
 
 export default defineConfig({
-    presets: [
-        presetWind4(),
-        presetGranularNode({
-            providers: [granularityProvider, extraProvider],
-            components: [
-                '@feugene/extra-granularity:XgQuickForm',
-                {provider: '@feugene/granularity', names: ['DsButton', 'DsInput']},
-            ],
-            themes: {names: ['light', 'dark']},
-            layer: 'granular',
-        }),
-    ],
+  presets: [presetWind4(), presetGranularNode(granularOptions)],
+  content: granularContent(granularOptions), // required — see docs
 })
 ```
 
-### Browser / runtime
+## Documentation
 
-```ts
-// For environments without FS: @unocss/runtime, edge, sandboxes.
-import {presetGranular} from '@feugene/unocss-preset-granular'
-import granularityProvider from '@feugene/granularity/granular-provider'
+Full documentation lives in [`./docs`](./docs) — in **English** and **Russian**.
 
-presetGranular({
-    providers: [granularityProvider],
-    components: [{provider: '@feugene/granularity', names: ['DsButton']}],
-    // CSS files must be preloaded beforehand or passed via `preflights`.
-})
-```
+🇬🇧 **English** — [`./docs/en/README.md`](./docs/en/README.md)
 
-### Options
+- [Getting started](./docs/en/getting-started.md)
+- [Usage in applications](./docs/en/usage-in-apps.md)
+- [Authoring provider packages](./docs/en/authoring-providers.md)
+- [Component scanning (`content.filesystem`)](./docs/en/component-scanning.md)
+- [Themes and tokens](./docs/en/themes-and-tokens.md)
+- [Architecture](./docs/en/architecture.md)
+- [Troubleshooting & recipes](./docs/en/troubleshooting.md)
 
-| Option                                  | Purpose                                                                         |
-|-----------------------------------------|---------------------------------------------------------------------------------|
-| `providers`                             | Array of `GranularProvider` (required)                                          |
-| `components`                            | `'all'` or an array of selectors — `'providerId:Name'` or `{ provider, names }` |
-| `themes.names`                          | Theme names. Defaults to `['light']`. Empty array — no themes                   |
-| `themes.baseFile` / `themes.tokensFile` | Override `base.css` / `tokens.css` (globally or by `providerId`)                |
-| `layer`                                 | UnoCSS layer for preflights that don't have one of their own                    |
-| `preflights`                            | Extra inline preflights from the application                                    |
-| `includeProviderUnocss`                 | Disable `provider.unocss.*` (default `true`)                                    |
+🇷🇺 **Русский** — [`./docs/ru/README.md`](./docs/ru/README.md)
 
-## For provider authors
+- [Быстрый старт](./docs/ru/getting-started.md)
+- [Использование в приложениях](./docs/ru/usage-in-apps.md)
+- [Написание пакетов‑провайдеров](./docs/ru/authoring-providers.md)
+- [Сканирование компонентов (`content.filesystem`)](./docs/ru/component-scanning.md)
+- [Темы и токены](./docs/ru/themes-and-tokens.md)
+- [Архитектура](./docs/ru/architecture.md)
+- [Рецепты и отладка](./docs/ru/troubleshooting.md)
 
-```ts
-// packages/<your-package>/src/components/Button/config.ts
-import {defineGranularComponent} from '@feugene/unocss-preset-granular/contract'
+## Reference packages in this monorepo
 
-export const buttonConfig = defineGranularComponent(import.meta.url, {
-    name: 'MyButton',
-    safelist: ['my-button', 'my-button--primary'],
-    cssFiles: ['./styles.css'],
-    dependencies: [
-        // short form — a component from THIS same provider:
-        // 'MyIcon',
-        // cross-provider:
-        // '@feugene/granularity:DsIcon',
-        // object form:
-        // { provider: '@feugene/granularity', components: ['DsIcon', 'DsLabel'] },
-    ],
-})
-```
-
-```ts
-// packages/<your-package>/src/granular-provider/index.ts
-import {defineGranularProvider} from '@feugene/unocss-preset-granular/contract'
-import {buttonConfig} from '../components/Button/config'
-
-export default defineGranularProvider({
-    id: '@your-scope/your-package',
-    contractVersion: 1,
-    // URL of the package assets root. For stable behavior in dev (src/) and
-    // dist/chunks — do not use `new URL('..', import.meta.url)`: this literal
-    // expression is replaced with a data: URL by rolldown at build time.
-    // Use runtime concatenation instead:
-    packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-    components: [buttonConfig],
-    theme: {
-        baseCssUrl: new URL('../styles/base.css', import.meta.url).href,
-        tokensCssUrl: new URL('../styles/tokens.css', import.meta.url).href,
-        themes: {
-            light: new URL('../styles/themes/light.css', import.meta.url).href,
-            dark: new URL('../styles/themes/dark.css', import.meta.url).href,
-        },
-    },
-    unocss: {
-        // Custom rules/variants/preflights, if the package components need them.
-    },
-})
-```
-
-Rules:
-
-- `safelist` — **only the component's own** classes. Transitive classes are
-  collected by the core automatically via the `dependencies` graph.
-- If a component uses primitives from another provider — list them in
-  `dependencies` (qualified form). The donor must be listed in the
-  `peerDependencies` of your package.
-- `packageBaseUrl` must point to the package **directory**, not to a specific
-  module. The node layer needs this for `src/ ↔ dist/` fallback.
-
-### Node helpers: `tokenDefinitions` from a CSS file
-
-If a provider already ships themes as plain CSS files (`:root { --brd: ... }`),
-it can upgrade from Level 1 (file) to Level 2 (structural tokens) with a single
-call in its **node entry**. This enables app‑side `tokenOverrides` /
-`strictTokens` without hand‑duplicating the values.
-
-```ts
-// packages/<your-package>/src/granular-provider/node.ts
-import {defineGranularProvider} from '@feugene/unocss-preset-granular/contract'
-import {tokenDefinitionsFromCssSync} from '@feugene/unocss-preset-granular/node'
-
-const lightUrl = new URL('../styles/themes/light.css', import.meta.url).href
-const darkUrl  = new URL('../styles/themes/dark.css',  import.meta.url).href
-
-export default defineGranularProvider({
-    id: '@your-scope/your-package',
-    contractVersion: 1,
-    packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-    components: [/* ... */],
-    theme: {
-        baseCssUrl: new URL('../styles/base.css', import.meta.url).href,
-        tokenDefinitions: {
-            light: tokenDefinitionsFromCssSync(lightUrl, {selector: ':root'}),
-            // pull values out of `:root` but emit them under `.dark`:
-            dark:  tokenDefinitionsFromCssSync(darkUrl,  {selector: ':root', as: '.dark'}),
-        },
-        defaultThemes: ['light'],
-    },
-})
-```
-
-API (exported from `@feugene/unocss-preset-granular/node`):
-
-| Export                                 | Purpose                                                                 |
-|----------------------------------------|-------------------------------------------------------------------------|
-| `tokenDefinitionsFromCss`              | async; returns `{ selector, tokens }` ready for `tokenDefinitions[x]`   |
-| `tokenDefinitionsFromCssSync`          | sync variant, usable at module top level                                |
-| `parseCssCustomPropertyBlocks[Sync]`   | low‑level: all blocks with `--foo: bar;` from a file / data URL / CSS   |
-
-Options (`TokenDefinitionsFromCssOptions`):
-
-- `selector` — which block to pick, default `:root`.
-- `as` — rewrite the selector in the result (e.g. `:root` → `.dark`).
-- `strict` — default `true`: throw if the selector is missing / no custom
-  properties are found. Set to `false` to fall back to the first block.
-
-Accepted sources: absolute path, `file://` URL, `data:text/css,...`.
-
-Caveats:
-
-- Node only. Do **not** import these helpers from your browser entry
-  (`granular-provider/index.ts`) — they use `node:fs`.
-- The parser is intentionally lightweight (regex over a stripped‑comments
-  stream). For files with `@media` / nesting / non‑trivial grammar prefer
-  `postcss` in your own provider code — the return shape is the same.
-
-## Migration from `presetGranularity*` in `@feugene/granularity`
-
-The old exports `presetGranularity` / `presetGranularityNode` /
-`resolvePresetGranularity*` / `createGranularityCssPreflight*` /
-`granularitySafelist` / `granularityThemeUrls` from `@feugene/granularity` have
-been **removed** (breaking change, major bump of `@feugene/granularity`). There
-are no deprecated shims. The migration is one‑shot.
-
-Rough replacement:
-
-```diff
-- import { presetGranularityNode } from '@feugene/granularity/uno-node'
-+ import { presetGranularNode } from '@feugene/unocss-preset-granular/node'
-+ import granularityProvider from '@feugene/granularity/granular-provider/node'
-
-  presetGranularityNode({
-    components: ['DsButton'],
-    themes: ['light', 'dark'],
-    layer: 'granularity',
-  })
-+ presetGranularNode({
-+   providers: [granularityProvider],
-+   components: [{ provider: '@feugene/granularity', names: ['DsButton'] }],
-+   themes: { names: ['light', 'dark'] },
-+   layer: 'granular',
-+ })
-```
-
-Browser variant — analogous, via `@feugene/unocss-preset-granular` +
-`@feugene/granularity/granular-provider`.
+- [`packages/unocss-preset-granular`](./packages/unocss-preset-granular) — the preset itself.
+- [`packages/simple-package`](./packages/simple-package) and
+  [`packages/extra-simple-package`](./packages/extra-simple-package) — two
+  reference granular providers (the extra one declares cross‑provider
+  `dependencies` on the simple one).
+- [`apps/app-3`](./apps/app-3) — a demo app that consumes both providers
+  through the preset.
 
 ## License
 
-See [LICENSE](../../LICENSE).
+See [LICENSE](./LICENSE).
