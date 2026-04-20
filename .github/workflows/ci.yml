@@ -48,7 +48,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build package
-        run: yarn build:unocss-preset-granular
+        run: yarn build:granular
 
       - name: Validate package metadata (publint)
         working-directory: packages/unocss-preset-granular
