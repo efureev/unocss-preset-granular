@@ -29,7 +29,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Test package
-        run: yarn test:unocss-preset-granular
+        run: yarn test:granular
 
   # Сборка @feugene/unocss-preset-granular. Артефакт используется
   # для валидации (publint) и публикации по тегу `v*`.
