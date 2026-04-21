@@ -23,19 +23,22 @@ which components and themes to pull in; providers declare what they ship.
 
 1. [Getting started](./getting-started.md) — install, minimal `uno.config.ts`,
    first render.
-2. [Usage in applications](./usage-in-apps.md) — full options reference,
+2. [Installation & wiring](./installation.md) — which `package.json`
+   section (`dependencies` / `devDependencies` / `peerDependencies`) to
+   use for the preset in applications and in provider packages.
+3. [Usage in applications](./usage-in-apps.md) — full options reference,
    selecting components, themes, overrides, `granularContent` helper.
-3. [Authoring provider packages](./authoring-providers.md) — component
+4. [Authoring provider packages](./authoring-providers.md) — component
    `config.ts`, provider `index.ts`, `packageBaseUrl` gotchas,
    `chunkFileNames` recipe for Vite‑built packages.
-4. [Component scanning (`content.filesystem`)](./component-scanning.md) — how
+5. [Component scanning (`content.filesystem`)](./component-scanning.md) — how
    the preset discovers classes like `p-5` inside a provider component
    without `safelist`.
-5. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
+6. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
-6. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
+7. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
    build‑time), resolution pipeline, layers, preflights.
-7. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
+8. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
    arbitrary values, monorepo dev, HMR, `@apply` inside preflight CSS.
 
 ## What this preset does, in one paragraph

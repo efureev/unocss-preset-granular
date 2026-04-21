@@ -24,19 +24,22 @@
 
 1. [Быстрый старт](./getting-started.md) — установка, минимальный
    `uno.config.ts`, первый рендер.
-2. [Использование в приложениях](./usage-in-apps.md) — полный справочник
+2. [Установка и подключение](./installation.md) — в какие секции
+   `package.json` (`dependencies` / `devDependencies` /
+   `peerDependencies`) класть пресет в приложениях и в пакетах‑провайдерах.
+3. [Использование в приложениях](./usage-in-apps.md) — полный справочник
    опций, выбор компонентов, темы, оверрайды, хелпер `granularContent`.
-3. [Написание пакетов‑провайдеров](./authoring-providers.md) — `config.ts`
+4. [Написание пакетов‑провайдеров](./authoring-providers.md) — `config.ts`
    компонента, `index.ts` провайдера, нюансы `packageBaseUrl`, рецепт
    `chunkFileNames` для Vite‑сборки.
-4. [Сканирование компонентов (`content.filesystem`)](./component-scanning.md) —
+5. [Сканирование компонентов (`content.filesystem`)](./component-scanning.md) —
    как пресет находит классы вроде `p-5` внутри компонента провайдера
    **без** `safelist`.
-5. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
+6. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
-6. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
+7. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
    build‑time), пайплайн резолвинга, layers, preflights.
-7. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
+8. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
    values, dev в монорепо, HMR, `@apply` внутри preflight‑CSS.
 
 ## Что делает пресет, в одном абзаце
