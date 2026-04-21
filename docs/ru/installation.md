@@ -67,6 +67,14 @@
 
 Все детали `uno.config.ts` и `vite.config.ts` — см. [Быстрый старт](./getting-started.md).
 
+> ℹ️ Приложению **не нужно** повторять рецепт `output.chunkFileNames` из
+> `vite.config.ts` пакетов‑провайдеров. Он применяется только при
+> **сборке самого пакета‑провайдера**, чтобы SFC‑чанки компонентов
+> попадали в `dist/components/<Name>/chunks/` и были видны сканеру
+> UnoCSS. Приложение потребляет уже собранный `dist/` и никакой своей
+> настройки `chunkFileNames` не требует — см.
+> [authoring-providers.md → Рецепт Vite‑сборки](./authoring-providers.md#рецепт-vite-сборки--chunkfilenames).
+
 ---
 
 ## 2. Подключение к пакету‑провайдеру
@@ -113,6 +121,13 @@
 - `dependencies` — **не используем** для пресета. Это приведёт к тому,
   что npm/yarn поставят его физически внутри `node_modules` пакета, и
   приложение получит другую копию пресета, отличную от своей.
+
+> 🛠 При сборке **пакета‑провайдера** пресет предоставляет хелпер
+> `granularChunkFileNames` из subpath
+> `@feugene/unocss-preset-granular/vite` — используйте его в
+> `vite.config.ts` провайдера вместо копирования inline‑функции
+> `output.chunkFileNames`. Подробности и опции — в
+> [authoring-providers.md → Рецепт Vite‑сборки](./authoring-providers.md#рецепт-vite-сборки--chunkfilenames).
 
 ### 2.2. Провайдер‑композит (зависит от другого провайдера)
 

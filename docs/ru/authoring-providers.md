@@ -5,7 +5,9 @@
 Приложение подхватывает его через `uno.config.ts` и тянет только те
 компоненты/темы, которые реально использует.
 
-> См. также: [Архитектура](./architecture.md),
+> См. также: [Правила создания компонента](./component-authoring.md) —
+> единый свод правил по созданию **одного** компонента внутри пакета‑провайдера,
+> [Архитектура](./architecture.md),
 > [Сканирование компонентов](./component-scanning.md).
 
 ## Раскладка пакета
@@ -161,19 +163,26 @@ export default defineGranularProvider({
 
 ## Рецепт Vite‑сборки — `chunkFileNames`
 
+> ⚠️ **Относится только к пакетам‑провайдерам**, не к конечным приложениям.
+> Приложения потребляют уже собранный `dist/` пакета и никакой собственной
+> настройки `chunkFileNames` не требуют.
+
 **Критически важно** для библиотек, которые поставляют компоненты как Vue
-SFC и хотят быть scannable. По умолчанию `rollup-plugin-vue` выкладывает
+SFC и хотят быть scannable. По умолчанию `@vitejs/plugin-vue` выкладывает
 SFC‑чанки в плоский `dist/chunks/`, который находится вне scan‑директории
 компонента. Scan globs пресета смотрят в директорию компонента — и реальные
 классы (`p-5`) до итогового CSS не доходят.
 
-Решение — маршрутизировать **SFC‑чанки в папку компонента**:
+Решение — маршрутизировать **SFC‑чанки в папку компонента**. Логика
+одинакова для всех провайдеров, поэтому пресет экспортирует готовый
+хелпер `granularChunkFileNames` из subpath `./vite`:
 
 ```ts
 // packages/<your-package>/vite.config.ts
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
+import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -188,19 +197,13 @@ export default defineConfig({
       },
       formats: ['es'],
     },
-    rollupOptions: {
+    rollupOptions: { // или rolldownOptions, если Vite использует rolldown
       external: ['vue', /^@feugene\//],
       output: {
         entryFileNames: '[name].js',
-        // SFC‑чанки — внутрь папки компонента:
-        chunkFileNames: (info) => {
-          const m = [...info.moduleIds].find(id => id.endsWith('.vue'))
-          if (m) {
-            const name = m.split('/src/components/')[1]?.split('/')[0]
-            if (name) return `components/${name}/chunks/[name]-[hash].js`
-          }
-          return 'chunks/[name]-[hash].js'
-        },
+        // SFC‑чанки компонентов → `components/<Name>/chunks/`,
+        // остальное остаётся во flat `chunks/`.
+        chunkFileNames: granularChunkFileNames(),
       },
     },
   },
@@ -209,6 +212,30 @@ export default defineConfig({
 
 Без этого `dist/components/MyButton/index.js` — лишь re‑export, а реальный
 шаблон (с `class="p-5"`) — в `dist/chunks/*.js` за пределами scan‑директории.
+
+### Опции `granularChunkFileNames`
+
+Хелпер — чистая функция, без зависимостей на Vite/rolldown/node, и по
+умолчанию рассчитан на стандартную раскладку
+`src/components/<Name>/<Name>.vue`. Если ваша раскладка отличается,
+можно переопределить:
+
+```ts
+granularChunkFileNames({
+  // regex, ловящий id модулей, относящихся к компоненту; группа 1 —
+  // имя директории компонента
+  componentModuleRegex: /\/src\/ui\/([^/]+)\/[^/]+\.vue(?:$|\?)/,
+  // паттерн для component‑чанков; `<name>` подменяется на имя папки
+  componentChunkPattern: 'ui/<name>/chunks/[name]-[hash].js',
+  // паттерн для всех остальных (shared) чанков
+  fallbackChunkPattern: 'chunks/[name]-[hash].js',
+})
+```
+
+⚠️ Не кладите сюда non‑component чанки (например, `granular-provider` или
+общие config‑чанки) — если они «уедут» в папку компонента, сломается
+runtime‑резолв `packageBaseUrl`. Хелпер триггерит перенос **только** если
+в модулях чанка есть `*.vue` файл конкретного компонента.
 
 ## Правила (сводка)
 

@@ -6,7 +6,10 @@ A **granular provider** is a regular npm package that exposes a
 it up through its `uno.config.ts` and pulls in only the components / themes it
 actually uses.
 
-> See also: [Architecture](./architecture.md),
+> See also: [Component authoring rules](./component-authoring.md) —
+> single consolidated guide for authoring **one** component inside a
+> provider package,
+> [Architecture](./architecture.md),
 > [Component scanning](./component-scanning.md).
 
 ## Package layout
@@ -163,19 +166,26 @@ For the optional node entry (`granular-provider/node.ts`) see
 
 ## Vite build recipe — `chunkFileNames`
 
+> ⚠️ **Applies to provider packages only**, not to end applications. End
+> apps consume the provider's prebuilt `dist/` and do **not** need any
+> `chunkFileNames` configuration of their own.
+
 This is **critical** for libraries that ship components as Vue SFCs and want
-them to be scannable by the preset. By default Vite's `rollup-plugin-vue`
-emits SFC chunks into a flat `dist/chunks/` folder, far from the component's
+them to be scannable by the preset. By default `@vitejs/plugin-vue` emits
+SFC chunks into a flat `dist/chunks/` folder, far from the component's
 declared dir. The preset's scan globs point at the component dir, so those
 chunks don't get scanned — and classes like `p-5` never reach the final CSS.
 
-The fix is to route **SFC chunks into the component's own sub‑folder**:
+The fix is to route **SFC chunks into the component's own sub‑folder**. The
+logic is identical for every provider, so the preset ships a ready‑made
+helper `granularChunkFileNames` under the `./vite` subpath:
 
 ```ts
 // packages/<your-package>/vite.config.ts
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
+import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -190,19 +200,13 @@ export default defineConfig({
       },
       formats: ['es'],
     },
-    rollupOptions: {
+    rollupOptions: { // or rolldownOptions if Vite uses rolldown
       external: ['vue', /^@feugene\//],
       output: {
         entryFileNames: '[name].js',
-        // Route SFC chunks into the component's folder:
-        chunkFileNames: (info) => {
-          const m = [...info.moduleIds].find(id => id.endsWith('.vue'))
-          if (m) {
-            const name = m.split('/src/components/')[1]?.split('/')[0]
-            if (name) return `components/${name}/chunks/[name]-[hash].js`
-          }
-          return 'chunks/[name]-[hash].js'
-        },
+        // Component SFC chunks → `components/<Name>/chunks/`,
+        // everything else stays in flat `chunks/`.
+        chunkFileNames: granularChunkFileNames(),
       },
     },
   },
@@ -213,6 +217,28 @@ Why it matters: without this, `dist/components/MyButton/index.js` is only a
 re‑export; the real template markup (with `class="p-5"` literals) lives in
 `dist/chunks/*.js`. Moving SFC chunks into `components/<Name>/chunks/` keeps
 them inside the scan directory of the selected component.
+
+### `granularChunkFileNames` options
+
+The helper is a pure function (no Vite/rolldown/node deps) and defaults to
+the standard `src/components/<Name>/<Name>.vue` layout. Override only if
+your layout differs:
+
+```ts
+granularChunkFileNames({
+  // regex capturing the component directory name in group 1
+  componentModuleRegex: /\/src\/ui\/([^/]+)\/[^/]+\.vue(?:$|\?)/,
+  // pattern for component chunks; `<name>` is substituted
+  componentChunkPattern: 'ui/<name>/chunks/[name]-[hash].js',
+  // pattern for all non‑component (shared) chunks
+  fallbackChunkPattern: 'chunks/[name]-[hash].js',
+})
+```
+
+⚠️ Don't let non‑component chunks (like `granular-provider` or shared
+config chunks) land in a component folder — doing so breaks runtime
+`packageBaseUrl` resolution. The helper only triggers the rewrite when a
+chunk's module set actually contains a component's `*.vue` file.
 
 ## Rules recap
 

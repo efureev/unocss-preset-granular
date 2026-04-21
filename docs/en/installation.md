@@ -69,6 +69,15 @@ Why `devDependencies`, not `dependencies`:
 For full `uno.config.ts` / `vite.config.ts` wiring see
 [Getting started](./getting-started.md).
 
+> ℹ️ An application does **not** need to replicate the
+> `output.chunkFileNames` recipe from a provider's `vite.config.ts`.
+> That rewrite applies only while **building the provider package**
+> itself, so SFC chunks end up under `dist/components/<Name>/chunks/`
+> and become visible to the UnoCSS scanner. Applications consume the
+> prebuilt `dist/` and need no `chunkFileNames` configuration of their
+> own — see
+> [authoring-providers.md → Vite build recipe](./authoring-providers.md#vite-build-recipe--chunkfilenames).
+
 ---
 
 ## 2. Wiring into a provider package
@@ -116,6 +125,13 @@ Key points:
   would install the preset physically inside the provider's own
   `node_modules`, and the application would get a second copy that
   differs from its own.
+
+> 🛠 When building a **provider package** the preset ships a helper
+> `granularChunkFileNames` under
+> `@feugene/unocss-preset-granular/vite`. Use it in the provider's
+> `vite.config.ts` instead of copy‑pasting an inline
+> `output.chunkFileNames` function. Details and options are in
+> [authoring-providers.md → Vite build recipe](./authoring-providers.md#vite-build-recipe--chunkfilenames).
 
 ### 2.2. Composite provider (depends on another provider)
 

@@ -1,7 +1,7 @@
 {
   "name": "@feugene/unocss-preset-granular",
   "description": "Universal UnoCSS preset that aggregates component styles, themes and safelist from any number of GranularProvider packages. Framework-agnostic, tree-shake friendly.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "SEE LICENSE IN LICENSE",
   "author": {
     "name": "Evgeniy Fureev",
@@ -53,6 +53,11 @@
       "types": "./dist/types/src/contract/index.d.ts",
       "import": "./dist/contract.js",
       "default": "./dist/contract.js"
+    },
+    "./vite": {
+      "types": "./dist/types/src/vite.d.ts",
+      "import": "./dist/vite.js",
+      "default": "./dist/vite.js"
     }
   },
   "peerDependencies": {

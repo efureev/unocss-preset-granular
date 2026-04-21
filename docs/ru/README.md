@@ -32,14 +32,18 @@
 4. [Написание пакетов‑провайдеров](./authoring-providers.md) — `config.ts`
    компонента, `index.ts` провайдера, нюансы `packageBaseUrl`, рецепт
    `chunkFileNames` для Vite‑сборки.
-5. [Сканирование компонентов (`content.filesystem`)](./component-scanning.md) —
+5. [Правила создания компонента](./component-authoring.md) — единый свод
+   правил: раскладка папки, `defineGranularComponent`, шаблон `.vue`,
+   `index.ts`, регистрация в провайдере, `exports` / `vite.config.ts`,
+   чек‑лист перед релизом.
+6. [Сканирование компонентов (`content.filesystem`)](./component-scanning.md) —
    как пресет находит классы вроде `p-5` внутри компонента провайдера
    **без** `safelist`.
-6. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
+7. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
-7. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
+8. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
    build‑time), пайплайн резолвинга, layers, preflights.
-8. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
+9. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
    values, dev в монорепо, HMR, `@apply` внутри preflight‑CSS.
 
 ## Что делает пресет, в одном абзаце

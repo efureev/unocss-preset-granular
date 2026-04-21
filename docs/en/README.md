@@ -31,14 +31,18 @@ which components and themes to pull in; providers declare what they ship.
 4. [Authoring provider packages](./authoring-providers.md) — component
    `config.ts`, provider `index.ts`, `packageBaseUrl` gotchas,
    `chunkFileNames` recipe for Vite‑built packages.
-5. [Component scanning (`content.filesystem`)](./component-scanning.md) — how
+5. [Component authoring rules](./component-authoring.md) — single
+   consolidated guide: folder layout, `defineGranularComponent`, `.vue`
+   template, `index.ts`, provider wiring, `exports` / `vite.config.ts`,
+   pre‑release checklist.
+6. [Component scanning (`content.filesystem`)](./component-scanning.md) — how
    the preset discovers classes like `p-5` inside a provider component
    without `safelist`.
-6. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
+7. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
-7. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
+8. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
    build‑time), resolution pipeline, layers, preflights.
-8. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
+9. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
    arbitrary values, monorepo dev, HMR, `@apply` inside preflight CSS.
 
 ## What this preset does, in one paragraph

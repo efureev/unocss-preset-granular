@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [vue()],
@@ -38,20 +39,12 @@ export default defineConfig({
          * чтобы UnoCSS мог просканировать исходники конкретного компонента
          * (через авто‑`content.filesystem` `presetGranularNode`) и вытащить
          * утилитарные классы из шаблона (`p-5` и т.п.) — не трогая чужие
-         * компоненты пакета.
+         * компоненты пакета. Логика вынесена в хелпер `granularChunkFileNames`
+         * пакета‑пресета (переносятся только чанки, содержащие `*.vue`
+         * компонента; `granular-provider`/config‑чанки остаются во flat
+         * `chunks/`, иначе сломается `packageBaseUrl`).
          */
-        chunkFileNames: (chunkInfo: { moduleIds?: readonly string[], name?: string }) => {
-          // Триггерим перенос ТОЛЬКО для чанков, в модулях которых есть SFC
-          // (`*.vue`) конкретного компонента. Иначе granular-provider / config-чанк
-          // случайно переместился бы вместе с ним и сломал бы `packageBaseUrl`.
-          const ids = chunkInfo.moduleIds ?? []
-          for (const id of ids) {
-            const m = id.match(/\/src\/components\/([^/]+)\/[^/]+\.vue(?:$|\?)/)
-            if (m)
-              return `components/${m[1]}/chunks/[name]-[hash].js`
-          }
-          return 'chunks/[name]-[hash].js'
-        },
+        chunkFileNames: granularChunkFileNames(),
         assetFileNames: (assetInfo) => {
           // Vite names the combined library CSS after the package ("extra-granularity.css").
           // Rename it to match the package.json export `./components/XgQuickForm/styles.css`.

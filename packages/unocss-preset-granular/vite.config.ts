@@ -62,6 +62,7 @@ export default defineConfig({
         index: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
         node: fileURLToPath(new URL('./src/node.ts', import.meta.url)),
         contract: fileURLToPath(new URL('./src/contract/index.ts', import.meta.url)),
+        vite: fileURLToPath(new URL('./src/vite.ts', import.meta.url)),
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`,
