@@ -5,3 +5,4 @@
 junit-report.xml
 .env
 .eslintcache
+.DS_Store
