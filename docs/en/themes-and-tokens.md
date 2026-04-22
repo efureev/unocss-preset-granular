@@ -11,9 +11,17 @@ The preset has a simple, layered model for theming:
    semantics‑neutral (e.g. `--font-sans`, `--radius-md`).
 3. **`themes[themeName]`** — per‑theme CSS (e.g. `light.css`, `dark.css`).
    The app selects by name.
-4. **`tokenDefinitions`** (node only, optional) — structural tokens parsed
-   out of the theme CSS so UnoCSS can support `tokenOverrides` /
-   `strictTokens` without value duplication.
+4. **`provider.theme.tokenDefinitions`** (node only, optional) — structural
+   tokens parsed out of the theme CSS at the package level; enables
+   `tokenOverrides` / `strictTokens` without value duplication.
+5. **`component.tokenDefinitions`** (optional, see
+   [component-authoring.md](./component-authoring.md#7-component-level-theme-tokens-tokendefinitions))
+   — same shape, but scoped to a single component. Merged on top of the
+   provider layer in `resolveSelection` order (post‑order DFS); emitted
+   only for active themes (intersection with `themes.names`).
+6. **`themes.tokenOverrides`** (app, optional) — final app‑side
+   overrides. **Highest priority** — beats anything from
+   providers/components and may add brand‑new tokens.
 
 Themes are expressed as a flat map `Record<themeName, cssUrl>` on the
 provider. The app just lists the names it wants:
@@ -45,6 +53,53 @@ export default defineGranularProvider({
   },
 })
 ```
+
+## Component layer: `component.tokenDefinitions`
+
+Any component declared with `defineGranularComponent(...)` can publish
+its own CSS theme tokens — without leaking them into the package‑wide
+token set.
+
+```ts
+// src/components/XTokenized/config.ts
+defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitions: {
+    light: { selector: ':root', tokens: { '--x-tokenized': '#2563eb' } },
+    dark:  { selector: '.dark', tokens: { '--x-tokenized': '#93c5fd' } },
+  },
+})
+```
+
+The preset walks the selected components in `resolveSelection`
+(post‑order DFS) and merges their `tokenDefinitions` on top of the
+provider layer. **Only active themes ship** to the final CSS (those
+listed in `themes.names`). A component can also **create a theme from
+scratch** when no provider declares it (the app lists the theme in
+`themes.names`, no provider declares it — the component provides the
+block).
+
+Full list of use cases (single‑theme filtering, multi‑theme, overriding
+a provider token, `strictTokens` behavior) is in
+[component-authoring.md §7](./component-authoring.md#7-component-level-theme-tokens-tokendefinitions).
+
+## Priority chain
+
+When merging tokens for a concrete `(theme, selector, token)` triple,
+the highest layer wins:
+
+```
+provider.theme.tokenDefinitions        (lowest)
+  → component.tokenDefinitions         (in resolveSelection order)
+    → themes.tokenOverrides (app)      (highest)
+```
+
+- Components can override providers.
+- App‑level `tokenOverrides` override both providers and components,
+  and can add brand‑new tokens not declared below.
+- Under `strictTokens`, tokens declared by a **component** are also
+  treated as “known”: `tokenOverrides` for such tokens pass without a
+  warning.
 
 ## App‑side overrides
 

@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineGranularProvider } from '../contract'
+import { defineGranularComponent, defineGranularProvider } from '../contract'
 import { tokenDefinitionsFromCssSync } from '../node-utils/tokenDefinitionsFromCss'
 import { getGranularNodeCss } from '../preset.node'
-import * as fsRead from '../fs/readCss'
 
 vi.mock('../fs/readCss', async () => {
   const actual = await vi.importActual<any>('../fs/readCss')
@@ -41,14 +40,14 @@ const providerS = defineGranularProvider({
     tokenDefinitions: {
       light: {
         selector: ':root',
-        tokens: { 'primary': 'blue' },
+        tokens: { primary: 'blue' },
       },
     },
   },
 })
 
 describe('getGranularNodeCss overrides', () => {
-  it('Level 1: themeFiles override (full replace)', async () => {
+  it('level 1: themeFiles override (full replace)', async () => {
     const css = await getGranularNodeCss({
       providers: [providerA],
       themes: {
@@ -65,14 +64,14 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).not.toContain('/* content of /a/light.css */')
   })
 
-  it('Level 1: themeFiles override per provider', async () => {
+  it('level 1: themeFiles override per provider', async () => {
     const css = await getGranularNodeCss({
       providers: [providerA],
       themes: {
         names: ['light'],
         themeFiles: {
           light: {
-            'a': 'data:text/css,.override-a{color:red}',
+            a: 'data:text/css,.override-a{color:red}',
           },
         },
       },
@@ -80,7 +79,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('.override-a{color:red}')
   })
 
-  it('Level 2: tokenDefinitions emission', async () => {
+  it('level 2: tokenDefinitions emission', async () => {
     const css = await getGranularNodeCss({
       providers: [providerS],
       themes: { names: ['light'] },
@@ -88,13 +87,13 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain(':root {\n  --primary: blue;\n}')
   })
 
-  it('Level 2: tokenOverrides merging', async () => {
+  it('level 2: tokenOverrides merging', async () => {
     const css = await getGranularNodeCss({
       providers: [providerS],
       themes: {
         names: ['light'],
         tokenOverrides: {
-          light: { 'primary': 'green', 'secondary': 'yellow' },
+          light: { primary: 'green', secondary: 'yellow' },
         },
       },
     })
@@ -102,7 +101,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('--secondary: yellow;')
   })
 
-  it('Level 2: strictTokens mode', async () => {
+  it('level 2: strictTokens mode', async () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const css = await getGranularNodeCss({
       providers: [providerS],
@@ -119,7 +118,7 @@ describe('getGranularNodeCss overrides', () => {
     spy.mockRestore()
   })
 
-  it('Mixed mode: some providers with Definitions, some with Files', async () => {
+  it('mixed mode: some providers with Definitions, some with Files', async () => {
     const css = await getGranularNodeCss({
       providers: [providerS, providerA],
       themes: { names: ['light'] },
@@ -130,7 +129,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('/* content of /a/light.css */')
   })
 
-  it('Level 2: compound selector (dark.css style) lands into the "dark" theme', async () => {
+  it('level 2: compound selector (dark.css style) lands into the "dark" theme', async () => {
     // Реальный CSS из packages/simple-package/src/styles/themes/dark.css
     const darkCss = `
 .theme-dark,
@@ -173,16 +172,16 @@ describe('getGranularNodeCss overrides', () => {
 
     // Токены dark попали именно под dark-селектор, а не в :root.
     expect(css).toContain('.dark, [data-theme="dark"] {')
-    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--card: #1e293b;[^}]*\}/s)
-    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--card-fg: #f8fafc;[^}]*\}/s)
-    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--brd: #334155;[^}]*\}/s)
+    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--card: #1e293b;[^}]*\}/)
+    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--card-fg: #f8fafc;[^}]*\}/)
+    expect(css).toMatch(/\.dark, \[data-theme="dark"\] \{[^}]*--brd: #334155;[^}]*\}/)
 
     // Светлая тема — отдельным блоком на :root, и токены dark туда не утекли.
-    expect(css).toMatch(/:root \{[^}]*--brd: #e2e8f0;[^}]*\}/s)
-    expect(css).not.toMatch(/:root \{[^}]*--card: #1e293b[^}]*\}/s)
+    expect(css).toMatch(/:root \{[^}]*--brd: #e2e8f0;[^}]*\}/)
+    expect(css).not.toMatch(/:root \{[^}]*--card: #1e293b[^}]*\}/)
   })
 
-  it('Level 2: tokenOverrides поверх compound-selector темы', async () => {
+  it('level 2: tokenOverrides поверх compound-selector темы', async () => {
     const darkCss = `
 .theme-dark, .dark, [data-theme='dark'] {
     --brd: #334155;
@@ -209,8 +208,118 @@ describe('getGranularNodeCss overrides', () => {
       },
     })
 
-    expect(css).toMatch(/\.dark \{[^}]*--brd: red;[^}]*\}/s)
+    expect(css).toMatch(/\.dark \{[^}]*--brd: red;[^}]*\}/)
     expect(css).not.toContain('--brd: #334155;')
+  })
+
+  it('priority chain: provider → component → tokenOverrides (highest)', async () => {
+    const componentTokenized = defineGranularComponent('file:///s/components/XTokenized/', {
+      name: 'XTokenized',
+      safelist: [],
+      tokenDefinitions: {
+        light: {
+          tokens: {
+            // Переопределяет значение провайдера
+            'primary': 'green',
+            // Новый токен, провайдер не знает
+            'x-tokenized': 'red',
+          },
+        },
+      },
+    })
+
+    const providerWithComp = defineGranularProvider({
+      id: 's',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///s/',
+      components: [componentTokenized],
+      theme: {
+        tokenDefinitions: {
+          light: {
+            selector: ':root',
+            // Провайдер определяет 'primary' и 'accent'
+            tokens: { primary: 'blue', accent: 'purple' },
+          },
+        },
+      },
+    })
+
+    const css = await getGranularNodeCss({
+      providers: [providerWithComp],
+      themes: {
+        names: ['light'],
+        // Приложение имеет наивысший приоритет:
+        //  - перебивает значение, пришедшее от компонента ('x-tokenized')
+        //  - перебивает значение, пришедшее от провайдера ('accent')
+        //  - добавляет новый токен ('app-only')
+        tokenOverrides: {
+          light: {
+            'x-tokenized': 'orange',
+            'accent': 'pink',
+            'app-only': 'cyan',
+          },
+        },
+      },
+    })
+
+    // 1. Компонент перебил провайдера: primary = green (не blue).
+    expect(css).toMatch(/:root \{[^}]*--primary: green;[^}]*\}/)
+    expect(css).not.toMatch(/--primary: blue;/)
+
+    // 2. Приложение перебило компонент: x-tokenized = orange (не red).
+    expect(css).toMatch(/--x-tokenized: orange;/)
+    expect(css).not.toMatch(/--x-tokenized: red;/)
+
+    // 3. Приложение перебило провайдера: accent = pink (не purple).
+    expect(css).toMatch(/--accent: pink;/)
+    expect(css).not.toMatch(/--accent: purple;/)
+
+    // 4. Новый токен из приложения присутствует.
+    expect(css).toMatch(/--app-only: cyan;/)
+  })
+
+  it('priority chain: strictTokens accepts component-provided tokens', async () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const componentTokenized = defineGranularComponent('file:///s/components/XTokenized/', {
+      name: 'XTokenized',
+      safelist: [],
+      tokenDefinitions: {
+        light: { tokens: { 'x-tokenized': 'red' } },
+      },
+    })
+
+    const providerWithComp = defineGranularProvider({
+      id: 's',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///s/',
+      components: [componentTokenized],
+      theme: {
+        tokenDefinitions: {
+          light: { selector: ':root', tokens: { primary: 'blue' } },
+        },
+      },
+    })
+
+    const css = await getGranularNodeCss({
+      providers: [providerWithComp],
+      themes: {
+        names: ['light'],
+        strictTokens: true,
+        tokenOverrides: {
+          // 'x-tokenized' известен — пришёл от компонента, должен пропуститься.
+          // 'primary' известен — от провайдера, должен пропуститься.
+          // 'unknown' — нигде не определён, должен быть отфильтрован.
+          light: { 'x-tokenized': 'orange', 'primary': 'green', 'unknown': 'nope' },
+        },
+      },
+    })
+
+    expect(css).toMatch(/--x-tokenized: orange;/)
+    expect(css).toMatch(/--primary: green;/)
+    expect(css).not.toMatch(/--unknown:/)
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('token "unknown" not found'))
+    spy.mockRestore()
   })
 
   it('baseFile and tokensFile overrides', async () => {

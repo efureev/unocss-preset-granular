@@ -1,14 +1,15 @@
 import type { Preflight, Preset } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
+import type { PresetGranularOptions } from './preset'
 import { applyLayerToAll } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
 import {
   presetGranular,
+
   resolvePresetGranular,
-  type PresetGranularOptions,
 } from './preset'
 
 /**
@@ -250,19 +251,55 @@ export function resolveGranularFilesystemGlobs(
 }
 
 /**
- * Дефолтный `pipeline.include`, расширяющий стандартный фильтр UnoCSS до
- * `.js/.mjs/.cjs/.ts/.mts/.cts` — это нужно, чтобы extractor увидел классы
- * в скомпилированных SFC‑чанках из `dist/` провайдеров.
+ * Стандартный UnoCSS‑фильтр «исходных» расширений, по которым extractor
+ * работает для пользовательского кода приложения. Обратите внимание —
+ * сюда намеренно НЕ включены `.js/.mjs/.cjs/.ts/.mts/.cts`, чтобы
+ * extractor не сканировал произвольный JS (в т.ч. минифицированные
+ * чанки Vue/других зависимостей), вылавливая в нём случайные подстроки
+ * вроде `ms`, `mt`, `block`, которые `presetMini` может посчитать
+ * валидными утилитами.
  */
-const DEFAULT_GRANULAR_PIPELINE_INCLUDE: readonly RegExp[] = [
-  /\.(vue|svelte|[jt]sx|mdx?|astro|elm|php|phtml|html|js|mjs|cjs|ts|mts|cts)($|\?)/,
-]
+const DEFAULT_PIPELINE_INCLUDE_USER: RegExp = /\.(vue|svelte|[jt]sx|mdx?|astro|elm|php|phtml|html)($|\?)/
+
+/**
+ * Расширения, которые мы допускаем для сканирования ВНУТРИ директорий
+ * выбранных компонентов (и их транзитивных `dependencies`). Сюда мы
+ * добавляем `.js/.mjs/.cjs/.ts/.mts/.cts`, чтобы extractor видел
+ * классы в скомпилированных SFC‑чанках из `dist/` провайдеров.
+ */
+const COMPONENT_PIPELINE_EXT_RE: string = '\\.(vue|svelte|[jt]sx|mdx?|astro|elm|php|phtml|html|js|mjs|cjs|ts|mts|cts)($|\\?)'
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Собирает массив regex‑ов для `pipeline.include`, ограниченный
+ * абсолютными путями директорий выбранных компонентов. Таким образом
+ * extractor лезет в `.js`/`.ts` ТОЛЬКО внутри компонентных директорий
+ * (например `packages/simple-package/dist/components/XTokenized/`),
+ * а бандл‑чанки vue/node_modules, попавшие в сборку, им не затрагиваются.
+ */
+function buildComponentPipelineIncludes(dirs: readonly string[]): RegExp[] {
+  return dirs.map((dir) => {
+    // Нормализуем trailing‑слэш, чтобы граница директории была однозначной.
+    const normalized = dir.replace(/[\\/]+$/, '')
+    const escaped = escapeRegExp(normalized)
+    return new RegExp(`^${escaped}[\\\\/].*${COMPONENT_PIPELINE_EXT_RE}`)
+  })
+}
 
 /**
  * Возвращает готовый объект `content` для `defineConfig({ content })` UnoCSS:
  *
- *   - `filesystem` — globs по выбранным компонентам и их транзитивным `dependencies`;
- *   - `pipeline.include` — расширение default‑фильтра, чтобы extractor видел `.js`.
+ *   - `filesystem` — globs по выбранным компонентам и их транзитивным
+ *     `dependencies` (ничего лишнего не подключается);
+ *   - `pipeline.include` — стандартный фильтр (`.vue/.ts/.tsx/.html/...`) ПЛЮС
+ *     таргетированные regex по **абсолютным путям** директорий выбранных
+ *     компонентов, внутри которых дополнительно разрешены `.js/.mjs/.cjs/.ts/...`
+ *     Это позволяет extractor'у подхватывать утилитарные классы в
+ *     скомпилированных SFC‑чанках провайдера, **не трогая** произвольный
+ *     JS из `node_modules` / собственного бандла приложения.
  *
  * ВАЖНО: `@unocss/vite` читает `content.filesystem`/`content.pipeline.include`
  * ТОЛЬКО из ТОП‑уровня user‑config'а (а не из `preset.content`), поэтому
@@ -277,14 +314,26 @@ const DEFAULT_GRANULAR_PIPELINE_INCLUDE: readonly RegExp[] = [
  */
 export function granularContent(
   options: PresetGranularNodeOptions,
-): { filesystem: string[], pipeline?: { include: RegExp[] } } {
+): { filesystem: string[], pipeline: { include: RegExp[] } } {
   const filesystem = resolveGranularFilesystemGlobs(options)
-  if (filesystem.length === 0)
-    return { filesystem: [] }
+
+  const scan = options.scan ?? {}
+  let dirs: string[] = []
+  if (scan.enabled !== false) {
+    const resolution = resolvePresetGranular(options)
+    dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
+    if (scan.includeNodeModules === false)
+      dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
+  }
 
   return {
     filesystem,
-    pipeline: { include: [...DEFAULT_GRANULAR_PIPELINE_INCLUDE] },
+    pipeline: {
+      include: [
+        DEFAULT_PIPELINE_INCLUDE_USER,
+        ...buildComponentPipelineIncludes(dirs),
+      ],
+    },
   }
 }
 

@@ -39,7 +39,8 @@ which components and themes to pull in; providers declare what they ship.
    the preset discovers classes like `p-5` inside a provider component
    without `safelist`.
 7. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
-   CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
+   CSS, `tokenDefinitionsFromCss*`, `strictTokens`, component‑level
+   `component.tokenDefinitions`, priority chain.
 8. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
    build‑time), resolution pipeline, layers, preflights.
 9. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,

@@ -1,18 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import type { GranularProvider } from '../contract'
 
-import { defineGranularProvider, type GranularProvider } from '../contract'
-import { buildRegistry } from '../core/registry'
-import {
-  collectCssFiles,
-  collectSafelist,
-  resolveSelection,
-} from '../core/resolveSelection'
+import { describe, expect, it } from 'vitest'
+import { defineGranularProvider } from '../contract'
 import {
   CircularDependencyError,
   ComponentNotFoundError,
   DuplicateProviderIdError,
   ProviderNotRegisteredError,
 } from '../core/errors'
+import { buildRegistry } from '../core/registry'
+import {
+  collectCssFiles,
+  collectSafelist,
+  resolveSelection,
+} from '../core/resolveSelection'
 
 const P_DS: GranularProvider = defineGranularProvider({
   id: 'ds',

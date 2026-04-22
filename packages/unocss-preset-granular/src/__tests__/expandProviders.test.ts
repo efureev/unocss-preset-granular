@@ -1,5 +1,6 @@
+import type { GranularProvider } from '../contract'
 import { describe, expect, it } from 'vitest'
-import { defineGranularProvider, type GranularProvider } from '../contract'
+import { defineGranularProvider } from '../contract'
 import {
   CircularProviderDependencyError,
   DuplicateProviderIdError,

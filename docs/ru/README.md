@@ -40,7 +40,8 @@
    как пресет находит классы вроде `p-5` внутри компонента провайдера
    **без** `safelist`.
 7. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
-   CSS, `tokenDefinitionsFromCss*`, `strictTokens`.
+   CSS, `tokenDefinitionsFromCss*`, `strictTokens`, компонентный слой
+   `component.tokenDefinitions`, цепочка приоритетов.
 8. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
    build‑time), пайплайн резолвинга, layers, preflights.
 9. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary

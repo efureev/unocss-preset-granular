@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import type { GranularProvider } from '../contract'
 
-import { defineGranularProvider, type GranularProvider } from '../contract'
+import { describe, expect, it } from 'vitest'
+import { defineGranularProvider } from '../contract'
 import { GRANULAR_DEFAULT_THEME_NAMES, resolveThemes } from '../core/resolveThemes'
 
 const providerA: GranularProvider = defineGranularProvider({
@@ -120,5 +121,80 @@ describe('resolveThemes', () => {
       'radius': '8px', // s2 победил, т.к. идет вторым
     })
     expect(r.tokenRegistry.light.selector).toBe(':root') // от первого провайдера
+  })
+
+  it('мержит токены из компонентов поверх провайдерских', () => {
+    const r = resolveThemes(
+      [providerStructural],
+      { names: ['light', 'dark'] },
+      [
+        {
+          providerId: 's',
+          descriptor: {
+            name: 'XTokenized',
+            tokenDefinitions: {
+              light: { tokens: { 'x-tokenized': 'red', 'primary-color': 'green' } },
+              dark: { tokens: { 'x-tokenized': 'yellow' } },
+            },
+          },
+        },
+      ],
+    )
+    expect(r.tokenRegistry.light.tokens).toEqual({
+      'primary-color': 'green', // компонент переопределил провайдера
+      'radius': '4px',
+      'x-tokenized': 'red',
+    })
+    expect(r.tokenRegistry.dark.tokens).toEqual({
+      'primary-color': 'lightblue',
+      'x-tokenized': 'yellow',
+    })
+    // В items должен появиться элемент от компонента
+    const fromComponent = r.items.find(i => i.componentName === 'XTokenized' && i.themeName === 'light')
+    expect(fromComponent).toBeDefined()
+    expect(fromComponent!.tokenDefinition!.tokens['x-tokenized']).toBe('red')
+  })
+
+  it('токены компонентов для неактивных тем игнорируются', () => {
+    const r = resolveThemes(
+      [],
+      { names: ['light'] },
+      [
+        {
+          providerId: 'x',
+          descriptor: {
+            name: 'XTokenized',
+            tokenDefinitions: {
+              light: { tokens: { 'x-tokenized': 'red' } },
+              dark: { tokens: { 'x-tokenized': 'yellow' } }, // не должно попасть
+            },
+          },
+        },
+      ],
+    )
+    expect(r.tokenRegistry.light.tokens).toEqual({ 'x-tokenized': 'red' })
+    expect(r.tokenRegistry.dark).toBeUndefined()
+    expect(r.items.every(i => i.themeName !== 'dark')).toBe(true)
+  })
+
+  it('компонент создаёт тему с нуля, если у провайдеров её нет', () => {
+    const r = resolveThemes(
+      [providerA],
+      { names: ['light'] },
+      [
+        {
+          providerId: 'a',
+          descriptor: {
+            name: 'XTokenized',
+            tokenDefinitions: {
+              light: { selector: ':root', tokens: { 'x-tokenized': 'red' } },
+            },
+          },
+        },
+      ],
+    )
+    expect(r.tokenRegistry.light).toBeDefined()
+    expect(r.tokenRegistry.light.selector).toBe(':root')
+    expect(r.tokenRegistry.light.tokens['x-tokenized']).toBe('red')
   })
 })

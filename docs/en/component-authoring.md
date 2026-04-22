@@ -81,6 +81,19 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 
   // 5. Override scan directory (rarely needed)
   sourceDir: './',
+
+  // 6. Per-COMPONENT CSS theme tokens (optional).
+  //    See §7 — "Component-level theme tokens".
+  tokenDefinitions: {
+    light: {
+      selector: ':root',
+      tokens: { '--my-button-bg': '#fff', '--my-button-fg': '#111' },
+    },
+    dark: {
+      selector: '.dark',
+      tokens: { '--my-button-bg': '#111', '--my-button-fg': '#fff' },
+    },
+  },
 })
 ```
 
@@ -93,6 +106,7 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 | `safelist`     | `string \| RegExp`. Only what **can't** be extracted statically.          |
 | `cssFiles`     | Paths relative to `config.ts`. Shipped as UnoCSS `preflights`.            |
 | `sourceDir`    | Defaults to `'./'` — directory of `config.ts`. Don't touch without reason.|
+| `tokenDefinitions` | `Record<themeName, { selector, tokens }>`. CSS theme tokens published by this component. |
 
 ### `safelist` — critical
 
@@ -244,7 +258,90 @@ will be empty.
   `"sideEffects": ["**/*.css"]` — otherwise the app bundler will tree
   shake the component CSS away.
 
-## 7. Dependencies between components
+## 7. Component-level theme tokens (`tokenDefinitions`)
+
+A component can **publish its own CSS theme tokens** — mirroring the
+provider's `theme.tokenDefinitions`, but scoped to a single component.
+Useful for "encapsulated" widgets whose colors / radii / spacings should
+not leak into the package-wide token set.
+
+```ts
+// src/components/XTokenized/config.ts
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  cssFiles: ['./XTokenized.css'],
+  tokenDefinitions: {
+    light: {
+      selector: ':root',
+      tokens: { '--x-tokenized': '#2563eb' },
+    },
+    dark: {
+      selector: '.dark',
+      tokens: { '--x-tokenized': '#93c5fd' },
+    },
+  },
+})
+```
+
+### How it works
+
+1. The preset walks the selected components in `resolveSelection`
+   post-order (topologically sorted by dependencies) and merges their
+   `tokenDefinitions` into the shared theme token registry.
+2. Only **active** themes are emitted — those listed in the app's
+   `themes.names`. If the app sets `['light']` only, the `dark` block is
+   ignored: `:root { --x-tokenized: #2563eb }` ships, `.dark { ... }`
+   does not.
+3. If a theme appears in `themes.names` but no provider declares it,
+   a component can "create" that theme from scratch — its block will
+   appear in the emitted CSS.
+
+### Priority chain (lowest → highest)
+
+```
+provider.theme.tokenDefinitions        ← base layer from the donor package
+  → component.tokenDefinitions         ← in resolveSelection order (post-order)
+    → themes.tokenOverrides (app)      ← HIGHEST priority, set by the app
+```
+
+- Each next layer can **override** the previous one for the same
+  `(theme, selector, token)` triple.
+- If two components publish the same token, the one later in post-order
+  wins (typically a "parent" in the dependency graph).
+- `tokenOverrides` in the app's `presetGranularNode({...})` have an
+  **absolute priority** over any provider/component values and may add
+  new tokens nobody below declared.
+
+### Use cases
+
+1. **Single-theme filtering.** App sets `themes: { names: ['light'] }`
+   — the component ships only light values; the `dark` block is
+   filtered out.
+2. **Multi-theme.** `themes: { names: ['light', 'dark'] }` — the
+   component emits both blocks under their respective selectors.
+3. **Override a provider token.** The provider declares `--brand: red`;
+   a specific component refines it to `--brand: crimson` for its layer
+   — component wins over provider.
+4. **Final app override.** The app locks the brand on top of the
+   component: `tokenOverrides: { light: { ':root': { '--brand': '#0070f3' } } }`
+   — the app wins.
+5. **`strictTokens`.** Tokens declared by a component are considered
+   "known": app-level `tokenOverrides` on such tokens pass without
+   warnings.
+6. **Component "creates" a theme.** App turns on
+   `themes: { names: ['sepia'] }`, no provider declares it — if a
+   component publishes a `sepia` block, that theme appears in the
+   final CSS.
+
+### When to use what
+
+| What                                  | Declare where                                      |
+|---------------------------------------|----------------------------------------------------|
+| Package-wide tokens (brand, radii)    | `provider.theme.tokenDefinitions` / `tokens.css`   |
+| Tokens scoped to a single component   | `component.tokenDefinitions` in its `config.ts`    |
+| Final app-level tuning                | `themes.tokenOverrides` in `presetGranularNode`    |
+
+## 8. Dependencies between components
 
 - Same package — **short** form: `'MyIcon'`.
 - Cross‑package — **qualified**: `'@feugene/simple-package:XTest1'`.
@@ -253,7 +350,7 @@ will be empty.
 - Any cross‑provider dep means the donor package must be in
   `peerDependencies` (see [installation.md](./installation.md)).
 
-## 8. Pre‑PR / pre‑release checklist
+## 9. Pre‑PR / pre‑release checklist
 
 - [ ] Folder `src/components/<Name>/` with `<Name>.vue`, `config.ts`,
       `index.ts` created.
@@ -262,6 +359,8 @@ will be empty.
 - [ ] `safelist` contains **only** dynamic classes; statics live in
       the template.
 - [ ] `cssFiles` (if any) — paths relative to `config.ts`, files exist.
+- [ ] `tokenDefinitions` (if any) — keys match provider/app theme
+      names; values are valid CSS custom properties.
 - [ ] `dependencies` are correct (short / qualified / object form).
 - [ ] Component re‑exported from `src/index.ts`.
 - [ ] Component config added to `components: [...]` in the provider

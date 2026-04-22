@@ -51,6 +51,10 @@
       "types": "./dist/types/src/components/XTestStyled/index.d.ts",
       "import": "./dist/components/XTestStyled/index.js"
     },
+    "./components/XTokenized": {
+      "types": "./dist/types/src/components/XTokenized/index.d.ts",
+      "import": "./dist/components/XTokenized/index.js"
+    },
     "./granular-provider": {
       "types": "./dist/types/src/granular-provider/index.d.ts",
       "import": "./dist/granular-provider.js",
@@ -63,11 +67,11 @@
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.1.0",
+    "@feugene/unocss-preset-granular": "^0.2.0",
     "vue": "^3.5.32"
   },
   "devDependencies": {
-    "@feugene/unocss-preset-granular": "^0.1.0",
+    "@feugene/unocss-preset-granular": "^0.2.0",
     "@types/node": "^25.5.2",
     "@vitejs/plugin-vue": "^6.0.5",
     "typescript": "^6.0.2",

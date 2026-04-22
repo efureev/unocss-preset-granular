@@ -75,7 +75,7 @@ import { presetGranularNode, granularContent } from '@feugene/unocss-preset-gran
 const granularOptions = { providers: [...], components: [...] }
 
 export default defineConfig({
-  presets: [presetWind4(), presetGranularNode(granularOptions)],
+  presets: [presetMini(), presetGranularNode(granularOptions)],
   content: granularContent(granularOptions),        // ← обязательно
 })
 ```
@@ -85,9 +85,20 @@ export default defineConfig({
 ```ts
 {
   filesystem: string[],        // POSIX‑globs директорий выбранных компонентов
-  pipeline: { include: [...] } // расширенный include, чтобы .js‑чанки из node_modules тоже сканировались
+  pipeline: { include: RegExp[] } // см. ниже
 }
 ```
+
+`pipeline.include` устроен **точечно** — extractor не сканирует весь JS
+приложения/`node_modules`, а расширяется до `.js/.mjs/.cjs/.ts/.mts/.cts`
+**только внутри директорий выбранных компонентов** (в т.ч. их транзитивных
+`dependencies`). Для остального кода остаётся стандартный фильтр UnoCSS
+(`.vue/.ts/.tsx/.html/.md*/.astro/...`). Это важно, когда параллельно с
+`presetGranularNode` подключён `presetMini`/`presetUno`: минифицированные
+чанки Vue/других зависимостей НЕ попадут под extractor, и в итоговом CSS
+не появятся «случайные» утилиты (`.ms`, `.mt`, `.block`, `.transform`,
+`.shadow`, `.transition`, `.p[i]` и т.п.), собранные из подстрок
+минификата.
 
 Если у вас уже есть собственный `content`, разворачивайте оба:
 

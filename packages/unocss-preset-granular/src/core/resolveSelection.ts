@@ -3,12 +3,29 @@ import type {
   GranularComponentDescriptor,
   GranularProvider,
 } from '../contract'
+import type { ComponentKey, ComponentRegistry, RegistryEntry } from './registry'
 import { CircularDependencyError, ComponentNotFoundError, ProviderNotRegisteredError } from './errors'
-import { toComponentKey, type ComponentKey, type ComponentRegistry, type RegistryEntry } from './registry'
+import { toComponentKey } from './registry'
 
-export type ComponentSelectionItem =
-  | `${string}:${string}`
-  | { provider: string, names: 'all' | readonly string[] }
+/**
+ * Элемент выбора компонентов приложением.
+ *
+ * Строковая форма: квалифицированный ключ `'providerId:ComponentName'`.
+ *   - Формат валидируется в runtime (`parseQualifiedKey`): требуется ровно
+ *     один разделитель `:`, идентификатор провайдера и имя компонента по обе
+ *     стороны от него.
+ *   - Тип намеренно оставлен `string` (а не template-literal
+ *     `` `${string}:${string}` ``): это избавляет от проблем расширения
+ *     (`widening`) строковых литералов в массивах, объявленных без `as const`
+ *     (например, `const opts = { components: ['pkg:Btn'] }`), и даёт
+ *     корректную DX в конфигах приложений.
+ *
+ * Объектная форма удобна, когда из одного провайдера нужно подтянуть
+ * несколько компонентов или все (`names: 'all'`).
+ */
+export type ComponentSelectionItem
+  = | string
+    | { provider: string, names: 'all' | readonly string[] }
 
 export type ComponentSelection = 'all' | readonly ComponentSelectionItem[]
 
@@ -51,10 +68,11 @@ export function normalizeSelection(
 
 function parseQualifiedKey(input: string): ComponentKey {
   const idx = input.lastIndexOf(':')
-  if (idx <= 0 || idx === input.length - 1)
+  if (idx <= 0 || idx === input.length - 1) {
     throw new Error(
       `Invalid component key '${input}': expected 'providerId:ComponentName' (short form 'Name' is only allowed inside a component's 'dependencies').`,
     )
+  }
   return input as ComponentKey
 }
 

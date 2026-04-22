@@ -77,7 +77,7 @@ import { presetGranularNode, granularContent } from '@feugene/unocss-preset-gran
 const granularOptions = { providers: [...], components: [...] }
 
 export default defineConfig({
-  presets: [presetWind4(), presetGranularNode(granularOptions)],
+  presets: [presetMini(), presetGranularNode(granularOptions)],
   content: granularContent(granularOptions),        // ← required
 })
 ```
@@ -87,9 +87,19 @@ export default defineConfig({
 ```ts
 {
   filesystem: string[],        // POSIX globs of selected component dirs
-  pipeline: { include: [...] } // so .js chunks from node_modules get scanned too
+  pipeline: { include: RegExp[] } // see below
 }
 ```
+
+`pipeline.include` is **scoped**: the extractor does NOT scan arbitrary JS
+from your app/`node_modules`. It extends the default UnoCSS filter to
+`.js/.mjs/.cjs/.ts/.mts/.cts` **only inside the directories of the selected
+components** (including their transitive `dependencies`). The rest of the
+code keeps the default UnoCSS filter (`.vue/.ts/.tsx/.html/.md*/.astro/...`).
+This matters when you pair `presetGranularNode` with `presetMini`/`presetUno`:
+minified Vue/vendor chunks won't be fed to the extractor, so the final CSS
+won't contain stray utilities (`.ms`, `.mt`, `.block`, `.transform`,
+`.shadow`, `.transition`, `.p[i]` etc.) harvested from minified identifiers.
 
 If you already have your own `content` config, spread both:
 

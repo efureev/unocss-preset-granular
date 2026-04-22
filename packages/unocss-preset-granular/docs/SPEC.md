@@ -95,6 +95,25 @@ export interface GranularComponentDescriptor<Name extends string = string> {
     cssFiles?: readonly string[]
     /** Fallback‑имена ассетов (для dist без сорцов), позиционно к cssFiles */
     cssFileAssetNames?: readonly string[]
+    /**
+     * Структурные токены, которые ПУБЛИКУЕТ сам компонент для тем приложения.
+     * По семантике аналогично `GranularThemeContribution.tokenDefinitions`,
+     * но применяется точечно — только если компонент попал в селекцию
+     * (через `options.components` или как транзитивная `dependency`).
+     *
+     * Ключ — имя темы (`light`, `dark`, ...). Значение — `GranularThemeTokenSet`
+     * (карта токенов БЕЗ префикса `--` + опциональный `selector`).
+     * Пресет эмитит значения токенов только для тех тем, что реально активны
+     * в приложении (пересечение с `ThemesOptions.names`).
+     *
+     * Порядок мержа в итоговый реестр токенов темы (см. §7, Уровень 2):
+     *   1) провайдерские `provider.theme.tokenDefinitions[name]`;
+     *   2) компонентные `component.tokenDefinitions[name]` — в порядке
+     *      `resolveSelection` (post‑order DFS: deps раньше зависящих) —
+     *      могут переопределять значения провайдера;
+     *   3) `ThemesOptions.tokenOverrides[name]` приложения — высший приоритет.
+     */
+    tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
 }
 
 export interface GranularThemeTokenSet {
@@ -185,6 +204,13 @@ export function defineGranularComponent<N extends string>(
         safelist: readonly string[]
         cssFiles?: readonly string[]
         emitStyleAsset?: boolean
+        /** Директория исходников компонента относительно `importMetaUrl`. */
+        sourceDir?: string
+        /**
+         * Структурные токены, публикуемые компонентом для тем приложения.
+         * См. `GranularComponentDescriptor.tokenDefinitions`.
+         */
+        tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
     },
 ): GranularComponentDescriptor<N>
 ```
@@ -621,6 +647,175 @@ export default defineConfig({
 
 ---
 
+### 6.4. Use‑cases: компонентные токены (`component.tokenDefinitions`)
+
+Каждый компонент может публиковать собственные CSS‑токены темы — по аналогии
+с `provider.theme.tokenDefinitions`, но точечно. Пресет выгружает значения
+только для тем, реально активных в приложении (пересечение с
+`ThemesOptions.names`), и только если компонент попал в селекцию (через
+`options.components` или как транзитивная `dependency`). Приоритет:
+**провайдер → компонент (в порядке `resolveSelection`) → `tokenOverrides`**.
+
+#### 6.4.1. Компонент публикует свой токен (single‑theme сборка)
+
+Кейс: в приложении включена только `light`, компонент описывает токены для
+обеих тем — в сборку попадут только значения для `light`.
+
+```ts
+// packages/simple-package/src/components/XTokenized/config.ts
+import {defineGranularComponent} from '@feugene/unocss-preset-granular/contract'
+import {tokenDefinitionsFromCssSync} from '@feugene/unocss-preset-granular/node'
+
+const lightUrl = new URL('./themes/light.css', import.meta.url).href
+const darkUrl  = new URL('./themes/dark.css',  import.meta.url).href
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+    name: 'XTokenized',
+    safelist: [],
+    tokenDefinitions: {
+        light: tokenDefinitionsFromCssSync(lightUrl, {selector: ':root'}),
+        dark:  tokenDefinitionsFromCssSync(darkUrl,  {as: '.dark, [data-theme="dark"]'}),
+    },
+})
+```
+
+```vue
+<!-- XTokenized.vue — компонент потребляет свой же токен -->
+<template>
+    <div class="bg-[var(--x-tokenized)] p-4"><slot/></div>
+</template>
+```
+
+```ts
+// uno.config.ts приложения — активна только light
+presetGranularNode({
+    providers: [simpleProvider],
+    components: ['simple:XTokenized'],
+    themes: {names: ['light']}, // в CSS попадут ТОЛЬКО light‑значения
+})
+```
+
+Результат (фрагмент итогового CSS):
+
+```css
+:root { --x-tokenized: /* значение из light.css */; }
+/* блока .dark { --x-tokenized: ... } в сборке НЕТ */
+```
+
+#### 6.4.2. Multi‑theme сборка
+
+Приложение просит и `light`, и `dark` — пресет эмитит оба блока под
+селекторами компонента.
+
+```ts
+presetGranularNode({
+    providers: [simpleProvider],
+    components: ['simple:XTokenized'],
+    themes: {names: ['light', 'dark']},
+})
+```
+
+```css
+:root                         { --x-tokenized: <light-value>; }
+.dark, [data-theme="dark"]    { --x-tokenized: <dark-value>;  }
+```
+
+#### 6.4.3. Компонент переопределяет токен провайдера
+
+Провайдер объявляет `--primary`, компонент специализирует его (локально
+для всех экземпляров, где активна выбранная тема):
+
+```ts
+// provider.theme.tokenDefinitions.light.tokens.primary = 'blue'
+// component.tokenDefinitions.light.tokens.primary     = 'green'
+```
+
+Итоговый блок темы (селектор — от первого провайдера, напр. `:root`):
+
+```css
+:root { --primary: green; /* провайдер: blue → компонент: green */ }
+```
+
+Если в селекцию попадают несколько компонентов, «побеждает» последний в
+post‑order `resolveSelection` (deps раньше зависящих).
+
+#### 6.4.4. Конечное приложение перебивает всех (высший приоритет)
+
+`ThemesOptions.tokenOverrides` применяется **поверх** и провайдеров, и
+компонентов, а также может добавлять новые токены:
+
+```ts
+presetGranularNode({
+    providers: [simpleProvider],
+    components: ['simple:XTokenized'],
+    themes: {
+        names: ['light'],
+        tokenOverrides: {
+            light: {
+                'primary':     'crimson', // перебивает и провайдера, и компонент
+                'x-tokenized': 'orange',  // перебивает компонент
+                'app-only':    'cyan',    // новый токен от приложения
+            },
+        },
+    },
+})
+```
+
+```css
+:root {
+    --primary:     crimson;
+    --x-tokenized: orange;
+    --app-only:    cyan;
+}
+```
+
+#### 6.4.5. `strictTokens` и компонентные токены
+
+В строгом режиме (`strictTokens: true`) override считается валидным, если
+токен объявлен **хотя бы одним источником** — провайдером ИЛИ компонентом.
+Неизвестные токены отфильтровываются с `console.warn`.
+
+```ts
+presetGranularNode({
+    providers: [simpleProvider],
+    components: ['simple:XTokenized'], // публикует 'x-tokenized'
+    themes: {
+        names: ['light'],
+        strictTokens: true,
+        tokenOverrides: {
+            light: {
+                'x-tokenized': 'orange', // ✅ известен (от компонента)
+                'primary':     'green',  // ✅ известен (от провайдера)
+                'unknown':     'nope',   // ⚠️ warn + отфильтрован
+            },
+        },
+    },
+})
+```
+
+#### 6.4.6. Компонент создаёт тему с нуля
+
+Если ни один провайдер не объявлял тему `corporate`, а компонент —
+объявил, то при `names: ['corporate']` пресет создаст блок с нуля.
+Селектор берётся из первого `tokenDefinition`, содержащего `selector`
+(иначе — дефолтный `':root'`).
+
+```ts
+defineGranularComponent(import.meta.url, {
+    name: 'XTokenized',
+    safelist: [],
+    tokenDefinitions: {
+        corporate: {selector: '.theme-corporate', tokens: {'x-tokenized': 'gold'}},
+    },
+})
+```
+
+```css
+.theme-corporate { --x-tokenized: gold; }
+```
+
+---
+
 ## 7. Ключевые алгоритмы
 
 - **Регистр провайдеров**: `Map<string, GranularProvider>` по `id`; дубликаты id → ошибка.
@@ -669,13 +864,22 @@ export default defineConfig({
     2. Селектор темы фиксируется по ПЕРВОМУ провайдеру, объявившему эту тему (дефолт `':root'`). Токены остальных
        провайдеров вливаются в тот же селектор; при конфликте имён токенов выигрывает последний источник в порядке
        `providers[]`.
-    3. Сверху мержится `options.themes.tokenOverrides[themeName]` (побеждает всех).
-    4. Эмитится единый override‑CSS‑блок `<selector> { --k: v; … }` **вместо** CSS‑файлов тех провайдеров, что
+    3. **Компонентный слой (`component.tokenDefinitions`)** — сверху провайдерских вливаются токены, опубликованные
+       самими компонентами, которые попали в `resolveSelection` (включая транзитивные `dependencies`). Порядок —
+       post‑order DFS `resolveSelection` (deps раньше зависящих). Компонент может:
+        - переопределить значение провайдерского токена в рамках одной темы;
+        - добавить свой собственный токен (напр. `--x-tokenized`) без правки провайдера;
+        - создать тему с нуля, если ни один провайдер её не объявлял (селектор возьмётся из первого `tokenDefinition`,
+          содержащего `selector`; иначе — дефолт `':root'`).
+       Неактивные темы (`themeName ∉ ThemesOptions.names`) игнорируются — их токены НЕ эмитятся.
+    4. Сверху мержится `options.themes.tokenOverrides[themeName]` (побеждает и провайдеров, и компоненты).
+    5. Эмитится единый override‑CSS‑блок `<selector> { --k: v; … }` **вместо** CSS‑файлов тех провайдеров, что
        объявили `tokenDefinitions[themeName]`. Провайдеры без структурной формы продолжают эмитить свой
        `theme.themes[themeName]` (и на них действует только Уровень 1).
-    5. Если `strictTokens: true` и override содержит токен, которого нет ни у одного провайдера в
-       `tokenDefinitions[themeName]` — бросается `UnknownTokenOverrideError` с именем токена и темы.
-       В lenient‑режиме (default) такие токены просто добавляются в блок.
+    6. Если `strictTokens: true` и override содержит токен, которого нет **ни у одного провайдера, ни у одного
+       компонента** в `tokenDefinitions[themeName]` — override игнорируется с `console.warn`
+       (lenient‑режим, default — добавляет такие токены в блок). Токены, пришедшие от компонентов, считаются
+       «известными» наравне с провайдерскими.
 - **Порядок preflights (итоговый):**
   `tokensCss → baseCss → [token‑override‑block per theme] → [legacy theme CSS файлы провайдеров без tokenDefinitions, per requested name] → [themeFiles override (Уровень 1) для оставшихся] → component CSS → provider.unocss.preflights → options.preflights`.
 - **Дедупликация**:
@@ -733,6 +937,11 @@ packages/
   `providers[]`; победа `tokenOverrides` над всеми провайдерами; режим `strictTokens: true` — ошибка
   `UnknownTokenOverrideError`; lenient‑режим — неизвестные токены добавляются; приоритет `tokenDefinitions[name]` над
   `themes[name]` у того же провайдера.
+- Unit `component.tokenDefinitions` (Уровень 2, компонентный слой): компонентные токены мержатся поверх провайдерских
+  в порядке `resolveSelection`; неактивные темы (не вошедшие в `ThemesOptions.names`) игнорируются; компонент может
+  создать тему с нуля, если ни один провайдер её не объявлял; цепочка приоритетов
+  **провайдер → компонент → `tokenOverrides`** (приложение перебивает всех, в т.ч. добавляет новые токены);
+  `strictTokens: true` признаёт компонентные токены «известными».
 - Snapshot итогового CSS: провайдер с `tokenDefinitions` + `tokenOverrides` эмитит один override‑блок вместо
   `themes[name]`; провайдер без `tokenDefinitions` получает только Уровень 1; mixed‑режим (оба типа провайдеров одновременно).
 - Snapshot: итоговый CSS для фикстурного набора компонентов.

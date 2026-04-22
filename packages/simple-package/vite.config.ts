@@ -19,6 +19,9 @@ export default defineConfig({
         'components/XTestStyled/index': fileURLToPath(
           new URL('./src/components/XTestStyled/index.ts', import.meta.url),
         ),
+        'components/XTokenized/index': fileURLToPath(
+          new URL('./src/components/XTokenized/index.ts', import.meta.url),
+        ),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),

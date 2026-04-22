@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
 import type { GranularThemeTokenSet } from '../contract'
+import { Buffer } from 'node:buffer'
+import { readFileSync } from 'node:fs'
 import { isCssDataUrl, readCss, resolveCssFilePath } from '../fs/readCss'
 
 /** Результат парсинга одного CSS-блока с custom properties. */
@@ -121,15 +122,18 @@ function parseAndPick(
   const exact = blocks.find(b => b.selector === selector)
   let picked: ParsedTokenBlock | undefined = exact
   if (!picked) {
-    if (blocks.length === 1)
+    if (blocks.length === 1) {
       picked = blocks[0]
-    else if (strict)
+    }
+    else if (strict) {
       throw new Error(
         `tokenDefinitionsFromCss: selector "${selector}" not found in ${truncate(source)}; `
         + `available selectors: ${blocks.map(b => JSON.stringify(b.selector)).join(', ')}`,
       )
-    else
+    }
+    else {
       picked = blocks[0]
+    }
   }
 
   return {
@@ -168,7 +172,7 @@ function looksLikeCssLiteral(source: string): boolean {
 }
 
 const BLOCK_RE = /([^{}]+)\{([^{}]*)\}/g
-const DECL_RE = /--([A-Za-z0-9_-]+)\s*:\s*([^;]+?)\s*;/g
+const DECL_RE = /--([\w-]+)\s*:([^;]*);/g
 
 function extractBlocks(rawCss: string): ParsedTokenBlock[] {
   const css = stripComments(rawCss)
@@ -180,8 +184,11 @@ function extractBlocks(rawCss: string): ParsedTokenBlock[] {
       continue
     const body = match[2]
     const tokens: Record<string, string> = {}
-    for (const decl of body.matchAll(DECL_RE))
-      tokens[decl[1]] = decl[2].trim()
+    for (const decl of body.matchAll(DECL_RE)) {
+      const value = decl[2].trim()
+      if (value)
+        tokens[decl[1]] = value
+    }
     if (Object.keys(tokens).length > 0)
       blocks.push({ selector, tokens })
   }

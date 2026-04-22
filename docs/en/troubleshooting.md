@@ -53,7 +53,7 @@ enable `transformerDirectives()` in `uno.config.ts`.
 ## "Arbitrary values like `bg-[var(--card)]` don't show up"
 
 They require `@unocss/preset-wind4` (or a preset that enables arbitrary
-values). Make sure `presetWind4()` (or equivalent) is in the `presets`
+values). Make sure `presetMini()`, `presetWind4()` (or equivalent) is in the `presets`
 array **before** `presetGranularNode(...)`.
 
 ## "Cross‑provider `dependencies` throw at config load"

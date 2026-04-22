@@ -51,7 +51,7 @@
 
 ## «Arbitrary values вроде `bg-[var(--card)]` не появляются»
 
-Нужен `@unocss/preset-wind4` (или пресет, включающий arbitrary values).
+Нужен `@unocss/preset-wind4` (или пресет, включающий arbitrary values (presetMini)).
 `presetWind4()` должен быть в `presets` **перед** `presetGranularNode(...)`.
 
 ## «Cross‑provider `dependencies` падают при загрузке конфига»

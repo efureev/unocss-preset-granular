@@ -26,8 +26,7 @@ yarn add -D @feugene/simple-package
 ## Минимальный `uno.config.ts`
 
 ```ts
-import { defineConfig } from 'unocss'
-import presetWind4 from '@unocss/preset-wind4'
+import { defineConfig, presetMini } from 'unocss'
 import { presetGranularNode, granularContent } from '@feugene/unocss-preset-granular/node'
 import simpleProvider from '@feugene/simple-package/granular-provider/node'
 
@@ -42,7 +41,7 @@ const granularOptions = {
 
 export default defineConfig({
   presets: [
-    presetWind4(),
+    presetMini(),
     presetGranularNode(granularOptions),
   ],
   // ОБЯЗАТЕЛЬНО для авто‑сканирования — см. ./component-scanning.md

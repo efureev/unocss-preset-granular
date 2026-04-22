@@ -1,18 +1,19 @@
 import type { Preflight, Preset, Rule, Variant } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
-import { applyLayerToAll } from './core/layer'
+import type { ComponentSelection, ResolvedComponents } from './core/resolveSelection'
+import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
 import { uniqueRef } from './core/dedupe'
 import { expandProviders } from './core/expandProviders'
+import { applyLayerToAll } from './core/layer'
 import { buildRegistry } from './core/registry'
 import {
   collectCssFilesDetailed,
   collectSafelist,
+
   resolveSelection,
-  type ComponentSelection,
-  type ResolvedComponents,
 } from './core/resolveSelection'
-import { resolveThemes, type ResolveThemesInput, type ResolvedThemes } from './core/resolveThemes'
+import { resolveThemes } from './core/resolveThemes'
 
 export interface ThemesOptions extends ResolveThemesInput {
   /**
@@ -81,7 +82,11 @@ export function resolvePresetGranular(
   const resolved = resolveSelection(registry, options.components)
   const safelist = collectSafelist(resolved.entries)
   const cssFiles = collectCssFilesDetailed(resolved.entries)
-  const themes = resolveThemes(providers, options.themes)
+  const themes = resolveThemes(
+    providers,
+    options.themes,
+    resolved.entries.map(e => ({ providerId: e.provider.id, descriptor: e.descriptor })),
+  )
 
   return {
     resolved,
@@ -110,9 +115,12 @@ export function presetGranular(options: PresetGranularOptions): Preset {
       const contrib = provider.unocss
       if (!contrib)
         continue
-      if (contrib.rules) rules.push(...contrib.rules)
-      if (contrib.variants) variants.push(...contrib.variants)
-      if (contrib.preflights) providerPreflights.push(...contrib.preflights)
+      if (contrib.rules)
+        rules.push(...contrib.rules)
+      if (contrib.variants)
+        variants.push(...contrib.variants)
+      if (contrib.preflights)
+        providerPreflights.push(...contrib.preflights)
     }
   }
 

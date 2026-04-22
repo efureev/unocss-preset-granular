@@ -26,7 +26,9 @@ function createFakePackages(root: string) {
   const aXTwo = join(root, 'packages/pkg-a/src/components/XTwo')
   const bYDep = join(root, 'packages/pkg-b/src/components/YDep')
 
-  mk(aXOne); mk(aXTwo); mk(bYDep)
+  mk(aXOne)
+  mk(aXTwo)
+  mk(bYDep)
 
   touch(join(aXOne, 'styles.css'), '.x-one{color:red}')
   touch(join(aXOne, 'XOne.vue'), '<template><div class="p-5" /></template>')
@@ -153,7 +155,7 @@ describe('buildFilesystemGlobs', () => {
       extraGlobs: ['/b/**/*.ts', '/a/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue}'],
     })
     expect(globs.length).toBe(2) // /a/... + /b/... — без дублей
-    expect(globs.some(g => g === '/b/**/*.ts')).toBe(true)
+    expect(globs.includes('/b/**/*.ts')).toBe(true)
   })
 
   it('с одним расширением использует его напрямую без {}', () => {

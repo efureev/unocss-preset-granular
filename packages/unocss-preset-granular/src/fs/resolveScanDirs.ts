@@ -1,8 +1,8 @@
+import type { PresetGranularResolution } from '../preset'
 import { existsSync, realpathSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-import type { PresetGranularResolution } from '../preset'
+import { fileURLToPath } from 'node:url'
 
 /** Описание директории-источника для UnoCSS `content.filesystem`. */
 export interface ResolvedScanDir {

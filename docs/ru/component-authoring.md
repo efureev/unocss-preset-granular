@@ -80,6 +80,19 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 
   // 5. Переопределение scan‑директории (нужно крайне редко)
   sourceDir: './',
+
+  // 6. Публикация CSS‑токенов темы на уровне КОМПОНЕНТА (опц.)
+  //    См. §7 — «Токены темы на уровне компонента».
+  tokenDefinitions: {
+    light: {
+      selector: ':root',
+      tokens: { '--my-button-bg': '#fff', '--my-button-fg': '#111' },
+    },
+    dark: {
+      selector: '.dark',
+      tokens: { '--my-button-bg': '#111', '--my-button-fg': '#fff' },
+    },
+  },
 })
 ```
 
@@ -92,6 +105,7 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 | `safelist`     | `string \| RegExp`. Только то, что **нельзя** извлечь статически.         |
 | `cssFiles`     | Пути относительно `config.ts`. Приезжают в UnoCSS как `preflights`.       |
 | `sourceDir`    | По умолчанию `'./'` — директория `config.ts`. Не трогайте без причины.    |
+| `tokenDefinitions` | `Record<themeName, { selector, tokens }>`. CSS‑токены темы от компонента. |
 
 ### Критично про `safelist`
 
@@ -243,7 +257,86 @@ build: {
 - В `package.json` пакета должно быть `"sideEffects": ["**/*.css"]` —
   иначе bundler приложения вырежет CSS компонента.
 
-## 7. Зависимости между компонентами
+## 7. Токены темы на уровне компонента (`tokenDefinitions`)
+
+Компонент может **сам публиковать свои CSS‑токены для тем** — по аналогии с
+`theme.tokenDefinitions` провайдера, но точечно. Это удобно для «инкапсулированных»
+компонентов, чьи цвета/радиусы/отступы не нужно выносить в общий набор токенов
+провайдера.
+
+```ts
+// src/components/XTokenized/config.ts
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  cssFiles: ['./XTokenized.css'],
+  tokenDefinitions: {
+    light: {
+      selector: ':root',
+      tokens: { '--x-tokenized': '#2563eb' },
+    },
+    dark: {
+      selector: '.dark',
+      tokens: { '--x-tokenized': '#93c5fd' },
+    },
+  },
+})
+```
+
+### Как это работает
+
+1. Пресет обходит выбранные компоненты (post‑order `resolveSelection`, т.е. в порядке
+   топологической сортировки зависимостей) и мёржит их `tokenDefinitions` в
+   общий реестр токенов тем.
+2. Выгружаются **только активные** темы — те, что перечислены в `themes.names`
+   приложения. Если приложение задало только `['light']`, токены блока `dark`
+   будут проигнорированы, блок `:root { --x-tokenized: #2563eb }` попадёт в CSS,
+   `.dark { ... }` — нет.
+3. Если тема в `themes.names` есть, но ни один провайдер её не объявлял — компонент
+   может «создать» её с нуля (в выходном CSS появится её блок токенов).
+
+### Цепочка приоритетов (от низшего к высшему)
+
+```
+provider.theme.tokenDefinitions        ← базовый слой от донор‑пакета
+  → component.tokenDefinitions         ← в порядке resolveSelection (post‑order)
+    → themes.tokenOverrides (app)      ← ВЫСШИЙ приоритет, задаётся приложением
+```
+
+- Каждый следующий слой может **переопределять** значения предыдущего под
+  одним и тем же `(тема, селектор, токен)`.
+- Если два компонента публикуют один токен, выигрывает тот, который стоит
+  позже в post‑order (обычно — «родитель» зависимости).
+- `tokenOverrides` в `presetGranularNode({...})` приложения имеют **абсолютный
+  приоритет** над любыми провайдер/компонент значениями и могут добавлять
+  новые токены, которых нет ни у кого ниже.
+
+### Use‑cases
+
+1. **Single‑theme фильтрация.** Приложение задаёт `themes: { names: ['light'] }` —
+   компонент отгружает только светлые значения; блок `dark` не попадает в CSS.
+2. **Multi‑theme.** `themes: { names: ['light', 'dark'] }` — компонент
+   выгружает оба блока под соответствующими селекторами.
+3. **Override провайдерского токена.** Провайдер объявляет `--brand: red`,
+   конкретный компонент уточняет `--brand: crimson` для своего слоя —
+   компонент перебивает провайдера.
+4. **Final override в приложении.** Приложение поверх компонента фиксирует
+   бренд: `tokenOverrides: { light: { ':root': { '--brand': '#0070f3' } } }` —
+   победа за приложением.
+5. **`strictTokens`.** Токены, объявленные компонентом, считаются «известными»:
+   `tokenOverrides` из приложения на такой токен проходит без warning’а.
+6. **Компонент «создаёт» тему.** Приложение включает `themes: { names: ['sepia'] }`,
+   её не объявлял ни один провайдер — если компонент публикует блок `sepia`,
+   эта тема появится в итоговом CSS.
+
+### Разграничение: когда что использовать
+
+| Что                                  | Где объявлять                                     |
+|---------------------------------------|---------------------------------------------------|
+| Package‑wide токены (бренд, радиусы)  | `provider.theme.tokenDefinitions` / `tokens.css`  |
+| Токены одного компонента              | `component.tokenDefinitions` в его `config.ts`    |
+| Финальная подстройка под приложение   | `themes.tokenOverrides` в `presetGranularNode`    |
+
+## 8. Зависимости между компонентами
 
 - Внутри своего пакета — **короткая** форма: `'MyIcon'`.
 - Компонент из другого пакета — **qualified**: `'@feugene/simple-package:XTest1'`.
@@ -253,7 +346,7 @@ build: {
   обязан быть в `peerDependencies` (см.
   [installation.md](./installation.md)).
 
-## 8. Чек‑лист перед PR / релизом
+## 9. Чек‑лист перед PR / релизом
 
 - [ ] Создана папка `src/components/<Name>/` с файлами
       `<Name>.vue`, `config.ts`, `index.ts`.
@@ -263,6 +356,8 @@ build: {
       живёт в шаблоне.
 - [ ] `cssFiles` (если есть) — пути относительно `config.ts`,
       файлы существуют.
+- [ ] `tokenDefinitions` (если есть) — ключи совпадают с именами тем
+      провайдера/приложения; значения — валидные CSS custom properties.
 - [ ] `dependencies` корректны (короткая / qualified / объектная форма).
 - [ ] Компонент реэкспортирован из `src/index.ts`.
 - [ ] Конфиг компонента добавлен в `components: [...]`

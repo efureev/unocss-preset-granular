@@ -11,9 +11,17 @@
    не зависящих от семантики (`--font-sans`, `--radius-md`).
 3. **`themes[themeName]`** — per‑theme CSS (`light.css`, `dark.css`);
    приложение выбирает по имени.
-4. **`tokenDefinitions`** (только node, опц.) — структурные токены,
-   распарсенные из темы, чтобы UnoCSS поддерживал `tokenOverrides` /
+4. **`provider.theme.tokenDefinitions`** (только node, опц.) — структурные токены,
+   распарсенные из темы на уровне пакета; включают `tokenOverrides` /
    `strictTokens` без дубляжа значений.
+5. **`component.tokenDefinitions`** (опц., см. [component-authoring.md](./component-authoring.md#7-токены-темы-на-уровне-компонента-tokendefinitions)) —
+   поаналогичное объявление, но точечно для выбранного компонента.
+   Мёржится поверх провайдерского слоя в порядке `resolveSelection`
+   (post‑order DFS), выгружается только для активных тем (пересечение с
+   `themes.names`).
+6. **`themes.tokenOverrides`** (app, опц.) — финальные переопределения
+   на стороне приложения. **Высший приоритет** — перебивают любые значения
+   от провайдеров/компонентов и могут добавлять новые токены.
 
 Темы — плоский `Record<themeName, cssUrl>` у провайдера; приложение
 перечисляет нужные имена:
@@ -45,6 +53,51 @@ export default defineGranularProvider({
   },
 })
 ```
+
+## Слой компонента: `component.tokenDefinitions`
+
+Любой компонент в `defineGranularComponent(...)` может публиковать свои
+CSS‑токены для тем — не загрязняя общий набор токенов донор‑пакета.
+
+```ts
+// src/components/XTokenized/config.ts
+defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitions: {
+    light: { selector: ':root', tokens: { '--x-tokenized': '#2563eb' } },
+    dark:  { selector: '.dark', tokens: { '--x-tokenized': '#93c5fd' } },
+  },
+})
+```
+
+Пресет обходит выбранные компоненты в порядке `resolveSelection` (post‑order DFS)
+и мёржит их `tokenDefinitions` поверх провайдерского слоя. **В итоговый CSS
+попадают только активные темы** (те, что перечислены в `themes.names`).
+Компонент может также **создать тему с нуля**, если её не объявлял ни один
+провайдер (у аппа в `themes.names` есть, у провайдера нет — компонент
+даёт для неё блок).
+
+Полный список use‑case'ов (single‑theme фильтрация, multi‑theme, override
+провайдерского токена, поведение в `strictTokens`) см. в
+[component-authoring.md §7](./component-authoring.md#7-токены-темы-на-уровне-компонента-tokendefinitions).
+
+## Цепочка приоритетов
+
+При слиянии токенов для конкретной `(темы, селектора, токена)` побеждает
+самый высокий слой:
+
+```
+provider.theme.tokenDefinitions        (низший)
+  → component.tokenDefinitions         (в порядке resolveSelection)
+    → themes.tokenOverrides (app)      (высший)
+```
+
+- Компонент может перебить провайдера.
+- Приложение через `tokenOverrides` перебивает и провайдера, и компонент,
+  а также может добавить новые токены, которых нет ниже.
+- В режиме `strictTokens` токены, объявленные **компонентом**, также
+  считаются «известными»: `tokenOverrides` на такой токен проходят без
+  warning’а.
 
 ## Переопределения со стороны приложения
 

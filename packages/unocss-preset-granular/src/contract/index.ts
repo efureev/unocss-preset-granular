@@ -9,9 +9,9 @@ import type { Preflight, Rule, Variant } from '@unocss/core'
  *   3. `{ provider, components: [...] }` — объектная форма, удобна когда
  *      из одного провайдера нужно подтянуть сразу несколько компонентов.
  */
-export type GranularComponentDependency =
-  | string
-  | { provider: string, components: readonly string[] }
+export type GranularComponentDependency
+  = | string
+    | { provider: string, components: readonly string[] }
 
 export interface GranularComponentDescriptor<Name extends string = string> {
   /** Уникальное (внутри провайдера) имя компонента, напр. "DsButton" */
@@ -49,6 +49,21 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * `src/...`. По смыслу аналогично `cssFileAssetNames`.
    */
   sourceDirAssetName?: string
+  /**
+   * Структурные токены, которые ПУБЛИКУЕТ этот компонент для тем.
+   * По семантике аналогично `GranularThemeContribution.tokenDefinitions`,
+   * но применяется точечно — только когда компонент попадает в селекцию.
+   *
+   * Ключ — имя темы (`light`, `dark`, ...). Значение — набор токенов БЕЗ
+   * префикса `--`. Пресет выгружает значения токенов только для тех тем,
+   * которые реально активны в приложении (пересечение с `ThemesOptions.names`).
+   *
+   * Порядок мержа в итоговый `tokenRegistry` темы:
+   *   1) токены провайдеров (`provider.theme.tokenDefinitions`);
+   *   2) токены компонентов (в порядке `resolveSelection`) — могут
+   *      переопределять значения провайдера.
+   */
+  tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
 }
 
 export interface GranularThemeTokenSet {
@@ -148,6 +163,11 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
    * UnoCSS, и классы типа `p-5` из шаблонов будут подхватываться без safelist.
    */
   sourceDir?: string
+  /**
+   * Структурные токены, публикуемые компонентом для тем приложения.
+   * См. `GranularComponentDescriptor.tokenDefinitions`.
+   */
+  tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
 }
 
 /**
@@ -176,5 +196,6 @@ export function defineGranularComponent<Name extends string>(
       : `components/${options.name}/styles.css`,
     sourceDirUrl: new URL(normalizedSourceDir, importMetaUrl).href,
     sourceDirAssetName: `components/${options.name}/`,
+    ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
   }
 }

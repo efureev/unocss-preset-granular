@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { access, readFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const DATA_URL_PREFIX = 'data:text/css'
