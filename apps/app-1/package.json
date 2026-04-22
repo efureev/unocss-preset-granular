@@ -9,7 +9,7 @@
     "vue": "^3.5.32"
   },
   "devDependencies": {
-    "@feugene/unocss-preset-granular": "^0.1.0",
+    "@feugene/unocss-preset-granular": "^0.2.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "typescript": "^6.0.2",
     "unocss": "^66.6.8",
