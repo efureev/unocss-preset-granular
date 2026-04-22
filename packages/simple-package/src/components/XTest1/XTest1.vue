@@ -1,7 +1,17 @@
 <script setup lang="ts">
 </script>
 <template>
-  <div class="rounded-[var(--ds-radius-lg)] border border-[var(--brd)] bg-[var(--card)] text-[var(--card-fg)] shadow-sm p-4">
+  <div class=":uno: border border-[var(--brd)] p-4 x-sp-test ">
     <slot/>
   </div>
 </template>
+<style>
+.x-sp-test {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+
+  @apply text-lg font-bold text-red-500;
+}
+</style>

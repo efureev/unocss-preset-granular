@@ -257,6 +257,152 @@ build: {
 - В `package.json` пакета должно быть `"sideEffects": ["**/*.css"]` —
   иначе bundler приложения вырежет CSS компонента.
 
+### 6.1. Свои стили внутри SFC — `<style>` и `@apply`
+
+Помимо отдельного `styles.css`, стили компонента можно писать прямо в
+`<style>` внутри `.vue`‑файла. Это удобно для «локальных» правил, которые
+логически принадлежат только этому компоненту.
+
+Пример — `packages/simple-package/src/components/XTest1/XTest1.vue`:
+
+```vue
+<template>
+  <div class=":uno: border border-[var(--brd)] p-4 x-sp-test">
+    <slot/>
+  </div>
+</template>
+
+<style>
+.x-sp-test {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+
+  @apply text-lg font-bold text-red-500;
+}
+</style>
+```
+
+Ключевые правила:
+
+- **`@apply` работает только при подключённом `transformerDirectives()`**
+  в `uno.config.ts` приложения. Без него директива `@apply` будет
+  оставлена как есть и «посыплется» в рантайме.
+  См. `apps/app-1/uno.config.ts`:
+
+  ```ts
+  import { transformerDirectives } from 'unocss'
+
+  export default defineConfig({
+    transformers: [transformerDirectives(), transformerCompileClass()],
+  })
+  ```
+
+- **Классы, перечисленные в `@apply`, должны быть известны UnoCSS.**
+  Токены/утилиты резолвит сам UnoCSS сборки приложения; поэтому
+  любые кастомные правила/пресеты должны быть в `uno.config.ts`
+  приложения, а не только в пакете.
+- **`<style>` vs `<style scoped>`.** При `scoped` Vue добавляет к
+  селекторам атрибут `[data-v-xxxx]`; такая CSS всё равно попадает в
+  общий ассет компонента и подхватывается через libInjectCss.
+- **CSS из `<style>` в multi‑entry lib‑сборке требует
+  `vite-plugin-lib-inject-css` и `build.cssCodeSplit: true`**
+  в `vite.config.ts` пакета. Иначе Vite склеит CSS в единый ассет,
+  но не эмиттит `import './...css'` ни в один sub‑entry, и
+  потребитель, импортирующий `@your-pkg/components/MyButton`, не
+  получит стили. См. `packages/simple-package/vite.config.ts`:
+
+  ```ts
+  import { libInjectCss } from 'vite-plugin-lib-inject-css'
+
+  export default defineConfig({
+    plugins: [vue(), libInjectCss()],
+    build: {
+      cssCodeSplit: true,
+      lib: { /* multi-entry */ },
+    },
+  })
+  ```
+
+  После сборки в `dist/components/<Name>/chunks/<Name>-*.js`
+  автоматически появится `import '../../../<Name>.css'`, и при
+  sub‑path импорте компонента бандлер приложения затянет именно его
+  CSS (включая правила с `@apply`).
+
+- **Альтернатива — `cssFiles`.** Если нужны стили, которые едут
+  **всегда**, независимо от scan‑результата (например, reset/layout
+  компонента), держите их в `./styles.css` и подключайте через
+  `cssFiles` в `config.ts` — они приезжают в UnoCSS как `preflights`,
+  не зависят от libInjectCss и применяются даже без импорта SFC.
+
+### 6.2. Компиляция классов через `transformerCompileClass` (`:uno:`)
+
+`transformerCompileClass()` (из `unocss`) сжимает длинный список Uno‑утилит
+в **один короткий класс** на этапе сборки. Это уменьшает размер HTML/JS
+и делает разметку чище.
+
+Активируется префиксом в строке класса — по умолчанию `:uno:`:
+
+```vue
+<template>
+  <div class=":uno: border border-[var(--brd)] p-4 x-sp-test">
+    <slot/>
+  </div>
+</template>
+```
+
+Что происходит при сборке `apps/app-1`:
+
+1. UnoCSS видит в исходниках `:uno: border border-[var(--brd)] p-4 x-sp-test`.
+2. `transformerCompileClass` собирает все утилиты до следующего
+   не‑utility токена, удаляет маркер `:uno:` и заменяет их
+   на сгенерированный класс, например `uno-91fns9`.
+3. В итоговом JS‑чанке (`apps/app-1/dist/assets/spkg-*.js`) у шаблона
+   остаётся только короткий класс:
+
+   ```js
+   // фрагмент скомпилированного кода
+   createElementBlock("div", { class: "uno-91fns9 x-sp-test" }, ...)
+   ```
+
+4. В CSS‑ассет приложения (`apps/app-1/dist/assets/app-styles-*.css`)
+   попадает правило:
+
+   ```css
+   .uno-91fns9 { border-width: 1px; padding: 1rem; border-color: var(--brd); }
+   ```
+
+Правила применения:
+
+- Трансформер обязательно подключается **в `uno.config.ts` приложения**,
+  а не в пакете — компиляция делается во время сборки приложения,
+  когда известен полный конфиг UnoCSS:
+
+  ```ts
+  import { transformerCompileClass } from 'unocss'
+
+  export default defineConfig({
+    transformers: [transformerDirectives(), transformerCompileClass()],
+  })
+  ```
+
+- **Маркер должен быть первым токеном** в строке класса: `":uno: px-4 py-2"`.
+  Всё, что стоит до маркера или после не‑utility токена, трансформер
+  не трогает (в примере `x-sp-test` остаётся как есть).
+- **Динамические классы не компилируются.** Трансформер работает по
+  статическому литералу шаблона; для `:class="..."` используйте обычные
+  Uno‑утилиты или `safelist` в `config.ts`.
+- **DevTools и дифф‑ридинг.** Имя класса (`uno-91fns9`) детерминировано
+  от набора утилит, но нечитаемо — на dev‑этапе можно отключить
+  трансформер или передать ему опцию `trigger`/`classPrefix`, чтобы
+  отличать разные блоки. См. документацию `transformerCompileClass`.
+- **Сочетается со `<style>` и `@apply`.** В примере `XTest1.vue`:
+  утилиты из `:uno:` компилируются в `uno-91fns9`, а правила из
+  `<style>` (включая `@apply text-lg font-bold text-red-500`)
+  обрабатываются `transformerDirectives` и едут через
+  libInjectCss‑ассет пакета.
+
 ## 7. Токены темы на уровне компонента (`tokenDefinitions`)
 
 Компонент может **сам публиковать свои CSS‑токены для тем** — по аналогии с

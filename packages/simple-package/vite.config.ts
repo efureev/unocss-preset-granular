@@ -1,15 +1,16 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { libInjectCss } from 'vite-plugin-lib-inject-css'
 import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
-
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), libInjectCss()],
   build: {
     target: 'esnext',
     minify: 'oxc',
     reportCompressedSize: true,
     emptyOutDir: true,
+    cssCodeSplit: true,
     lib: {
       entry: {
         index: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
