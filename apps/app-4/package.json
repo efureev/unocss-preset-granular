@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@feugene/simple-package": "^0.1.0",
+    "@feugene/extra-simple-package": "^0.1.0",
     "@unocss/reset": "^66.6.8",
     "vue": "^3.5.32"
   },

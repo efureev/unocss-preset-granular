@@ -2,6 +2,7 @@ import { defineGranularProvider, type GranularProvider } from '@feugene/unocss-p
 import simpleProvider from '@feugene/simple-package/granular-provider/node'
 
 import { xgQuickConfig } from '../components/XgQuick/config'
+import { xTokenizedLevel2Config } from '../components/XTokenizedLevel2/config'
 
 export const EXTRA_SIMPLE_PROVIDER_ID = '@feugene/extra-simple-package'
 
@@ -27,7 +28,7 @@ export const extraGranularityProvider: GranularProvider = defineGranularProvider
   id: EXTRA_SIMPLE_PROVIDER_ID,
   contractVersion: 1,
   packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-  components: [xgQuickConfig],
+  components: [xgQuickConfig, xTokenizedLevel2Config],
   dependencies: [simpleProvider],
 })
 

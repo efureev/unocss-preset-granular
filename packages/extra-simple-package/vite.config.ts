@@ -16,6 +16,9 @@ export default defineConfig({
         'components/XgQuick/index': fileURLToPath(
           new URL('./src/components/XgQuick/index.ts', import.meta.url),
         ),
+        'components/XTokenizedLevel2/index': fileURLToPath(
+          new URL('./src/components/XTokenizedLevel2/index.ts', import.meta.url),
+        ),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),

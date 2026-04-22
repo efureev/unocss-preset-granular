@@ -1,11 +1,15 @@
 import {defineConfig, presetMini} from 'unocss'
 import {granularContent, presetGranularNode, type PresetGranularNodeOptions} from '@feugene/unocss-preset-granular/node'
-import simplePkgProvider from '@feugene/simple-package/granular-provider/node'
+import xSimplePkgProvider from '@feugene/extra-simple-package/granular-provider/node'
 
 const granularOptions: PresetGranularNodeOptions = {
-    providers: [simplePkgProvider],
+    providers: [xSimplePkgProvider],
     // components: 'all',
-    components: ['@feugene/simple-package:XTokenized'],
+    components: ['@feugene/extra-simple-package:XTokenizedLevel2'],
+    layer: 'granular',
+    themes: {
+        names: ['light', 'dark']
+    }
 }
 
 export default defineConfig({

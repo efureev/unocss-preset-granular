@@ -47,6 +47,10 @@
       "types": "./dist/types/src/components/XgQuick/index.d.ts",
       "import": "./dist/components/XgQuick/index.js"
     },
+    "./components/XTokenizedLevel2": {
+      "types": "./dist/types/src/components/XTokenizedLevel2/index.d.ts",
+      "import": "./dist/components/XTokenizedLevel2/index.js"
+    },
     "./granular-provider": {
       "types": "./dist/types/src/granular-provider/index.d.ts",
       "import": "./dist/granular-provider.js",

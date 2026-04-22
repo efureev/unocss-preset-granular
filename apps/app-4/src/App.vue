@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import {XTokenized} from "@feugene/simple-package/components/XTokenized";
+import {XTokenizedLevel2} from "@feugene/extra-simple-package/components/XTokenizedLevel2";
 </script>
 
 <template>
   <main>
-    <XTokenized>
+    <XTokenizedLevel2>
       Test
-    </XTokenized>
+    </XTokenizedLevel2>
   </main>
 </template>
