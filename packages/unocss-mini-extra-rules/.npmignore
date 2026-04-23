@@ -1,0 +1,11 @@
+src
+node_modules
+coverage
+junit-report.xml
+.env
+.eslintcache
+.gitignore
+tsconfig*.json
+vite.config.ts
+vite.config.*.ts
+yarn.lock

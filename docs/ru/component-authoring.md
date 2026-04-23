@@ -418,11 +418,11 @@ export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
   tokenDefinitions: {
     light: {
       selector: ':root',
-      tokens: { '--x-tokenized': '#2563eb' },
+      tokens: { 'x-tokenized': '#2563eb' }, // --x-tokenized: #2563eb;
     },
     dark: {
       selector: '.dark',
-      tokens: { '--x-tokenized': '#93c5fd' },
+      tokens: { 'x-tokenized': '#93c5fd' },
     },
   },
 })

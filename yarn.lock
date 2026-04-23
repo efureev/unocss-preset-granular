@@ -879,7 +879,7 @@
     "@unocss/core" "66.6.8"
     ofetch "^1.5.1"
 
-"@unocss/preset-mini@66.6.8":
+"@unocss/preset-mini@66.6.8", "@unocss/preset-mini@^66.6.8":
   version "66.6.8"
   resolved "https://registry.yarnpkg.com/@unocss/preset-mini/-/preset-mini-66.6.8.tgz#0a0aad0b57c6d1554fa1426d6b8b4f9ddfacf4d2"
   integrity sha512-vAechrReO7LtWzFAeF54P7CintG2m65SlVlBsi1x2Ru7IdgUNJEHII0MfXUvf9r1x8vsIlhATyaqqtBVT6ps/w==
@@ -950,7 +950,7 @@
   resolved "https://registry.yarnpkg.com/@unocss/reset/-/reset-66.6.8.tgz#99207ffc9af92f2fdf1bebe0e870ee727d41ac12"
   integrity sha512-H+YP3ltizUiPO9FzFgFhv8WGsefO7fTgT1If1/9ritPDqZlvzTqMmjelhcq8D8MGoQ1RQBUvtkZ5HJoKVY0Tgw==
 
-"@unocss/rule-utils@66.6.8":
+"@unocss/rule-utils@66.6.8", "@unocss/rule-utils@^66.6.8":
   version "66.6.8"
   resolved "https://registry.yarnpkg.com/@unocss/rule-utils/-/rule-utils-66.6.8.tgz#813edb56b8dda572e14e2d2419ce850c803b3a7d"
   integrity sha512-WR35L07mLP6PElD4hlUHo5KbQ48uz2HT/XCuJyAsHP+15Gv6539hPWA5SresPuva9r8rl+PeGIgMSIKf4A5Ihw==

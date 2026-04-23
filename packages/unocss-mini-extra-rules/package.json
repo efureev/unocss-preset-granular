@@ -1,0 +1,67 @@
+{
+  "name": "@feugene/unocss-mini-extra-rules",
+  "description": "Extra UnoCSS rules on top of @unocss/preset-mini: animations, bracket color with opacity, advanced filters and spacing utilities.",
+  "version": "0.2.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Evgeniy Fureev",
+    "url": "https://github.com/efureev"
+  },
+  "homepage": "https://efureev.github.io/granularity",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/efureev/granularity.git",
+    "directory": "packages/unocss-mini-extra-rules"
+  },
+  "bugs": {
+    "url": "https://github.com/efureev/granularity/issues"
+  },
+  "keywords": [
+    "unocss",
+    "unocss-rules",
+    "unocss-preset-mini",
+    "rules",
+    "preset",
+    "atomic-css",
+    "css-in-js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/types/src/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/src/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@unocss/core": ">=0.60.0 <1.0.0",
+    "@unocss/preset-mini": ">=0.60.0 <1.0.0",
+    "@unocss/rule-utils": ">=0.60.0 <1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@unocss/core": "^66.6.8",
+    "@unocss/preset-mini": "^66.6.8",
+    "@unocss/rule-utils": "^66.6.8",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.7",
+    "vue-tsc": "^3.2.6"
+  },
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "dev": "vite build --watch",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  }
+}

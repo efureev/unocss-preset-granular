@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     tags:
       - 'v*'
+      - 'unocss-preset-granular-v*'
+      - 'unocss-mini-extra-rules-v*'
   pull_request:
     branches: [ main ]
 
@@ -135,6 +137,119 @@ jobs:
 
       - name: Publish to GitHub Packages
         working-directory: packages/unocss-preset-granular
+        run: npm publish --ignore-scripts --no-provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  # Сборка @feugene/unocss-mini-extra-rules. Пакет содержит дополнительные
+  # правила поверх @unocss/preset-mini (animation, colorOpacity, filters,
+  # spacing) и не зависит от рантайма @feugene/granularity.
+  build-unocss-mini-extra-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck package
+        run: yarn workspace @feugene/unocss-mini-extra-rules typecheck
+
+      - name: Build package
+        run: yarn build:unocss-mini-extra-rules
+
+      - name: Validate package metadata (publint)
+        working-directory: packages/unocss-mini-extra-rules
+        run: npx --yes publint@latest --pack npm
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: unocss-mini-extra-rules-dist
+          path: packages/unocss-mini-extra-rules/dist/
+
+  # Публикация @feugene/unocss-mini-extra-rules в npm по тегу
+  # `unocss-mini-extra-rules-v<semver>`. Независимый префикс тега позволяет
+  # релизить пакет отдельно от остальных.
+  publish-npm-unocss-mini-extra-rules:
+    needs:
+      - build-unocss-mini-extra-rules
+    if: startsWith(github.ref, 'refs/tags/unocss-mini-extra-rules-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify tag matches package version
+        working-directory: packages/unocss-mini-extra-rules
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#unocss-mini-extra-rules-v}"
+          echo "package.json version: $PKG_VERSION"
+          echo "git tag version:      $TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Download dist
+        uses: actions/download-artifact@v8
+        with:
+          name: unocss-mini-extra-rules-dist
+          path: packages/unocss-mini-extra-rules/dist
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        working-directory: packages/unocss-mini-extra-rules
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Зеркало в GitHub Packages под scope владельца репозитория
+  # (`@efureev/unocss-mini-extra-rules`). Аналогично publish-gpr для granularity.
+  publish-gpr-unocss-mini-extra-rules:
+    needs:
+      - publish-npm-unocss-mini-extra-rules
+    if: startsWith(github.ref, 'refs/tags/unocss-mini-extra-rules-v')
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@efureev'
+
+      - name: Download dist
+        uses: actions/download-artifact@v8
+        with:
+          name: unocss-mini-extra-rules-dist
+          path: packages/unocss-mini-extra-rules/dist
+
+      - name: Prepare package for GitHub Packages
+        working-directory: packages/unocss-mini-extra-rules
+        run: |
+          npm pkg set name='@efureev/unocss-mini-extra-rules'
+          npm pkg delete publishConfig.provenance
+          npm pkg set publishConfig.registry='https://npm.pkg.github.com'
+          node -e "const p=require('./package.json');console.log('publishing as:',p.name,'@',p.version)"
+
+      - name: Publish to GitHub Packages
+        working-directory: packages/unocss-mini-extra-rules
         run: npm publish --ignore-scripts --no-provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

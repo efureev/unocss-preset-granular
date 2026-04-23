@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build:granular": "yarn workspace @feugene/unocss-preset-granular build",
-    "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run"
+    "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run",
+    "build:unocss-mini-extra-rules": "yarn workspace @feugene/unocss-mini-extra-rules build"
   }
 }
