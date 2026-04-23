@@ -1,7 +1,7 @@
 {
   "name": "@feugene/unocss-mini-extra-rules",
   "description": "Extra UnoCSS rules on top of @unocss/preset-mini: animations, bracket color with opacity, advanced filters and spacing utilities.",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "license": "SEE LICENSE IN LICENSE",
   "author": {
     "name": "Evgeniy Fureev",
