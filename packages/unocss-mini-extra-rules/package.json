@@ -7,14 +7,14 @@
     "name": "Evgeniy Fureev",
     "url": "https://github.com/efureev"
   },
-  "homepage": "https://efureev.github.io/granularity",
+  "homepage": "https://github.com/efureev/unocss-preset-granular#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/efureev/granularity.git",
+    "url": "git+https://github.com/efureev/unocss-preset-granular.git",
     "directory": "packages/unocss-mini-extra-rules"
   },
   "bugs": {
-    "url": "https://github.com/efureev/granularity/issues"
+    "url": "https://github.com/efureev/unocss-preset-granular/issues"
   },
   "keywords": [
     "unocss",
