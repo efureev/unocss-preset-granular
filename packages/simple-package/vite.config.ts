@@ -26,6 +26,9 @@ export default defineConfig({
         'components/XNested/index': fileURLToPath(
           new URL('./src/components/XNested/index.ts', import.meta.url),
         ),
+        'components/XNestedReverse/index': fileURLToPath(
+          new URL('./src/components/reverses/XNestedReverse/index.ts', import.meta.url),
+        ),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),

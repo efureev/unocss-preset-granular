@@ -55,6 +55,14 @@
       "types": "./dist/types/src/components/XTokenized/index.d.ts",
       "import": "./dist/components/XTokenized/index.js"
     },
+    "./components/XNested": {
+      "types": "./dist/types/src/components/XNested/index.d.ts",
+      "import": "./dist/components/XNested/index.js"
+    },
+    "./components/XNestedReverse": {
+      "types": "./dist/types/src/components/reverses/XNestedReverse/index.d.ts",
+      "import": "./dist/components/XNestedReverse/index.js"
+    },
     "./granular-provider": {
       "types": "./dist/types/src/granular-provider/index.d.ts",
       "import": "./dist/granular-provider.js",

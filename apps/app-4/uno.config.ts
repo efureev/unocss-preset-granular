@@ -8,13 +8,13 @@ import {
     spacingRules,
     spacingVariants,
 } from '@feugene/unocss-mini-extra-rules'
-import xSimplePkgProvider from '@feugene/extra-simple-package/granular-provider/node'
+import xSimplePkgProvider from '@feugene/simple-package/granular-provider/node'
 
 const granularOptions: PresetGranularNodeOptions = {
     providers: [xSimplePkgProvider],
     // components: 'all',
     components: [
-        '@feugene/extra-simple-package:XTokenizedLevel2',
+        '@feugene/simple-package:XNestedReverse',
     ],
     layer: 'granular',
     // themes: {
