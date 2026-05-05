@@ -145,7 +145,7 @@ export function defineGranularProvider<P extends GranularProvider>(provider: P):
 export interface DefineGranularComponentOptions<Name extends string = string> {
   name: Name
   dependencies?: readonly GranularComponentDependency[]
-  safelist: readonly string[]
+  safelist?: readonly string[]
   cssFiles?: readonly string[]
   /**
    * Если `false` — внешний build НЕ будет эмитить отдельный CSS-ассет
@@ -178,7 +178,7 @@ export function defineGranularComponent<Name extends string>(
   return {
     name: options.name,
     dependencies: [...(options.dependencies ?? [])],
-    safelist: [...options.safelist],
+    safelist: [...(options.safelist ?? [])],
     cssFiles: cssFiles.map(file => new URL(file, importMetaUrl).href),
     cssFileAssetNames: cssFiles.map(
       file => `components/${options.name}/${file.replace(/^\.\//, '')}`,
