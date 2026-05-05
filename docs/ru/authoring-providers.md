@@ -232,6 +232,43 @@ granularChunkFileNames({
 runtime‑резолв `packageBaseUrl`. Хелпер триггерит перенос **только** если
 в модулях чанка есть `*.vue` файл конкретного компонента.
 
+### Группы компонентов и shared SFC
+
+Когда два или более entry‑компонентов импортируют один и тот же SFC,
+Rollup дедуплицирует его в shared‑чанк. По умолчанию такой чанк
+отправляется в плоский `dist/chunks/` и **не сканируется**. Чтобы его
+утилитарные классы попадали в итоговый CSS, кладите такие SFC в
+`src/components/<group>/shared/<File>.vue` и декларируйте одинаковый
+`group` у всех entry‑компонентов группы:
+
+```ts
+// src/components/transaction-details/FtExpenseModal/config.ts
+defineGranularComponent(import.meta.url, {
+  name: 'FtExpenseModal',
+  group: 'transaction-details',
+  safelist: [],
+})
+
+// src/components/transaction-details/shared/TransactionModalHeader.vue
+// — импортируется FtExpenseModal, FtIncomeModal, FtTransferModal
+```
+
+`granularChunkFileNames()` распознаёт раскладку `<group>/shared/<File>.vue`
+и роутит shared‑чанки в `dist/groups/<group>/shared/[name]-[hash].js`. На
+стороне приложения пресет, видя выбранный компонент с
+`group: '<group>'`, дополнительно сканирует
+`<packageBaseUrl>/groups/<group>/shared/` (один раз на группу — благодаря
+дедупу). См. [component-scanning → Группы компонентов](./component-scanning.md#группы-компонентов-shared-sfc-между-entry-компонентами).
+
+Можно переопределить regex/pattern для нестандартной раскладки:
+
+```ts
+granularChunkFileNames({
+  sharedModuleRegex: /\/src\/widgets\/(.+)\/_shared\/[^/]+\.vue(?:$|\?)/,
+  sharedChunkPattern: 'groups/<group>/shared/[name]-[hash].js',
+})
+```
+
 ## Правила (сводка)
 
 - `safelist` → **только свои** динамические классы компонента.

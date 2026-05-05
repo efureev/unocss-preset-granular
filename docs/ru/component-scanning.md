@@ -96,6 +96,36 @@ node_modules/@feugene/simple-package/dist/components/XTest1/**/*.{js,mjs,...,vue
 Любой провайдер, поставляющий Vue SFC и желающий быть "scannable", должен
 его применять.
 
+## Группы компонентов (shared SFC между entry-компонентами)
+
+Когда несколько entry‑компонентов провайдера используют один и тот же SFC
+(например, `FtExpenseModal`, `FtIncomeModal`, `FtTransferModal` импортируют
+`TransactionModalHeader.vue`), Rolldown/Rollup дедуплицирует этот SFC в
+один shared‑чанк. По умолчанию такой чанк попадает в плоский
+`dist/chunks/` и **не сканируется** (per‑component контракт
+`dist/components/<Name>/` его не покрывает) — утилитарные классы из
+shared SFC «теряются».
+
+Решение — контракт **компонентной группы**:
+
+1. В исходниках провайдера shared SFC лежат в подпапке `shared/` группы:
+   `src/components/<group>/shared/<File>.vue`.
+2. Каждый entry‑компонент группы декларирует одинаковый `group` в своём
+   `defineGranularComponent({ name, group })`.
+3. Хелпер `granularChunkFileNames()` автоматически роутит shared‑чанки в
+   `dist/groups/<group>/shared/[name]-[hash].js`.
+4. Пресет дополнительно сканирует `<packageBaseUrl>/groups/<group>/shared/`
+   для каждого выбранного компонента с `group: '<group>'`. Папка
+   сканируется **один раз** на группу (дедуп по `realpath`), независимо
+   от того, сколько компонентов группы выбрано.
+
+Компоненты без `group` изолированы: их выбор никогда не подтягивает
+shared‑сканы чужих групп, поэтому неиспользуемые группы провайдера не
+засоряют итоговый CSS.
+
+Если `dist/groups/<group>/shared/` отсутствует (в группе нет shared SFC),
+пресет тихо пропускает её — `group` это opt‑in метаданные, не ошибка.
+
 ## Опция `scan` — продвинутое
 
 `presetGranularNode({ scan: { ... } })`:

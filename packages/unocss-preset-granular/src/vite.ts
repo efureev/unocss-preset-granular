@@ -43,10 +43,35 @@ export interface GranularChunkFileNamesOptions {
   componentChunkPattern?: string
 
   /**
+   * Regex that matches a module id belonging to a **shared SFC** of a
+   * component group and captures the **group path** in group 1.
+   *
+   * A "shared SFC" is a Vue component imported by ≥ 2 entry-components of
+   * the same group (e.g. `transaction-details/shared/TransactionModalHeader.vue`
+   * imported by `FtExpenseModal`, `FtIncomeModal`, `FtTransferModal`).
+   *
+   * Default: `/\/src\/components\/(.+)\/shared\/[^/]+\.vue(?:$|\?)/` —
+   * standard layout `src/components/<group>/shared/<File>.vue`.
+   */
+  sharedModuleRegex?: RegExp
+
+  /**
+   * Pattern returned when the chunk contains a shared SFC module of a group.
+   * `<group>` is replaced with the captured group path.
+   *
+   * Default: `'groups/<group>/shared/[name]-[hash].js'`.
+   *
+   * The end app's preset, given a component descriptor with `group: '<group>'`,
+   * will additionally scan `dist/groups/<group>/shared/` — and pick up
+   * utility classes from these chunks.
+   */
+  sharedChunkPattern?: string
+
+  /**
    * Pattern returned for chunks that do **not** belong to a component
-   * (shared/internal chunks). Use this to avoid moving non‑component chunks
-   * (like `granular-provider` or config chunks) into a component folder —
-   * doing so would break `packageBaseUrl` resolution.
+   * or a shared SFC of a group (e.g. `granular-provider`, `i18n`,
+   * `config`). These remain flat under `chunks/` so that `packageBaseUrl`
+   * resolution is not affected.
    *
    * Default: `'chunks/[name]-[hash].js'`.
    */
@@ -84,17 +109,30 @@ export interface GranularChunkFileNamesOptions {
 export function granularChunkFileNames(
   options: GranularChunkFileNamesOptions = {},
 ): (chunkInfo: GranularChunkInfo) => string {
-  const regex = options.componentModuleRegex
+  const componentRegex = options.componentModuleRegex
     ?? /\/src\/components\/([^/]+)\/[^/]+\.vue(?:$|\?)/
+  const sharedRegex = options.sharedModuleRegex
+    ?? /\/src\/components\/(.+)\/shared\/[^/]+\.vue(?:$|\?)/
   const componentPattern = options.componentChunkPattern
     ?? 'components/<name>/chunks/[name]-[hash].js'
+  const sharedPattern = options.sharedChunkPattern
+    ?? 'groups/<group>/shared/[name]-[hash].js'
   const fallback = options.fallbackChunkPattern
     ?? 'chunks/[name]-[hash].js'
 
   return (chunkInfo) => {
     const ids = chunkInfo.moduleIds ?? []
+    // Shared SFC takes precedence: a chunk can contain a module that
+    // matches both regexes (e.g. group path captured by component regex
+    // would yield wrong directory like `transaction-details`); checking
+    // shared first guarantees correct routing.
     for (const id of ids) {
-      const m = id.match(regex)
+      const m = id.match(sharedRegex)
+      if (m && m[1])
+        return sharedPattern.replace('<group>', m[1])
+    }
+    for (const id of ids) {
+      const m = id.match(componentRegex)
       if (m && m[1])
         return componentPattern.replace('<name>', m[1])
     }

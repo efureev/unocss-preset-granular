@@ -209,6 +209,16 @@ export function defineGranularComponent<N extends string>(
          * См. `GranularComponentDescriptor.tokenDefinitions`.
          */
         tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
+        /**
+         * Идентификатор группы компонентов, шарящих общие SFC-чанки.
+         * Если задан — пресет дополнительно сканирует
+         * `<packageBaseUrl>/groups/<group>/shared/`. Build провайдера
+         * (через `granularChunkFileNames()` из `/vite`) кладёт shared SFC
+         * в эту папку. Дедуп: один скан на группу, независимо от количества
+         * выбранных компонентов группы.
+         * См. `docs/component-scanning.md` → "Группы компонентов".
+         */
+        group?: string
     },
 ): GranularComponentDescriptor<N>
 ```

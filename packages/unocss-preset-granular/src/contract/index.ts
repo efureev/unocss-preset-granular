@@ -49,6 +49,18 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    *      переопределять значения провайдера.
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
+  /**
+   * Идентификатор группы компонентов, шарящих общие SFC-чанки.
+   *
+   * Если задан, дополнительно к `dist/components/<Name>/` пресет
+   * сканирует `dist/groups/<group>/shared/` — туда build провайдера
+   * (через `granularChunkFileNames`) кладёт чанки SFC, которые
+   * импортируются несколькими entry-компонентами одной группы
+   * (типичный layout: `src/components/<group>/shared/<File>.vue`).
+   *
+   * Без `group` shared-папка не сканируется — компонент изолирован.
+   */
+  group?: string
 }
 
 export interface GranularThemeTokenSet {
@@ -145,6 +157,11 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
    * См. `GranularComponentDescriptor.tokenDefinitions`.
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
+  /**
+   * Идентификатор группы компонентов, шарящих общие SFC.
+   * См. `GranularComponentDescriptor.group`.
+   */
+  group?: string
 }
 
 /**
@@ -170,5 +187,6 @@ export function defineGranularComponent<Name extends string>(
       ? null
       : `components/${options.name}/styles.css`,
     ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
+    ...(options.group ? { group: options.group } : {}),
   }
 }

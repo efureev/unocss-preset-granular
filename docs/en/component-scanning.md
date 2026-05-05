@@ -96,6 +96,35 @@ The fix is the `chunkFileNames` recipe in
 [Authoring providers → Vite build recipe](./authoring-providers.md#vite-build-recipe--chunkfilenames).
 Any provider that ships Vue SFCs and wants to be "scannable" must apply it.
 
+## Component groups (shared SFCs across entry-components)
+
+When several entry‑components of a provider share a common SFC (e.g.
+`FtExpenseModal`, `FtIncomeModal`, `FtTransferModal` all import
+`TransactionModalHeader.vue`), Rolldown/Rollup deduplicates that SFC into
+a single shared chunk. By default such chunks land in flat `dist/chunks/`
+and are **not** scanned (the per‑component contract `dist/components/<Name>/`
+does not include them) — utility classes from those shared SFCs go
+missing.
+
+The fix is the **component group** contract:
+
+1. In the provider source, place shared SFCs under a `shared/` subfolder of
+   a group: `src/components/<group>/shared/<File>.vue`.
+2. Each entry‑component of the group declares the same `group` in its
+   `defineGranularComponent({ name, group })`.
+3. The `granularChunkFileNames()` helper routes shared SFC chunks to
+   `dist/groups/<group>/shared/[name]-[hash].js` automatically.
+4. The preset additionally scans `<packageBaseUrl>/groups/<group>/shared/`
+   for every selected component that has `group: '<group>'`. The directory
+   is scanned **once** per group thanks to dedup, regardless of how many
+   group members are selected.
+
+Components without `group` are isolated: their selection never pulls any
+group‑shared scan, so unused groups in the provider don't pollute the CSS.
+
+If `dist/groups/<group>/shared/` is absent (the group has no shared SFCs),
+the preset silently skips it — `group` is opt‑in metadata, never an error.
+
 ## `scan` option — advanced
 
 `presetGranularNode({ scan: { ... } })`:

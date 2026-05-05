@@ -193,6 +193,107 @@ describe('resolveComponentScanDirs', () => {
     expect(warn.mock.calls[0]?.[0]).toMatch(/missing 'index\.js'/)
   })
 
+  it('добавляет groups/<group>/shared/ для компонентов с descriptor.group, дедуплицирует на N компонентов одной группы', () => {
+    // Layout фикстуры:
+    //   pkg-grp/dist/components/G1/{index.js}
+    //   pkg-grp/dist/components/G2/{index.js}
+    //   pkg-grp/dist/groups/groupX/shared/{Shared-abc.js}
+    //   pkg-grp/dist/components/Solo/{index.js}    ← без group, shared не подцепляется
+    const grpRoot = join(root, 'pkg-grp/dist')
+    const g1 = join(grpRoot, 'components/G1')
+    const g2 = join(grpRoot, 'components/G2')
+    const solo = join(grpRoot, 'components/Solo')
+    const sharedX = join(grpRoot, 'groups/groupX/shared')
+    mkdirSync(g1, { recursive: true })
+    mkdirSync(g2, { recursive: true })
+    mkdirSync(solo, { recursive: true })
+    mkdirSync(sharedX, { recursive: true })
+    writeFileSync(join(g1, 'index.js'), '', 'utf8')
+    writeFileSync(join(g2, 'index.js'), '', 'utf8')
+    writeFileSync(join(solo, 'index.js'), '', 'utf8')
+    writeFileSync(join(sharedX, 'Shared-abc.js'), 'export const c="text-9xl"', 'utf8')
+
+    const cfgG1 = defineGranularComponent(
+      pathToFileURL(join(g1, 'config.ts')).href,
+      { name: 'G1', group: 'groupX', safelist: [] },
+    )
+    const cfgG2 = defineGranularComponent(
+      pathToFileURL(join(g2, 'config.ts')).href,
+      { name: 'G2', group: 'groupX', safelist: [] },
+    )
+    const cfgSolo = defineGranularComponent(
+      pathToFileURL(join(solo, 'config.ts')).href,
+      { name: 'Solo', safelist: [] },
+    )
+    const provider = defineGranularProvider({
+      id: 'pkg-grp',
+      contractVersion: 1,
+      packageBaseUrl: pathToFileURL(`${grpRoot}/`).href,
+      components: [cfgG1, cfgG2, cfgSolo],
+    })
+
+    // Один компонент группы — shared подцепляется
+    {
+      const resolution = resolvePresetGranular({
+        providers: [provider],
+        components: [{ provider: 'pkg-grp', names: ['G1'] }],
+      })
+      const dirs = resolveComponentScanDirs(resolution)
+      expect(dirs.some(d => d.kind === 'component' && d.dir.endsWith('components/G1'))).toBe(true)
+      expect(dirs.some(d => d.kind === 'group-shared' && d.dir.endsWith('groups/groupX/shared'))).toBe(true)
+    }
+
+    // Оба компонента одной группы — shared всё ещё ОДИН (дедуп по realpath)
+    {
+      const resolution = resolvePresetGranular({
+        providers: [provider],
+        components: [{ provider: 'pkg-grp', names: ['G1', 'G2'] }],
+      })
+      const dirs = resolveComponentScanDirs(resolution)
+      const sharedDirs = dirs.filter(d => d.kind === 'group-shared')
+      expect(sharedDirs.length).toBe(1)
+      expect(sharedDirs[0]!.dir.endsWith('groups/groupX/shared')).toBe(true)
+    }
+
+    // Только Solo (без group) — shared НЕ сканируется, лишних классов из чужой группы нет
+    {
+      const resolution = resolvePresetGranular({
+        providers: [provider],
+        components: [{ provider: 'pkg-grp', names: ['Solo'] }],
+      })
+      const dirs = resolveComponentScanDirs(resolution)
+      expect(dirs.some(d => d.kind === 'group-shared')).toBe(false)
+      expect(dirs.some(d => d.dir.endsWith('groups/groupX/shared'))).toBe(false)
+    }
+  })
+
+  it('group задан, но groups/<group>/shared/ отсутствует — тихо пропускается без warn (опциональная зона)', () => {
+    const root2 = join(root, 'pkg-grp-empty/dist')
+    const cdir = join(root2, 'components/Empty')
+    mkdirSync(cdir, { recursive: true })
+    writeFileSync(join(cdir, 'index.js'), '', 'utf8')
+
+    const cfg = defineGranularComponent(
+      pathToFileURL(join(cdir, 'config.ts')).href,
+      { name: 'Empty', group: 'groupNoShared', safelist: [] },
+    )
+    const provider = defineGranularProvider({
+      id: 'pkg-grp-empty',
+      contractVersion: 1,
+      packageBaseUrl: pathToFileURL(`${root2}/`).href,
+      components: [cfg],
+    })
+    const resolution = resolvePresetGranular({
+      providers: [provider],
+      components: 'all',
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const dirs = resolveComponentScanDirs(resolution)
+    expect(dirs.length).toBe(1)
+    expect(dirs[0]!.kind).toBe('component')
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   it('strict-режим бросает GranularProviderContractError при отсутствии index.js', () => {
     const dir = join(root, 'no-entry-strict/dist/components/NoEntry')
     mkdirSync(dir, { recursive: true })

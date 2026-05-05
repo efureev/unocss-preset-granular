@@ -9,6 +9,12 @@ export interface ResolvedScanDir {
   componentName: string
   /** Абсолютный путь к директории (после realpath). */
   dir: string
+  /**
+   * Тип директории:
+   *  - `'component'` — `<packageBaseUrl>/components/<Name>/` (per-component output);
+   *  - `'group-shared'` — `<packageBaseUrl>/groups/<group>/shared/` (shared SFC группы).
+   */
+  kind: 'component' | 'group-shared'
 }
 
 /** Опции резолва директорий сканирования. */
@@ -142,6 +148,42 @@ export function resolveComponentScanDirs(
       providerId: provider.id,
       componentName: descriptor.name,
       dir: canonical,
+      kind: 'component',
+    })
+
+    // Shared directory for component group (optional, opt-in via `group`).
+    // Contract: `<packageBaseUrl>/groups/<group>/shared/` — emitted by
+    // provider's bundler via `granularChunkFileNames()` when ≥ 2 entry
+    // components of the same group import a common SFC. Missing dir is
+    // tolerated (no warn, no throw): a group with no shared SFC simply
+    // produces no `groups/<group>/shared/` folder.
+    const group = descriptor.group
+    if (typeof group !== 'string' || group.length === 0)
+      continue
+
+    let sharedDir: string
+    try {
+      sharedDir = fileURLToPath(new URL(`groups/${group}/shared/`, provider.packageBaseUrl))
+    }
+    catch {
+      // Invalid packageBaseUrl is already reported above for the
+      // component itself; do not double-report.
+      continue
+    }
+
+    if (!isExistingDir(sharedDir))
+      continue
+
+    const sharedCanonical = canonicalize(sharedDir)
+    if (seen.has(sharedCanonical))
+      continue
+    seen.add(sharedCanonical)
+
+    result.push({
+      providerId: provider.id,
+      componentName: descriptor.name,
+      dir: sharedCanonical,
+      kind: 'group-shared',
     })
   }
 

@@ -235,6 +235,43 @@ config chunks) land in a component folder — doing so breaks runtime
 `packageBaseUrl` resolution. The helper only triggers the rewrite when a
 chunk's module set actually contains a component's `*.vue` file.
 
+### Component groups & shared SFCs
+
+When two or more entry‑components import a common SFC, Rollup deduplicates
+it into a single shared chunk. That chunk would normally land in flat
+`dist/chunks/` and **not** be scanned. To keep utility classes from such
+shared SFCs in the final CSS, place them under
+`src/components/<group>/shared/<File>.vue` and declare the same `group`
+on every entry‑component of that group:
+
+```ts
+// src/components/transaction-details/FtExpenseModal/config.ts
+defineGranularComponent(import.meta.url, {
+  name: 'FtExpenseModal',
+  group: 'transaction-details',
+  safelist: [],
+})
+
+// src/components/transaction-details/shared/TransactionModalHeader.vue
+// — imported by FtExpenseModal, FtIncomeModal, FtTransferModal
+```
+
+`granularChunkFileNames()` recognises the `<group>/shared/<File>.vue`
+layout and routes shared SFC chunks to
+`dist/groups/<group>/shared/[name]-[hash].js`. The end‑app preset, given
+a selected component with `group: '<group>'`, additionally scans
+`<packageBaseUrl>/groups/<group>/shared/` (deduplicated to a single scan
+per group). See [component-scanning → Component groups](./component-scanning.md#component-groups-shared-sfcs-across-entry-components).
+
+You can override the regex/pattern for non‑standard layouts:
+
+```ts
+granularChunkFileNames({
+  sharedModuleRegex: /\/src\/widgets\/(.+)\/_shared\/[^/]+\.vue(?:$|\?)/,
+  sharedChunkPattern: 'groups/<group>/shared/[name]-[hash].js',
+})
+```
+
 ## Rules recap
 
 - `safelist` → **only** component's own dynamic classes.

@@ -2,6 +2,8 @@ import {defineGranularProvider, type GranularProvider} from '@feugene/unocss-pre
 
 import {xNestedConfig} from '../components/XNested/config'
 import {xXNestedReverseConfig} from '../components/reverses/XNestedReverse/config'
+import {xGroupAOneConfig} from '../components/groupA/XGroupAOne/config'
+import {xGroupATwoConfig} from '../components/groupA/XGroupATwo/config'
 import {xTest1Config} from '../components/XTest1/config'
 import {xTestStyledConfig} from '../components/XTestStyled/config'
 import {xTokenizedConfig} from '../components/XTokenized/config'
@@ -31,7 +33,7 @@ export const simpleProvider: GranularProvider = defineGranularProvider({
     id: PROVIDER_ID,
     contractVersion: 1,
     packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-    components: [xTest1Config, xTestStyledConfig, xTokenizedConfig, xNestedConfig, xXNestedReverseConfig],
+    components: [xTest1Config, xTestStyledConfig, xTokenizedConfig, xNestedConfig, xXNestedReverseConfig, xGroupAOneConfig, xGroupATwoConfig],
     // theme: {
     // baseCssUrl: new URL('../styles/base.css', import.meta.url).href,
     // tokenDefinitions: {

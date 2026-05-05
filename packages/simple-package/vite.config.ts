@@ -29,6 +29,15 @@ export default defineConfig({
         'components/XNestedReverse/index': fileURLToPath(
           new URL('./src/components/reverses/XNestedReverse/index.ts', import.meta.url),
         ),
+        // groupA — фикстура для проверки контракта group-shared:
+        // оба entry-компонента импортируют общий SFC `groupA/shared/...`,
+        // build кладёт shared-чанк в `dist/groups/groupA/shared/`.
+        'components/XGroupAOne/index': fileURLToPath(
+          new URL('./src/components/groupA/XGroupAOne/index.ts', import.meta.url),
+        ),
+        'components/XGroupATwo/index': fileURLToPath(
+          new URL('./src/components/groupA/XGroupATwo/index.ts', import.meta.url),
+        ),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),
