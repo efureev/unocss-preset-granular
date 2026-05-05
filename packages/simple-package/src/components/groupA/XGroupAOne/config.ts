@@ -10,5 +10,4 @@ import { defineGranularComponent } from '@feugene/unocss-preset-granular/contrac
 export const xGroupAOneConfig = defineGranularComponent(import.meta.url, {
   name: 'XGroupAOne',
   group: 'groupA',
-  safelist: [],
 })

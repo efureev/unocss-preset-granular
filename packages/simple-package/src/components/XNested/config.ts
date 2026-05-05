@@ -9,5 +9,4 @@ import { defineGranularComponent } from '@feugene/unocss-preset-granular/contrac
  */
 export const xNestedConfig = defineGranularComponent(import.meta.url, {
   name: 'XNested',
-  safelist: [],
 })

@@ -5,5 +5,4 @@ export const xTokenizedLevel2Config = defineGranularComponent(import.meta.url, {
     dependencies: [
         '@feugene/simple-package:XTokenized'
     ],
-    safelist: [],
 })
