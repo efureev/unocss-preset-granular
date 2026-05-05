@@ -78,10 +78,7 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
   // 4. CSS компонента — всегда едет в итоговый CSS как preflight
   cssFiles: ['./styles.css'],
 
-  // 5. Переопределение scan‑директории (нужно крайне редко)
-  sourceDir: './',
-
-  // 6. Публикация CSS‑токенов темы на уровне КОМПОНЕНТА (опц.)
+  // 5. Публикация CSS‑токенов темы на уровне КОМПОНЕНТА (опц.)
   //    См. §7 — «Токены темы на уровне компонента».
   tokenDefinitions: {
     light: {
@@ -104,7 +101,6 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 | `dependencies` | Только компоненты, от которых **шаблон** реально зависит.                 |
 | `safelist`     | `string \| RegExp`. Только то, что **нельзя** извлечь статически.         |
 | `cssFiles`     | Пути относительно `config.ts`. Приезжают в UnoCSS как `preflights`.       |
-| `sourceDir`    | По умолчанию `'./'` — директория `config.ts`. Не трогайте без причины.    |
 | `tokenDefinitions` | `Record<themeName, { selector, tokens }>`. CSS‑токены темы от компонента. |
 
 ### Критично про `safelist`
@@ -121,7 +117,7 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 ### `import.meta.url` — обязателен
 
 Первый аргумент `defineGranularComponent` — `import.meta.url` самого
-`config.ts`. Через него пресет резолвит `cssFiles[i]` и `sourceDir` как
+`config.ts`. Через него пресет резолвит `cssFiles[i]` как
 `new URL(path, import.meta.url)`. Не подменяйте его и не выносите
 `config.ts` из папки компонента.
 

@@ -23,6 +23,9 @@ export default defineConfig({
         'components/XTokenized/index': fileURLToPath(
           new URL('./src/components/XTokenized/index.ts', import.meta.url),
         ),
+        'components/XNested/index': fileURLToPath(
+          new URL('./src/components/XNested/index.ts', import.meta.url),
+        ),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),

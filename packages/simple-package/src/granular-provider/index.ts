@@ -1,6 +1,7 @@
 import {defineGranularProvider, type GranularProvider} from '@feugene/unocss-preset-granular/contract'
 import {tokenDefinitionsFromCssSync} from '@feugene/unocss-preset-granular/node'
 
+import {xNestedConfig} from '../components/XNested/config'
 import {xTest1Config} from '../components/XTest1/config'
 import {xTestStyledConfig} from '../components/XTestStyled/config'
 import {xTokenizedConfig} from '../components/XTokenized/config'
@@ -30,7 +31,7 @@ export const simpleProvider: GranularProvider = defineGranularProvider({
     id: PROVIDER_ID,
     contractVersion: 1,
     packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-    components: [xTest1Config, xTestStyledConfig, xTokenizedConfig],
+    components: [xTest1Config, xTestStyledConfig, xTokenizedConfig, xNestedConfig],
     // theme: {
         // baseCssUrl: new URL('../styles/base.css', import.meta.url).href,
         // tokenDefinitions: {

@@ -51,17 +51,19 @@ Under the hood it:
 2. Builds the **transitive dependencies graph** (including cross‑provider
    edges). Only components that are selected OR reachable via `dependencies`
    contribute to the scan list — nothing else.
-3. For each such component picks a scan directory using the following
-   priority chain:
-   1. `sourceDirAssetName` (if the component declares `sourceDir` and the
-      provider was built with an `assetName`‑mapped layout).
-   2. `sourceDirUrl` (from `defineGranularComponent({ sourceDir })` — resolves
-      against the component's `import.meta.url`).
-   3. `dirname(cssFiles[0])` — the directory of the component's first
-      declared CSS file.
-   4. `packageBaseUrl + 'components/<Name>/'` — convention fallback.
-4. Normalises each dir to an absolute POSIX path, resolves `realpath` for
-   dedup across `src/` ↔ `dist/` ↔ symlinked workspaces.
+3. For each such component computes the **single** scan directory dictated
+   by the strict layout contract:
+   `fileURLToPath(new URL('components/<Name>/', provider.packageBaseUrl))`.
+   No fallbacks, no heuristics — the provider must emit every component
+   artefact (including chunks of nested SFCs) under
+   `<dist>/components/<Name>/`. The `granularChunkFileNames()` helper from
+   `@feugene/unocss-preset-granular/vite` does this automatically (see
+   [Vite build recipe](./authoring-providers.md#vite-build-recipe--chunkfilenames)).
+   If the directory is missing or has no `index.js`, the component is
+   skipped with a `console.warn`. With `scan: { strict: true }` a
+   `GranularProviderContractError` is thrown instead.
+4. Normalises the dir to an absolute POSIX path, resolves `realpath` for
+   dedup across symlinked workspaces.
 5. Emits one glob per dir with the configured extensions (default:
    `js,mjs,cjs,ts,mts,cts,jsx,tsx,vue`).
 
@@ -108,15 +110,19 @@ Any provider that ships Vue SFCs and wants to be "scannable" must apply it.
   that resolves to a path inside `node_modules` is dropped. Useful if you
   link providers as workspace symlinks and prefer to scan only the real
   source locations.
+- `strict: boolean` (default `false`) — when `true`, a layout contract
+  violation (no `<packageBaseUrl>/components/<Name>/` or no `index.js` inside)
+  throws `GranularProviderContractError` instead of `console.warn` + skip.
 
 ## Monorepo / workspace gotchas
 
 - Workspace‑linked providers resolve through `realpath` to their real
   source — the preset dedups so you don't end up scanning the same files
   twice.
-- If both `src/` and `dist/` exist and are reachable, the chain above picks
-  the one that `cssFiles[0]` / `sourceDirUrl` actually points to. This is
-  stable across `yarn install` and `vite build`.
+- The layout contract is strict: the only source is
+  `<packageBaseUrl>/components/<Name>/`. The answer to “where to scan” is
+  unambiguous regardless of whether the package is installed under
+  `node_modules` or symlinked from a workspace.
 
 ## Pitfalls (quick reference)
 

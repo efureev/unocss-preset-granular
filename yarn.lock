@@ -304,11 +304,6 @@
     "@eslint/core" "^1.2.1"
     levn "^0.4.1"
 
-"@feugene/unocss-preset-granular@^0.1.0":
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/@feugene/unocss-preset-granular/-/unocss-preset-granular-0.1.1.tgz#0dd85f1c2262db3fb7cf9ff306f7160ea278025e"
-  integrity sha512-q8DiWjHCqxflA5tdkRRe9Q7liMm7SfTpVkxLit+6TQ1TLcLHozm+B80DeffPj7Y/r/JTKuNq7eKeQUGnmEu6AQ==
-
 "@humanfs/core@^0.19.2":
   version "0.19.2"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.2.tgz#a8272ca03b2acf492670222b2320b6c421bfde60"

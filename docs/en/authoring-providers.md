@@ -107,18 +107,13 @@ export const buttonConfig = defineGranularComponent(import.meta.url, {
     { provider: '@feugene/simple-package', components: ['XTest1', 'XTestStyled'] },
   ],
 
-  // Optional: extra source dir for UnoCSS scan, relative to config.ts.
-  // Default: './' — i.e. the directory of config.ts itself.
-  // Use this if your component's source lives in a non‑standard layout.
-  sourceDir: './',
 })
 ```
 
 Notes:
 
 - The **first argument** is `import.meta.url` of the component's `config.ts`.
-  The preset uses it to resolve `cssFiles[i]` and `sourceDir` via `new URL(...,
-  import.meta.url)`.
+  The preset uses it to resolve `cssFiles[i]` via `new URL(..., import.meta.url)`.
 - `safelist` entries may be `string` or `RegExp`.
 - Keep `safelist` minimal. If you find yourself listing `p-5`, `text-lg` etc.,
   you probably just need the component to be scannable (→
@@ -246,7 +241,6 @@ chunk's module set actually contains a component's `*.vue` file.
 - `dependencies` → declare transitive components (same‑provider short name,
   `providerId:Name`, or object form).
 - `cssFiles` → component‑local CSS that must always ship as preflight.
-- `sourceDir` → override source scan dir (rarely needed).
 - `packageBaseUrl` → must point to the **package directory**, not a module.
 - Always use runtime‑built `packageBaseUrl` if you bundle with
   Vite/rolldown — `new URL('..', import.meta.url)` is transformed into a

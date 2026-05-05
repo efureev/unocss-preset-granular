@@ -1,6 +1,5 @@
 import type { PresetGranularResolution } from '../preset'
 import { existsSync, realpathSync, statSync } from 'node:fs'
-import { dirname } from 'node:path'
 
 import { fileURLToPath } from 'node:url'
 
@@ -12,20 +11,50 @@ export interface ResolvedScanDir {
   dir: string
 }
 
-function urlToPath(url: string): string | undefined {
-  try {
-    return fileURLToPath(new URL(url))
-  }
-  catch {
-    return undefined
+/** Опции резолва директорий сканирования. */
+export interface ResolveScanDirsOptions {
+  /**
+   * Строгий режим. Если `true` — отсутствие `dist/components/<Name>/` или
+   * `index.js` внутри неё бросает `GranularProviderContractError`.
+   * Если `false` — печатается `console.warn` и компонент пропускается
+   * (его собственный `safelist`/`cssFiles` всё равно подключатся отдельным
+   * каналом). По умолчанию `false`.
+   */
+  strict?: boolean
+}
+
+/** Ошибка нарушения контракта layout пакета-провайдера. */
+export class GranularProviderContractError extends Error {
+  constructor(
+    public readonly providerId: string,
+    public readonly componentName: string,
+    public readonly expectedDir: string,
+    public readonly reason: 'missing-dir' | 'missing-entry',
+  ) {
+    const what = reason === 'missing-dir'
+      ? `directory '${expectedDir}' does not exist`
+      : `entry 'index.js' is missing in '${expectedDir}'`
+    super(
+      `Granular provider '${providerId}' violates layout contract for component '${componentName}': ${what}. `
+      + `Each granular component MUST be emitted under '<packageBaseUrl>/components/<Name>/' with at least an 'index.js'. `
+      + `Use 'granularChunkFileNames()' from '@feugene/unocss-preset-granular/vite' in your provider's bundler config.`,
+    )
+    this.name = 'GranularProviderContractError'
   }
 }
 
-function isExistingDir(path: string | undefined): path is string {
-  if (!path)
-    return false
+function isExistingDir(path: string): boolean {
   try {
     return existsSync(path) && statSync(path).isDirectory()
+  }
+  catch {
+    return false
+  }
+}
+
+function isExistingFile(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isFile()
   }
   catch {
     return false
@@ -42,66 +71,69 @@ function canonicalize(path: string): string {
 }
 
 /**
- * Для каждой резолвнутой entry выбирает директорию исходников по цепочке:
- *   1) `descriptor.sourceDirUrl` (как есть);
- *   2) `descriptor.sourceDirAssetName` относительно `provider.packageBaseUrl`
- *      (fallback для dist-сборки без `src/...`);
- *   3) `dirname(cssFiles[0])`;
- *   4) `packageBaseUrl + 'components/<Name>/'`.
+ * Для каждой резолвнутой entry возвращает ОДНУ директорию исходников —
+ * `<provider.packageBaseUrl>/components/<descriptor.name>/`. Это и есть
+ * жёсткий контракт публикации granular-компонентов: бандлер провайдера
+ * (см. `granularChunkFileNames()` в `@feugene/unocss-preset-granular/vite`)
+ * обязан раскладывать все артефакты компонента под этот путь.
  *
- * Директория засчитывается только если существует на диске. Итог дедуплицируется
- * по каноническому `realpath` (чтобы symlink из `node_modules` в `packages/...`
- * не дублировал скан).
+ * - Если директория отсутствует или внутри нет `index.js` — в `strict: true`
+ *   бросается {@link GranularProviderContractError}, иначе печатается
+ *   `console.warn` и компонент пропускается.
+ * - Результат дедуплицируется по каноническому `realpath`, чтобы symlink
+ *   из `node_modules` в `packages/...` не дублировал скан.
  */
 export function resolveComponentScanDirs(
   resolution: PresetGranularResolution,
+  options: ResolveScanDirsOptions = {},
 ): ResolvedScanDir[] {
+  const strict = options.strict === true
   const result: ResolvedScanDir[] = []
   const seen = new Set<string>()
 
   for (const { provider, descriptor } of resolution.resolved.entries) {
-    const candidates: (string | undefined)[] = []
-
-    // 1) Наиболее специфичный путь — `packageBaseUrl + sourceDirAssetName`.
-    //    Он указывает на компонент-локальную директорию в dist (например
-    //    `dist/components/<Name>/`) и не зависит от того, во что бандлер
-    //    превратил `import.meta.url` исходного `config.ts`.
-    if (descriptor.sourceDirAssetName) {
-      try {
-        candidates.push(fileURLToPath(new URL(descriptor.sourceDirAssetName, provider.packageBaseUrl)))
-      }
-      catch {
-        // ignore
-      }
-    }
-
-    // 2) Прямой `sourceDirUrl` из `defineGranularComponent` — рассчитан от
-    //    `import.meta.url` config‑модуля. Работает для dev/monorepo, где src
-    //    действительно лежит рядом.
-    if (descriptor.sourceDirUrl)
-      candidates.push(urlToPath(descriptor.sourceDirUrl))
-
-    // 3) Fallback: директория первого cssFile (`dirname(cssFiles[0])`).
-    const firstCss = descriptor.cssFiles?.[0]
-    if (firstCss) {
-      const cssPath = urlToPath(firstCss)
-      if (cssPath)
-        candidates.push(dirname(cssPath))
-    }
-
-    // 4) Последний fallback — `packageBaseUrl + 'components/<Name>/'`.
+    let dir: string
     try {
-      candidates.push(fileURLToPath(new URL(`components/${descriptor.name}/`, provider.packageBaseUrl)))
+      dir = fileURLToPath(new URL(`components/${descriptor.name}/`, provider.packageBaseUrl))
     }
     catch {
-      // ignore
+      if (strict) {
+        throw new GranularProviderContractError(
+          provider.id,
+          descriptor.name,
+          `<packageBaseUrl>/components/${descriptor.name}/`,
+          'missing-dir',
+        )
+      }
+      console.warn(
+        `[granular] cannot resolve scan dir for '${provider.id}:${descriptor.name}': `
+        + `invalid 'packageBaseUrl' (${provider.packageBaseUrl}). Skipping component scan.`,
+      )
+      continue
     }
 
-    const picked = candidates.find(isExistingDir)
-    if (!picked)
+    if (!isExistingDir(dir)) {
+      if (strict)
+        throw new GranularProviderContractError(provider.id, descriptor.name, dir, 'missing-dir')
+      console.warn(
+        `[granular] component '${provider.id}:${descriptor.name}' has no 'components/${descriptor.name}/' `
+        + `directory at '${dir}'. Skipping scan. Configure your provider build to emit per-component output `
+        + `(see 'granularChunkFileNames()' from '@feugene/unocss-preset-granular/vite').`,
+      )
       continue
+    }
 
-    const canonical = canonicalize(picked)
+    if (!isExistingFile(`${dir}index.js`)) {
+      if (strict)
+        throw new GranularProviderContractError(provider.id, descriptor.name, dir, 'missing-entry')
+      console.warn(
+        `[granular] component '${provider.id}:${descriptor.name}' is missing 'index.js' at '${dir}'. `
+        + `Skipping scan — the component bundle was not emitted.`,
+      )
+      continue
+    }
+
+    const canonical = canonicalize(dir)
     if (seen.has(canonical))
       continue
     seen.add(canonical)

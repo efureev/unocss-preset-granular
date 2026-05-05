@@ -104,18 +104,13 @@ export const buttonConfig = defineGranularComponent(import.meta.url, {
     { provider: '@feugene/simple-package', components: ['XTest1', 'XTestStyled'] },
   ],
 
-  // Опционально: доп. директория исходников для UnoCSS‑scan, относительно config.ts.
-  // По умолчанию './' — директория самого config.ts.
-  // Используйте, если компонент лежит в нестандартной раскладке.
-  sourceDir: './',
 })
 ```
 
 Заметки:
 
 - **Первый аргумент** — `import.meta.url` самого `config.ts`. Пресет через
-  него резолвит `cssFiles[i]` и `sourceDir` через `new URL(...,
-  import.meta.url)`.
+  него резолвит `cssFiles[i]` через `new URL(..., import.meta.url)`.
 - Элементы `safelist` — `string` или `RegExp`.
 - Держите `safelist` минимальным. Если приходится писать туда `p-5`,
   `text-lg` — скорее всего, компонент просто не сканируется (→
@@ -243,7 +238,6 @@ runtime‑резолв `packageBaseUrl`. Хелпер триггерит пер�
 - `dependencies` → транзитивные компоненты (короткая, `providerId:Name`
   или объектная форма).
 - `cssFiles` → component‑local CSS, всегда приезжает как preflight.
-- `sourceDir` → переопределение scan‑директории исходников (нужно редко).
 - `packageBaseUrl` → **директория** пакета, не конкретный модуль.
 - При сборке Vite/rolldown — всегда runtime‑конкатенация `packageBaseUrl`:
   `new URL('..', import.meta.url)` превратится в `data:`‑URL.

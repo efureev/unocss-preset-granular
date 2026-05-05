@@ -2,60 +2,62 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { defineGranularComponent, defineGranularProvider } from '../contract'
 import { buildFilesystemGlobs } from '../fs/buildContentFilesystem'
-import { resolveComponentScanDirs } from '../fs/resolveScanDirs'
+import { GranularProviderContractError, resolveComponentScanDirs } from '../fs/resolveScanDirs'
 import { resolvePresetGranular } from '../preset'
 import { presetGranularNode, resolveGranularFilesystemGlobs } from '../preset.node'
 
 /**
- * Создаёт мини-пакет c двумя компонентами на диске:
- *   <root>/packages/pkg-a/src/components/XOne/{config.ts, styles.css, XOne.vue}
- *   <root>/packages/pkg-a/src/components/XTwo/{config.ts, styles.css, XTwo.vue}
- *   <root>/packages/pkg-b/src/components/YDep/{config.ts, styles.css, YDep.vue}
+ * Эмулирует прод-layout двух granular-провайдеров на диске:
+ *   <root>/packages/pkg-a/dist/components/XOne/{index.js, chunks/Header.js}
+ *   <root>/packages/pkg-a/dist/components/XTwo/{index.js}
+ *   <root>/packages/pkg-b/dist/components/YDep/{index.js}
+ *
+ * Контракт пресета: `provider.packageBaseUrl` указывает на корень `dist/`
+ * провайдера, бандлер обязан раскладывать чанки компонентов под
+ * `<dist>/components/<Name>/`.
  */
 function createFakePackages(root: string) {
-  const mk = (dir: string) => {
-    mkdirSync(dir, { recursive: true })
-  }
+  const mk = (dir: string) => mkdirSync(dir, { recursive: true })
   const touch = (file: string, content = '') => writeFileSync(file, content, 'utf8')
 
-  const aXOne = join(root, 'packages/pkg-a/src/components/XOne')
-  const aXTwo = join(root, 'packages/pkg-a/src/components/XTwo')
-  const bYDep = join(root, 'packages/pkg-b/src/components/YDep')
+  const aXOne = join(root, 'packages/pkg-a/dist/components/XOne')
+  const aXTwo = join(root, 'packages/pkg-a/dist/components/XTwo')
+  const bYDep = join(root, 'packages/pkg-b/dist/components/YDep')
 
-  mk(aXOne)
+  mk(join(aXOne, 'chunks'))
   mk(aXTwo)
   mk(bYDep)
 
-  touch(join(aXOne, 'styles.css'), '.x-one{color:red}')
-  touch(join(aXOne, 'XOne.vue'), '<template><div class="p-5" /></template>')
-  touch(join(aXTwo, 'styles.css'), '.x-two{}')
-  touch(join(aXTwo, 'XTwo.vue'), '<template><div class="mx-7" /></template>')
-  touch(join(bYDep, 'styles.css'), '.y-dep{}')
-  touch(join(bYDep, 'YDep.vue'), '<template><div class="rounded-3xl" /></template>')
+  // index.js — обязательный entry по контракту
+  touch(join(aXOne, 'index.js'), 'export const c = "p-5"')
+  // вложенный чанк должен попадать в скан (рекурсивный glob)
+  touch(join(aXOne, 'chunks', 'Header-abc123.js'), 'export const c = "text-7xl"')
+  touch(join(aXTwo, 'index.js'), 'export const c = "mx-7"')
+  touch(join(bYDep, 'index.js'), 'export const c = "rounded-3xl"')
 
-  const pkgAUrl = pathToFileURL(join(root, 'packages/pkg-a/src/')).href
-  const pkgBUrl = pathToFileURL(join(root, 'packages/pkg-b/src/')).href
+  // packageBaseUrl указывает на корень dist пакета
+  const pkgAUrl = pathToFileURL(join(root, 'packages/pkg-a/dist/')).href
+  const pkgBUrl = pathToFileURL(join(root, 'packages/pkg-b/dist/')).href
 
   const xOne = defineGranularComponent(
     pathToFileURL(join(aXOne, 'config.ts')).href,
     {
       name: 'XOne',
       safelist: [],
-      cssFiles: ['./styles.css'],
       dependencies: ['pkg-b:YDep'],
     },
   )
   const xTwo = defineGranularComponent(
     pathToFileURL(join(aXTwo, 'config.ts')).href,
-    { name: 'XTwo', safelist: [], cssFiles: ['./styles.css'] },
+    { name: 'XTwo', safelist: [] },
   )
   const yDep = defineGranularComponent(
     pathToFileURL(join(bYDep, 'config.ts')).href,
-    { name: 'YDep', safelist: [], cssFiles: ['./styles.css'] },
+    { name: 'YDep', safelist: [] },
   )
 
   const providerA = defineGranularProvider({
@@ -83,6 +85,10 @@ describe('resolveComponentScanDirs', () => {
     setup = createFakePackages(root)
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   afterAll(() => {
     rmSync(root, { recursive: true, force: true })
   })
@@ -96,9 +102,9 @@ describe('resolveComponentScanDirs', () => {
     const dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
 
     // realpath может раскрыть /var -> /private/var на macOS, поэтому сверяем по суффиксу
-    expect(dirs.some(d => d.endsWith('pkg-a/src/components/XOne'))).toBe(true)
-    expect(dirs.some(d => d.endsWith('pkg-b/src/components/YDep'))).toBe(true)
-    expect(dirs.some(d => d.endsWith('pkg-a/src/components/XTwo'))).toBe(false)
+    expect(dirs.some(d => d.endsWith('pkg-a/dist/components/XOne'))).toBe(true)
+    expect(dirs.some(d => d.endsWith('pkg-b/dist/components/YDep'))).toBe(true)
+    expect(dirs.some(d => d.endsWith('pkg-a/dist/components/XTwo'))).toBe(false)
   })
 
   it('дедуплицирует директории, если тот же компонент резолвится дважды', () => {
@@ -115,9 +121,9 @@ describe('resolveComponentScanDirs', () => {
     expect(unique.size).toBe(dirs.length)
   })
 
-  it('пропускает компоненты, директория которых не существует', () => {
+  it('warn+skip при отсутствии components/<Name>/ (нестрогий режим, по умолчанию)', () => {
     const ghost = defineGranularComponent(
-      pathToFileURL(join(root, 'ghost/config.ts')).href,
+      pathToFileURL(join(root, 'ghost/components/Ghost/config.ts')).href,
       { name: 'Ghost', safelist: [] },
     )
     const ghostProvider = defineGranularProvider({
@@ -132,21 +138,97 @@ describe('resolveComponentScanDirs', () => {
       components: 'all',
     })
 
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+    })
     expect(resolveComponentScanDirs(resolution)).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/pkg-ghost:Ghost/)
+  })
+
+  it('в strict-режиме бросает GranularProviderContractError, если директории нет', () => {
+    const ghost = defineGranularComponent(
+      pathToFileURL(join(root, 'ghost-strict/components/Ghost/config.ts')).href,
+      { name: 'Ghost', safelist: [] },
+    )
+    const ghostProvider = defineGranularProvider({
+      id: 'pkg-ghost-strict',
+      contractVersion: 1,
+      packageBaseUrl: pathToFileURL(join(root, 'ghost-strict/')).href,
+      components: [ghost],
+    })
+
+    const resolution = resolvePresetGranular({
+      providers: [ghostProvider],
+      components: 'all',
+    })
+
+    expect(() => resolveComponentScanDirs(resolution, { strict: true }))
+      .toThrowError(GranularProviderContractError)
+  })
+
+  it('warn+skip, если components/<Name>/ есть, но в ней нет index.js', () => {
+    const dir = join(root, 'no-entry/dist/components/NoEntry')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'styles.css'), '.x{}', 'utf8')
+
+    const noEntry = defineGranularComponent(
+      pathToFileURL(join(dir, 'config.ts')).href,
+      { name: 'NoEntry', safelist: [] },
+    )
+    const provider = defineGranularProvider({
+      id: 'pkg-no-entry',
+      contractVersion: 1,
+      packageBaseUrl: pathToFileURL(join(root, 'no-entry/dist/')).href,
+      components: [noEntry],
+    })
+
+    const resolution = resolvePresetGranular({
+      providers: [provider],
+      components: 'all',
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+    })
+    expect(resolveComponentScanDirs(resolution)).toEqual([])
+    expect(warn.mock.calls[0]?.[0]).toMatch(/missing 'index\.js'/)
+  })
+
+  it('strict-режим бросает GranularProviderContractError при отсутствии index.js', () => {
+    const dir = join(root, 'no-entry-strict/dist/components/NoEntry')
+    mkdirSync(dir, { recursive: true })
+
+    const noEntry = defineGranularComponent(
+      pathToFileURL(join(dir, 'config.ts')).href,
+      { name: 'NoEntry', safelist: [] },
+    )
+    const provider = defineGranularProvider({
+      id: 'pkg-no-entry-strict',
+      contractVersion: 1,
+      packageBaseUrl: pathToFileURL(join(root, 'no-entry-strict/dist/')).href,
+      components: [noEntry],
+    })
+
+    const resolution = resolvePresetGranular({
+      providers: [provider],
+      components: 'all',
+    })
+
+    expect(() => resolveComponentScanDirs(resolution, { strict: true }))
+      .toThrow(/missing/i)
   })
 })
 
 describe('buildFilesystemGlobs', () => {
-  it('формирует glob на директорию с дефолтными расширениями', () => {
-    const [glob] = buildFilesystemGlobs({ dirs: ['/abs/pkg/src/comp'] })
-    expect(glob).toMatch(/^\/abs\/pkg\/src\/comp\/\*\*\/\*\.\{.*vue.*\}$/)
+  it('формирует РЕКУРСИВНЫЙ glob на директорию с дефолтными расширениями', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/abs/pkg/dist/components/X'] })
+    expect(glob).toMatch(/^\/abs\/pkg\/dist\/components\/X\/\*\*\/\*\.\{.*vue.*\}$/)
     expect(glob).toContain('js,')
     expect(glob).toContain(',vue')
   })
 
   it('убирает завершающий слеш у директорий', () => {
-    const [glob] = buildFilesystemGlobs({ dirs: ['/abs/pkg/src/comp/'] })
-    expect(glob.startsWith('/abs/pkg/src/comp/**/*')).toBe(true)
+    const [glob] = buildFilesystemGlobs({ dirs: ['/abs/pkg/dist/components/X/'] })
+    expect(glob.startsWith('/abs/pkg/dist/components/X/**/*')).toBe(true)
   })
 
   it('добавляет extraGlobs и дедуплицирует', () => {
@@ -184,9 +266,9 @@ describe('presetGranularNode content.filesystem', () => {
     })
 
     const fs = preset.content?.filesystem ?? []
-    expect(fs.some(g => g.includes('pkg-a/src/components/XOne'))).toBe(true)
-    expect(fs.some(g => g.includes('pkg-b/src/components/YDep'))).toBe(true)
-    expect(fs.some(g => g.includes('pkg-a/src/components/XTwo'))).toBe(false)
+    expect(fs.some(g => g.includes('pkg-a/dist/components/XOne'))).toBe(true)
+    expect(fs.some(g => g.includes('pkg-b/dist/components/YDep'))).toBe(true)
+    expect(fs.some(g => g.includes('pkg-a/dist/components/XTwo'))).toBe(false)
   })
 
   it('scan.enabled=false отключает автоскан', () => {
@@ -216,6 +298,24 @@ describe('presetGranularNode content.filesystem', () => {
       components: [{ provider: 'pkg-b', names: ['YDep'] }],
     })
     expect(globs.length).toBe(1)
-    expect(globs[0]).toContain('pkg-b/src/components/YDep')
+    expect(globs[0]).toContain('pkg-b/dist/components/YDep')
+  })
+
+  it('scan.strict пробрасывается в резолвер и бросает на нарушении контракта', () => {
+    const ghost = defineGranularComponent(
+      pathToFileURL(join(setup.dirs.aXOne, '..', 'Ghost', 'config.ts')).href,
+      { name: 'Ghost', safelist: [] },
+    )
+    const provider = defineGranularProvider({
+      id: 'pkg-ghost-preset',
+      contractVersion: 1,
+      packageBaseUrl: setup.providerA.packageBaseUrl,
+      components: [ghost],
+    })
+    expect(() => resolveGranularFilesystemGlobs({
+      providers: [provider],
+      components: 'all',
+      scan: { strict: true },
+    })).toThrow(GranularProviderContractError)
   })
 })

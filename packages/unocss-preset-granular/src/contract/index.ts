@@ -35,21 +35,6 @@ export interface GranularComponentDescriptor<Name extends string = string> {
   /** Имя style-asset'а (применяет внешний build при необходимости). */
   styleAssetFileName?: string | null
   /**
-   * Абсолютный URL директории исходников компонента (через
-   * `new URL(sourceDir, importMetaUrl).href`). Используется node-слоем, чтобы
-   * указать UnoCSS, какие файлы пакета сканировать (content.filesystem).
-   *
-   * Если не задан — резолвер попытается вычислить директорию из
-   * `cssFiles[0]` (dirname), либо из `packageBaseUrl + 'components/<Name>/'`.
-   */
-  sourceDirUrl?: string
-  /**
-   * Имя ассета-директории исходников относительно `packageBaseUrl`.
-   * Fallback для dist-сборки, когда `sourceDirUrl` указывает на несуществующий
-   * `src/...`. По смыслу аналогично `cssFileAssetNames`.
-   */
-  sourceDirAssetName?: string
-  /**
    * Структурные токены, которые ПУБЛИКУЕТ этот компонент для тем.
    * По семантике аналогично `GranularThemeContribution.tokenDefinitions`,
    * но применяется точечно — только когда компонент попадает в селекцию.
@@ -156,14 +141,6 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
    */
   emitStyleAsset?: boolean
   /**
-   * Директория исходников компонента относительно `importMetaUrl` (модуля
-   * `config.ts`). По умолчанию `'./'` — т.е. директория самого `config.ts`.
-   *
-   * На основе этого пресет node-уровня сформирует `content.filesystem` для
-   * UnoCSS, и классы типа `p-5` из шаблонов будут подхватываться без safelist.
-   */
-  sourceDir?: string
-  /**
    * Структурные токены, публикуемые компонентом для тем приложения.
    * См. `GranularComponentDescriptor.tokenDefinitions`.
    */
@@ -180,8 +157,6 @@ export function defineGranularComponent<Name extends string>(
   options: DefineGranularComponentOptions<Name>,
 ): GranularComponentDescriptor<Name> {
   const cssFiles = options.cssFiles ?? []
-  const sourceDir = options.sourceDir ?? './'
-  const normalizedSourceDir = sourceDir.endsWith('/') ? sourceDir : `${sourceDir}/`
 
   return {
     name: options.name,
@@ -194,8 +169,6 @@ export function defineGranularComponent<Name extends string>(
     styleAssetFileName: options.emitStyleAsset === false
       ? null
       : `components/${options.name}/styles.css`,
-    sourceDirUrl: new URL(normalizedSourceDir, importMetaUrl).href,
-    sourceDirAssetName: `components/${options.name}/`,
     ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
   }
 }

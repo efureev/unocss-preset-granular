@@ -32,6 +32,13 @@ export interface GranularScanOptions {
    * будут отброшены.
    */
   includeNodeModules?: boolean
+  /**
+   * Строгий режим контракта layout провайдера. Если `true` — отсутствие
+   * `<packageBaseUrl>/components/<Name>/` или `index.js` в ней бросает
+   * `GranularProviderContractError`. По умолчанию `false` — проблемные
+   * компоненты логируются через `console.warn` и пропускаются.
+   */
+  strict?: boolean
 }
 
 export interface PresetGranularNodeOptions extends PresetGranularOptions {
@@ -238,7 +245,7 @@ export function resolveGranularFilesystemGlobs(
     return [...(scan.extraGlobs ?? [])]
 
   const resolution = resolvePresetGranular(options)
-  let dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
+  let dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
 
   if (scan.includeNodeModules === false)
     dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
@@ -321,7 +328,7 @@ export function granularContent(
   let dirs: string[] = []
   if (scan.enabled !== false) {
     const resolution = resolvePresetGranular(options)
-    dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
+    dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
     if (scan.includeNodeModules === false)
       dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
   }

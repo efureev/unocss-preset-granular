@@ -79,10 +79,7 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
   // 4. Component CSS — always shipped into the final CSS as a preflight
   cssFiles: ['./styles.css'],
 
-  // 5. Override scan directory (rarely needed)
-  sourceDir: './',
-
-  // 6. Per-COMPONENT CSS theme tokens (optional).
+  // 5. Per-COMPONENT CSS theme tokens (optional).
   //    See §7 — "Component-level theme tokens".
   tokenDefinitions: {
     light: {
@@ -105,7 +102,6 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 | `dependencies` | Only components your **template** truly depends on.                       |
 | `safelist`     | `string \| RegExp`. Only what **can't** be extracted statically.          |
 | `cssFiles`     | Paths relative to `config.ts`. Shipped as UnoCSS `preflights`.            |
-| `sourceDir`    | Defaults to `'./'` — directory of `config.ts`. Don't touch without reason.|
 | `tokenDefinitions` | `Record<themeName, { selector, tokens }>`. CSS theme tokens published by this component. |
 
 ### `safelist` — critical
@@ -122,9 +118,9 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 ### `import.meta.url` is mandatory
 
 The first argument to `defineGranularComponent` is `import.meta.url` of
-the `config.ts` itself. The preset uses it to resolve `cssFiles[i]` and
-`sourceDir` as `new URL(path, import.meta.url)`. Don't replace it, don't
-move `config.ts` out of the component folder.
+the `config.ts` itself. The preset uses it to resolve `cssFiles[i]` as
+`new URL(path, import.meta.url)`. Don't replace it, don't move
+`config.ts` out of the component folder.
 
 ## 3. SFC: `<ComponentName>.vue`
 

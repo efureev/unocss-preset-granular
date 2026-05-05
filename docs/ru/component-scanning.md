@@ -51,15 +51,18 @@ export default defineConfig({
 2. Строит **транзитивный граф зависимостей** (в т.ч. cross‑provider). В
    scan‑список попадают только выбранные компоненты и достижимые из них по
    `dependencies` — больше ничего.
-3. Для каждого такого компонента выбирает директорию по цепочке кандидатов:
-   1. `sourceDirAssetName` (если компонент объявил `sourceDir` и провайдер
-      собран с `assetName`‑маппингом).
-   2. `sourceDirUrl` (из `defineGranularComponent({ sourceDir })` —
-      резолвится относительно `import.meta.url` компонента).
-   3. `dirname(cssFiles[0])` — директория первого объявленного CSS‑файла.
-   4. `packageBaseUrl + 'components/<Name>/'` — конвенциональный fallback.
-4. Нормализует каждую директорию в абсолютный POSIX‑путь, делает
-   `realpath` для дедупа между `src/` ↔ `dist/` ↔ workspace‑симлинками.
+3. Для каждого такого компонента вычисляет **единственную** директорию по
+   жёсткому контракту:
+   `fileURLToPath(new URL('components/<Name>/', provider.packageBaseUrl))`.
+   Никакой цепочки кандидатов / эвристик нет — провайдер обязан собрать
+   все артефакты компонента (включая чанки от вложенных SFC) под
+   `<dist>/components/<Name>/`. Это обеспечивает рецепт `granularChunkFileNames()`
+   из `@feugene/unocss-preset-granular/vite` (см. [Рецепт Vite‑сборки](./authoring-providers.md#рецепт-vite-сборки--chunkfilenames)).
+   Если директории нет или внутри неё нет `index.js` — компонент пропускается
+   с `console.warn`. В режиме `scan: { strict: true }` — бросается
+   `GranularProviderContractError`.
+4. Нормализует директорию в абсолютный POSIX‑путь, делает `realpath` для
+   дедупа между workspace‑симлинками.
 5. Генерирует по одному glob на директорию с нужными расширениями (по
    умолчанию: `js,mjs,cjs,ts,mts,cts,jsx,tsx,vue`).
 
@@ -107,15 +110,19 @@ node_modules/@feugene/simple-package/dist/components/XTest1/**/*.{js,mjs,...,vue
   scan‑директории, попадающие в `node_modules`, будут отфильтрованы.
   Полезно при workspace‑симлинках, когда хочется сканировать только
   реальные исходники.
+- `strict: boolean` (по умолчанию `false`) — если `true`, нарушение
+  layout‑контракта провайдера (нет `<packageBaseUrl>/components/<Name>/`
+  или нет `index.js` внутри неё) бросает `GranularProviderContractError`
+  вместо `console.warn` + skip.
 
 ## Монорепо / workspaces
 
 - Workspace‑линкованные провайдеры через `realpath` резолвятся в реальные
   исходники — пресет дедуплицирует, чтобы один и тот же файл не
   сканировался дважды.
-- Если и `src/`, и `dist/` существуют, цепочка выше берёт ту директорию,
-  на которую указывает `cssFiles[0]` / `sourceDirUrl`. Это стабильно между
-  `yarn install` и `vite build`.
+- Контракт layout жёсткий: единственный источник — `<packageBaseUrl>/components/<Name>/`.
+  Поэтому ответ «откуда сканировать» однозначен и не зависит от того,
+  лежит ли пакет в `node_modules` или симлинком в workspace.
 
 ## Грабли (короткий список)
 

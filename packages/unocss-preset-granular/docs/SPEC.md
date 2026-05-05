@@ -204,8 +204,6 @@ export function defineGranularComponent<N extends string>(
         safelist: readonly string[]
         cssFiles?: readonly string[]
         emitStyleAsset?: boolean
-        /** Директория исходников компонента относительно `importMetaUrl`. */
-        sourceDir?: string
         /**
          * Структурные токены, публикуемые компонентом для тем приложения.
          * См. `GranularComponentDescriptor.tokenDefinitions`.

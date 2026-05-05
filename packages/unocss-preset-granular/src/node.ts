@@ -10,8 +10,10 @@ export {
   resolveCssFilePath,
 } from './fs/readCss'
 export {
+  GranularProviderContractError,
   resolveComponentScanDirs,
   type ResolvedScanDir,
+  type ResolveScanDirsOptions,
 } from './fs/resolveScanDirs'
 export * from './index'
 export {

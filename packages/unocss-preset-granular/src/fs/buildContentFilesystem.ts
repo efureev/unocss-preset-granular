@@ -42,7 +42,11 @@ function stripTrailingSlash(path: string): string {
 
 /**
  * Строит список glob-паттернов для UnoCSS `content.filesystem`.
- * Для каждой dir формируется `<dir>/**\/*.{ext1,ext2,...}`.
+ *
+ * Для каждой `dir` формируется рекурсивный glob
+ * `<dir>/**\/*.{ext1,ext2,...}` — extractor пройдёт по всем подпапкам
+ * `dist/components/<Name>/` (включая `chunks/`), что и обеспечивает
+ * сбор утилитарных классов из скомпилированных SFC‑чанков провайдера.
  */
 export function buildFilesystemGlobs(opts: BuildContentFsOptions): string[] {
   const exts = (opts.extensions?.length ? opts.extensions : DEFAULT_EXTENSIONS)
