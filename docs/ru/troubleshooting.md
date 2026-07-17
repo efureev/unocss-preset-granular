@@ -124,3 +124,6 @@ if (!report.ok) process.exit(1)
   `themes.tokenRegistry`) либо сдампите `.nodeCss()` /
   `getGranularThemeCss(options)`. Нарушения layout‑контракта дополнительно
   выводятся через `console.warn` (или бросаются при `scan: { strict: true }`).
+- Для runtime‑логов задайте `DEBUG=granular:*` (или конкретный namespace —
+  `granular:resolve` для зарезолвленного графа, `granular:scan` для скан‑дир).
+  Вывод идёт в `stderr`; при незаданном `DEBUG` полностью выключен.

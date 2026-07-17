@@ -5,6 +5,7 @@ import {
   CircularProviderDependencyError,
   DuplicateProviderIdError,
   UnresolvedProviderDependencyError,
+  UnsupportedContractVersionError,
 } from '../core/errors'
 import { expandProviders } from '../core/expandProviders'
 
@@ -22,6 +23,16 @@ function makeProvider(
 }
 
 describe('expandProviders', () => {
+  it('бросает UnsupportedContractVersionError при чужой версии контракта', () => {
+    const bad = {
+      id: 'legacy',
+      contractVersion: 2,
+      packageBaseUrl: 'file:///legacy/',
+      components: [],
+    } as unknown as GranularProvider
+    expect(() => expandProviders([bad])).toThrowError(UnsupportedContractVersionError)
+  })
+
   it('возвращает roots без изменений, если нет dependencies', () => {
     const a = makeProvider('a')
     const b = makeProvider('b')

@@ -14,6 +14,7 @@ export {
   granularDoctor,
 } from './doctor'
 export {
+  clearCssCache,
   fileExists,
   isCssDataUrl,
   readCss,

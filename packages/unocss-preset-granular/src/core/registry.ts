@@ -1,5 +1,5 @@
 import type { GranularComponentDescriptor, GranularProvider } from '../contract'
-import { DuplicateProviderIdError } from './errors'
+import { DuplicateComponentNameError, DuplicateProviderIdError } from './errors'
 
 /** Плоский ключ компонента: `"providerId:Name"`. */
 export type ComponentKey = `${string}:${string}`
@@ -37,9 +37,15 @@ export function buildRegistry(
 
     providerMap.set(provider.id, provider)
 
+    const namesInProvider = new Set<string>()
     for (const descriptor of provider.components) {
+      // Имена компонентов уникальны В ПРЕДЕЛАХ провайдера — дубликат это баг
+      // публикации, ловим его сразу (fail-fast), а не «берём последний».
+      if (namesInProvider.has(descriptor.name))
+        throw new DuplicateComponentNameError(provider.id, descriptor.name)
+      namesInProvider.add(descriptor.name)
+
       const key = toComponentKey(provider.id, descriptor.name)
-      // Дубли внутри одного провайдера — берём последний, это ответственность провайдера.
       componentMap.set(key, { provider, descriptor })
     }
   }

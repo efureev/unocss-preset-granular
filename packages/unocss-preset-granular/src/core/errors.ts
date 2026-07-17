@@ -47,6 +47,34 @@ export class DuplicateProviderIdError extends Error {
   }
 }
 
+export class UnsupportedContractVersionError extends Error {
+  constructor(
+    public readonly providerId: string,
+    public readonly version: number,
+    public readonly supported: number,
+  ) {
+    super(
+      `Granular provider '${providerId}' declares 'contractVersion: ${version}', `
+      + `but this preset supports version ${supported}. `
+      + `Upgrade '@feugene/unocss-preset-granular' (or the provider) so their contract versions match.`,
+    )
+    this.name = 'UnsupportedContractVersionError'
+  }
+}
+
+export class DuplicateComponentNameError extends Error {
+  constructor(
+    public readonly providerId: string,
+    public readonly componentName: string,
+  ) {
+    super(
+      `Granular provider '${providerId}' declares two components named '${componentName}'. `
+      + `Component names must be unique within a provider — rename one of them.`,
+    )
+    this.name = 'DuplicateComponentNameError'
+  }
+}
+
 export class CircularProviderDependencyError extends Error {
   constructor(public readonly chain: readonly string[]) {
     super(`Circular granular provider dependency detected: ${chain.join(' -> ')}`)

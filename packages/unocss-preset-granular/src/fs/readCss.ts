@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -58,11 +58,47 @@ export async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-/** Читает CSS либо из data URL, либо из локального файла. */
+interface CssCacheEntry {
+  mtimeMs: number
+  size: number
+  content: string
+}
+
+/**
+ * mtime+size кэш чтения CSS с диска. Один и тот же base/tokens/theme файл
+ * читается пресетом многократно (по preflight-`getCSS` на каждую регенерацию
+ * при HMR) — кэш отдаёт содержимое без повторного `readFile`, пока файл не
+ * изменился. Инвалидация — по (mtimeMs, size); для явного сброса —
+ * {@link clearCssCache}.
+ */
+const cssCache = new Map<string, CssCacheEntry>()
+
+/** Сбрасывает mtime-кэш чтения CSS (полностью). */
+export function clearCssCache(): void {
+  cssCache.clear()
+}
+
+/** Читает CSS либо из data URL, либо из локального файла (с mtime-кэшем). */
 export async function readCss(file: string): Promise<string> {
   if (isCssDataUrl(file))
     return decodeCssDataUrl(file)
-  return readFile(file, 'utf8')
+
+  let stats
+  try {
+    stats = await stat(file)
+  }
+  catch {
+    // Не удалось получить stat — пусть readFile бросит каноническую ошибку.
+    return readFile(file, 'utf8')
+  }
+
+  const cached = cssCache.get(file)
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size)
+    return cached.content
+
+  const content = await readFile(file, 'utf8')
+  cssCache.set(file, { mtimeMs: stats.mtimeMs, size: stats.size, content })
+  return content
 }
 
 /**

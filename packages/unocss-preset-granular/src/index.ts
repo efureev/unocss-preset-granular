@@ -3,9 +3,11 @@ export {
   CircularDependencyError,
   CircularProviderDependencyError,
   ComponentNotFoundError,
+  DuplicateComponentNameError,
   DuplicateProviderIdError,
   ProviderNotRegisteredError,
   UnresolvedProviderDependencyError,
+  UnsupportedContractVersionError,
 } from './core/errors'
 export { expandProviders } from './core/expandProviders'
 export {

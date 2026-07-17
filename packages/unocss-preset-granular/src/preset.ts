@@ -3,6 +3,7 @@ import type { Preflight, Preset, Rule, Variant } from '@unocss/core'
 import type { GranularProvider } from './contract'
 import type { ComponentSelection, ResolvedComponents } from './core/resolveSelection'
 import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
+import { createDebug } from './core/debug'
 import { uniqueRef } from './core/dedupe'
 import { expandProviders } from './core/expandProviders'
 import { applyLayerToAll } from './core/layer'
@@ -91,6 +92,8 @@ export interface PresetGranularResolution {
  */
 const resolutionCache = new WeakMap<PresetGranularOptions, PresetGranularResolution>()
 
+const debugResolve = createDebug('granular:resolve')
+
 /**
  * Вычисляет всё, что нужно для сборки пресета, один раз.
  * Используется и browser-, и node-вариантами. Результат мемоизируется по
@@ -122,6 +125,13 @@ export function resolvePresetGranular(
     providers,
   }
   resolutionCache.set(options, result)
+
+  debugResolve(
+    `providers=[${providers.map(p => p.id).join(', ')}] `
+    + `selected=${resolved.order.length} [${resolved.order.join(', ')}] `
+    + `themes=[${themes.names.join(', ')}] safelist=${safelist.length}`,
+  )
+
   return result
 }
 

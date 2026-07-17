@@ -1,5 +1,8 @@
 import type { Preflight, Rule, Variant } from '@unocss/core'
 
+/** Версия контракта провайдера, поддерживаемая этим пресетом. */
+export const GRANULAR_CONTRACT_VERSION = 1 as const
+
 /**
  * Допустимые формы записи зависимости компонента.
  *

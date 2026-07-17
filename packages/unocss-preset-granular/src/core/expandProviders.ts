@@ -1,8 +1,10 @@
 import type { GranularProvider } from '../contract'
+import { GRANULAR_CONTRACT_VERSION } from '../contract'
 import {
   CircularProviderDependencyError,
   DuplicateProviderIdError,
   UnresolvedProviderDependencyError,
+  UnsupportedContractVersionError,
 } from './errors'
 
 /**
@@ -40,6 +42,14 @@ export function expandProviders(
     }
     if (onStack.has(provider.id))
       throw new CircularProviderDependencyError([...path, provider.id])
+
+    if (provider.contractVersion !== GRANULAR_CONTRACT_VERSION) {
+      throw new UnsupportedContractVersionError(
+        provider.id,
+        provider.contractVersion,
+        GRANULAR_CONTRACT_VERSION,
+      )
+    }
 
     onStack.add(provider.id)
 

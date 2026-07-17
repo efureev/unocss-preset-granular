@@ -36,12 +36,13 @@ entry (`presetGranularNode`) надстраивает и добавляет:
    `provider.dependencies` и разворачивает граф в дедуплицированный,
    топологически упорядоченный список провайдеров. Дубликат `id` от двух
    РАЗНЫХ инстансов → `DuplicateProviderIdError`; цикл в зависимостях
-   провайдеров → `CircularProviderDependencyError`. Поле `contractVersion`
-   зарезервировано на будущее и **не** валидируется в рантайме сейчас.
+   провайдеров → `CircularProviderDependencyError`; `contractVersion`, отличная
+   от поддерживаемой (`GRANULAR_CONTRACT_VERSION`), →
+   `UnsupportedContractVersionError`.
 2. **Реестр компонентов** — карта `providerId:Name → descriptor` по всем
    провайдерам. Cross‑provider `dependencies` резолвятся против этого
-   реестра. Два компонента с одинаковым именем внутри одного провайдера
-   сейчас **не** ошибка: побеждает последний (это ответственность провайдера).
+   реестра. Два компонента с одинаковым именем **внутри одного провайдера** →
+   `DuplicateComponentNameError` (fail-fast, это баг публикации).
 3. **Selection** — из `options.components` (`'all'` или список селекторов)
    вычисляется набор выбранных компонентов.
 4. **Транзитивные зависимости** — DFS (post‑order) по

@@ -127,3 +127,6 @@ if (!report.ok) process.exit(1)
   or dump `.nodeCss()` / `getGranularThemeCss(options)` — the layout contract
   violations are additionally surfaced via `console.warn` (or thrown with
   `scan: { strict: true }`).
+- For runtime logs, set `DEBUG=granular:*` (or a specific namespace —
+  `granular:resolve` for the resolved graph, `granular:scan` for scan dirs).
+  Output goes to `stderr`; disabled entirely when `DEBUG` is unset.

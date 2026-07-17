@@ -2,6 +2,9 @@ import type { PresetGranularResolution } from '../preset'
 import { existsSync, realpathSync, statSync } from 'node:fs'
 
 import { fileURLToPath } from 'node:url'
+import { createDebug } from '../core/debug'
+
+const debugScan = createDebug('granular:scan')
 
 /** Описание директории-источника для UnoCSS `content.filesystem`. */
 export interface ResolvedScanDir {
@@ -186,6 +189,8 @@ export function resolveComponentScanDirs(
       kind: 'group-shared',
     })
   }
+
+  debugScan(`resolved ${result.length} scan dir(s): ${result.map(r => `${r.componentName}${r.kind === 'group-shared' ? '#shared' : ''}`).join(', ') || '—'}`)
 
   return result
 }

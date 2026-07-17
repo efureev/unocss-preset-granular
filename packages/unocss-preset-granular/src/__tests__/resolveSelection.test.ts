@@ -5,6 +5,7 @@ import { defineGranularProvider } from '../contract'
 import {
   CircularDependencyError,
   ComponentNotFoundError,
+  DuplicateComponentNameError,
   DuplicateProviderIdError,
   ProviderNotRegisteredError,
 } from '../core/errors'
@@ -51,6 +52,19 @@ const P_XG: GranularProvider = defineGranularProvider({
 describe('buildRegistry', () => {
   it('ругается на дубли провайдеров', () => {
     expect(() => buildRegistry([P_DS, P_DS])).toThrowError(DuplicateProviderIdError)
+  })
+
+  it('ругается на дубли имён компонентов внутри провайдера', () => {
+    const dup = defineGranularProvider({
+      id: 'dup',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///dup/',
+      components: [
+        { name: 'Same', safelist: [] },
+        { name: 'Same', safelist: [] },
+      ],
+    })
+    expect(() => buildRegistry([dup])).toThrowError(DuplicateComponentNameError)
   })
 })
 

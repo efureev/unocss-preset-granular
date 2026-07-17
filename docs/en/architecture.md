@@ -35,13 +35,13 @@ For a given `presetGranular*(options)` call the core does, in order:
    `provider.dependencies` and flattens the graph into a deduplicated,
    topologically ordered list of `GranularProvider` objects. Duplicate `id`s
    backed by two different instances raise `DuplicateProviderIdError`;
-   provider dependency cycles raise `CircularProviderDependencyError`. The
-   `contractVersion` field is reserved for future compatibility checks — it
-   is **not** validated at runtime today.
+   provider dependency cycles raise `CircularProviderDependencyError`; a
+   `contractVersion` other than the supported one (`GRANULAR_CONTRACT_VERSION`)
+   raises `UnsupportedContractVersionError`.
 2. **Build the component registry** — a map `providerId:Name → descriptor`
    across all providers. Cross‑provider `dependencies` are resolved against
-   this registry. Two components with the same name inside one provider are
-   **not** an error today: the last one wins (the provider owns that choice).
+   this registry. Two components sharing a name **inside one provider** raise
+   `DuplicateComponentNameError` (fail‑fast — a publishing bug).
 3. **Resolve selection** — from `options.components` (which is `'all'` or a
    list of selectors) compute the set of selected components.
 4. **Resolve transitive dependencies** — DFS (post‑order) over
