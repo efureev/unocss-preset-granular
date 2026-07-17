@@ -20,11 +20,37 @@ export interface ResolvedThemeItem {
   componentName?: string
 }
 
+/** Один CSS-блок токенов темы под конкретным селектором. */
+export interface ResolvedThemeSelectorBlock {
+  selector: string
+  tokens: Record<string, string>
+}
+
+/**
+ * Разрешённые токены одной темы.
+ *
+ * Тема может содержать НЕСКОЛЬКО блоков под разными селекторами (например,
+ * один провайдер эмитит токены под `.dark`, другой — под `[data-theme="dark"]`).
+ * Раньше все токены темы схлопывались в один селектор; теперь они группируются
+ * по селектору в `blocks` (в порядке первого появления).
+ *
+ * Поля `selector`/`tokens` — это алиас «первичного» (первого) блока, сохранённый
+ * для обратной совместимости и как цель для «плоских» `tokenOverrides`.
+ */
+export interface ResolvedThemeTokens {
+  /** Селектор первичного блока (первого встреченного). */
+  selector: string
+  /** Токены первичного блока (та же ссылка, что `blocks[0].tokens`). */
+  tokens: Record<string, string>
+  /** Все блоки темы по селекторам, в порядке первого появления. */
+  blocks: ResolvedThemeSelectorBlock[]
+}
+
 export interface ResolvedThemes {
   names: readonly string[]
   items: ResolvedThemeItem[]
-  /** Слитый реестр токенов по темам: themeName -> { selector, tokens } */
-  tokenRegistry: Record<string, GranularThemeTokenSet>
+  /** Слитый реестр токенов по темам: themeName -> { selector, tokens, blocks } */
+  tokenRegistry: Record<string, ResolvedThemeTokens>
 }
 
 /**
@@ -34,6 +60,47 @@ export interface ResolvedThemes {
 export interface ResolveThemesComponentEntry {
   providerId: string
   descriptor: Pick<GranularComponentDescriptor, 'name' | 'tokenDefinitions'>
+}
+
+const DEFAULT_SELECTOR = ':root'
+
+/**
+ * Мержит один вклад токенов (`tokenDef`) в реестр темы.
+ *
+ * Правила по селектору:
+ *  - `selector` не задан → токены идут в ПЕРВИЧНЫЙ блок темы (или создают его
+ *    с дефолтным `:root`, если тема ещё пуста). Так «безселекторный» вклад
+ *    добавляется к уже существующему селектору темы, а не плодит `:root`.
+ *  - `selector` задан явно → ищем/создаём блок с этим селектором. Разные
+ *    селекторы одной темы дают отдельные CSS-блоки.
+ *
+ * Значения перезаписываются в порядке вызова (позже — важнее).
+ */
+function mergeIntoRegistry(
+  registry: Record<string, ResolvedThemeTokens>,
+  themeName: string,
+  tokenDef: GranularThemeTokenSet,
+): void {
+  const entry = registry[themeName]
+
+  if (!entry) {
+    const selector = tokenDef.selector ?? DEFAULT_SELECTOR
+    const block: ResolvedThemeSelectorBlock = { selector, tokens: { ...tokenDef.tokens } }
+    registry[themeName] = { selector, tokens: block.tokens, blocks: [block] }
+    return
+  }
+
+  if (tokenDef.selector === undefined) {
+    Object.assign(entry.blocks[0].tokens, tokenDef.tokens)
+    return
+  }
+
+  let block = entry.blocks.find(b => b.selector === tokenDef.selector)
+  if (!block) {
+    block = { selector: tokenDef.selector, tokens: {} }
+    entry.blocks.push(block)
+  }
+  Object.assign(block.tokens, tokenDef.tokens)
 }
 
 /**
@@ -57,7 +124,7 @@ export function resolveThemes(
     return { names: [], items: [], tokenRegistry: {} }
 
   const items: ResolvedThemeItem[] = []
-  const tokenRegistry: Record<string, GranularThemeTokenSet> = {}
+  const tokenRegistry: Record<string, ResolvedThemeTokens> = {}
 
   for (const provider of providers) {
     const themeContrib = provider.theme
@@ -70,24 +137,7 @@ export function resolveThemes(
 
       if (tokenDef) {
         items.push({ providerId: provider.id, themeName, tokenDefinition: tokenDef })
-
-        // Мержим в реестр
-        if (!tokenRegistry[themeName]) {
-          tokenRegistry[themeName] = {
-            selector: tokenDef.selector,
-            tokens: { ...tokenDef.tokens },
-          }
-        }
-        else {
-          // Селектор берется от первого провайдера, если не задан явно
-          if (!tokenRegistry[themeName].selector) {
-            tokenRegistry[themeName].selector = tokenDef.selector
-          }
-          tokenRegistry[themeName].tokens = {
-            ...tokenRegistry[themeName].tokens,
-            ...tokenDef.tokens,
-          }
-        }
+        mergeIntoRegistry(tokenRegistry, themeName, tokenDef)
       }
       else if (cssUrl) {
         items.push({ providerId: provider.id, themeName, cssUrl })
@@ -119,21 +169,7 @@ export function resolveThemes(
         themeName,
         tokenDefinition: tokenDef,
       })
-
-      if (!tokenRegistry[themeName]) {
-        tokenRegistry[themeName] = {
-          selector: tokenDef.selector,
-          tokens: { ...tokenDef.tokens },
-        }
-      }
-      else {
-        if (!tokenRegistry[themeName].selector && tokenDef.selector)
-          tokenRegistry[themeName].selector = tokenDef.selector
-        tokenRegistry[themeName].tokens = {
-          ...tokenRegistry[themeName].tokens,
-          ...tokenDef.tokens,
-        }
-      }
+      mergeIntoRegistry(tokenRegistry, themeName, tokenDef)
     }
   }
 

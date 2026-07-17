@@ -87,5 +87,8 @@ watcher перегенерирует preflight.
 - Тесты пресета
   (`packages/unocss-preset-granular/src/__tests__`) — living spec: если
   поведение неочевидно из доки, побеждают тесты.
-- Для runtime‑логов запускайте сборку с `DEBUG=granular:*` (где
-  поддерживается) — пресет логирует в `debug`‑namespace.
+- Чтобы посмотреть, что пресет зарезолвил, вызовите `defineGranular(options)`
+  и прочитайте `.resolution()` (провайдеры, выбранные компоненты,
+  `themes.tokenRegistry`) либо сдампите `.nodeCss()` /
+  `getGranularThemeCss(options)`. Нарушения layout‑контракта дополнительно
+  выводятся через `console.warn` (или бросаются при `scan: { strict: true }`).

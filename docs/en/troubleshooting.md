@@ -88,5 +88,8 @@ CSS file — the watcher picks it up and the preflight regenerates.
 - The test suite of the preset
   (`packages/unocss-preset-granular/src/__tests__`) is the authoritative
   living spec — if a behaviour is ambiguous in the docs, the tests win.
-- For runtime debug prints, run your build with `DEBUG=granular:*`
-  (where supported) — the preset logs via a `debug`‑style namespace.
+- To inspect what the preset resolved, call `defineGranular(options)` and
+  read `.resolution()` (providers, selected components, `themes.tokenRegistry`)
+  or dump `.nodeCss()` / `getGranularThemeCss(options)` — the layout contract
+  violations are additionally surfaced via `console.warn` (or thrown with
+  `scan: { strict: true }`).

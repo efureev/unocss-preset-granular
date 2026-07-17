@@ -32,31 +32,40 @@ entry (`presetGranularNode`) надстраивает и добавляет:
 
 При вызове `presetGranular*(options)` ядро делает (по порядку):
 
-1. **Валидация провайдеров** — уникальность `id`, поддержка
-   `contractVersion`, отсутствие дубликатов имён компонентов внутри
-   провайдера.
-2. **Expand providers** — `expandProviders(options.providers)`
-   разворачивает смесь объектов, фабрик и массивов в канонический список.
-3. **Реестр компонентов** — карта `providerId:Name → descriptor` по всем
+1. **Expand providers** — `expandProviders(options.providers)` обходит
+   `provider.dependencies` и разворачивает граф в дедуплицированный,
+   топологически упорядоченный список провайдеров. Дубликат `id` от двух
+   РАЗНЫХ инстансов → `DuplicateProviderIdError`; цикл в зависимостях
+   провайдеров → `CircularProviderDependencyError`. Поле `contractVersion`
+   зарезервировано на будущее и **не** валидируется в рантайме сейчас.
+2. **Реестр компонентов** — карта `providerId:Name → descriptor` по всем
    провайдерам. Cross‑provider `dependencies` резолвятся против этого
-   реестра.
-4. **Selection** — из `options.components` (`'all'` или список селекторов)
+   реестра. Два компонента с одинаковым именем внутри одного провайдера
+   сейчас **не** ошибка: побеждает последний (это ответственность провайдера).
+3. **Selection** — из `options.components` (`'all'` или список селекторов)
    вычисляется набор выбранных компонентов.
-5. **Транзитивные зависимости** — BFS по `descriptor.dependencies` с
-   детекцией циклов (`CircularDependencyError` /
-   `CircularProviderDependencyError`).
-6. **Resolution тем** — пересечение `options.themes.names` с тем, что
+4. **Транзитивные зависимости** — DFS (post‑order) по
+   `descriptor.dependencies` с детекцией циклов (`CircularDependencyError` /
+   `CircularProviderDependencyError`); зависимости идут раньше зависящих.
+5. **Resolution тем** — пересечение `options.themes.names` с тем, что
    каждый провайдер объявил в `theme.themes`; fallback на `defaultThemes`.
-7. **Emit `safelist`** — объединение `descriptor.safelist` всех
+   Наборы токенов группируются **по селектору** в
+   `tokenRegistry[theme].blocks`, поэтому разные источники могут добавлять в
+   одну тему отдельные блоки селекторов.
+6. **Emit `safelist`** — объединение `descriptor.safelist` всех
    резолвнутых компонентов.
-8. **Emit preflights** — для node entry: читать `base.css`, `tokens.css`,
+7. **Emit preflights** — для node entry: читать `base.css`, `tokens.css`,
    все выбранные темы и `cssFiles` каждого резолвнутого компонента;
    конкатенированный результат — один UnoCSS preflight.
-9. **Emit `rules` / `variants` / кастомные preflights** — из
+8. **Emit `rules` / `variants` / кастомные preflights** — из
    `provider.unocss.*` всех *использованных* провайдеров (если не
    `includeProviderUnocss: false`).
-10. **Emit `content.filesystem`** — только node entry; потребляется через
-    `granularContent(options)`.
+9. **Emit `content.filesystem`** — только node entry; потребляется через
+   `granularContent(options)`.
+
+Вся резолюция выше (`resolvePresetGranular`) **мемоизируется по идентичности
+объекта `options`**, поэтому `presetGranularNode(options)` и
+`granularContent(options)` с одним и тем же объектом считают граф один раз.
 
 При ошибке (неизвестный компонент, cross‑provider ссылка на
 незарегистрированного провайдера, отсутствующий CSS в strict‑режиме) —
@@ -115,10 +124,18 @@ Node entry ожидает такую раскладку (относительн�
     `./contract`.
   - `expandProviders`, `ComponentSelection`, `ResolvedThemeItem`,
     `CircularDependencyError` и т.д.
-- `@feugene/unocss-preset-granular/node`
+- `@feugene/unocss-preset-granular/node` — **надмножество** корневого entry
+  (реэкспортит всё из `.` плюс node‑хелперы ниже), поэтому конфигу приложения
+  достаточно одного этого импорта.
+  - `defineGranular(options)` — рекомендуемый единый билдер; возвращает
+    `{ preset(), content(), resolution(), nodeCss() }` на одной мемоизированной
+    резолюции (`preset()` и `content()` автоматически согласованы).
   - `presetGranularNode(options)` — node factory.
-  - `granularContent(options)` — обязательный content‑хелпер.
+  - `granularContent(options)` — обязательный content‑хелпер (если не
+    используете `defineGranular`).
   - `resolveGranularFilesystemGlobs(options)` — low‑level доступ к globs.
+  - `getGranularThemeCss` / `getGranularComponentCss` — срезы «только темы» и
+    «только компоненты» (их конкатенация равна `getGranularNodeCss`).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
 - `@feugene/unocss-preset-granular/contract`

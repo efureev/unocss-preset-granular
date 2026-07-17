@@ -177,6 +177,46 @@ describe('resolveThemes', () => {
     expect(r.items.every(i => i.themeName !== 'dark')).toBe(true)
   })
 
+  it('разные селекторы одной темы дают отдельные блоки (A1)', () => {
+    const p1 = defineGranularProvider({
+      id: 'p1',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p1/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '.dark', tokens: { a: '1' } } } },
+    })
+    const p2 = defineGranularProvider({
+      id: 'p2',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p2/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '[data-theme="dark"]', tokens: { b: '2' } } } },
+    })
+
+    const r = resolveThemes([p1, p2], { names: ['dark'] })
+    expect(r.tokenRegistry.dark.blocks).toEqual([
+      { selector: '.dark', tokens: { a: '1' } },
+      { selector: '[data-theme="dark"]', tokens: { b: '2' } },
+    ])
+    // Алиас первичного блока — первый селектор.
+    expect(r.tokenRegistry.dark.selector).toBe('.dark')
+    expect(r.tokenRegistry.dark.tokens).toEqual({ a: '1' })
+  })
+
+  it('безселекторный вклад мержится в первичный блок, а не плодит :root (A1)', () => {
+    const p1 = defineGranularProvider({
+      id: 'p1',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p1/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '.dark', tokens: { a: '1' } } } },
+    })
+    const r = resolveThemes([p1], { names: ['dark'] }, [
+      { providerId: 'p1', descriptor: { name: 'X', tokenDefinitions: { dark: { tokens: { b: '2' } } } } },
+    ])
+    expect(r.tokenRegistry.dark.blocks).toEqual([{ selector: '.dark', tokens: { a: '1', b: '2' } }])
+  })
+
   it('компонент создаёт тему с нуля, если у провайдеров её нет', () => {
     const r = resolveThemes(
       [providerA],

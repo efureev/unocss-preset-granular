@@ -25,9 +25,20 @@ export interface ThemesOptions extends ResolveThemesInput {
 
   /**
    * Точечный override токенов конкретной темы.
-   * Значение перебивает токены провайдеров, экспортирующих `tokenDefinitions`.
+   * Значение перебивает токены провайдеров/компонентов, экспортирующих
+   * `tokenDefinitions`.
+   *
+   * Поддерживаются две формы записи значения темы:
+   *   1. Плоская `{ token: value }` — токены пишутся в ПЕРВИЧНЫЙ (первый)
+   *      селектор темы (обычно `:root`). Если у темы ещё нет ни одного блока —
+   *      создаётся блок `:root`.
+   *   2. Вложенная `{ selector: { token: value } }` — токены пишутся под
+   *      указанный селектор (создаётся при необходимости). Позволяет целиться
+   *      в конкретный блок мультиселекторной темы (напр. `.dark`).
+   *
+   * Различение — по типу значения: строка ⇒ плоская форма, объект ⇒ вложенная.
    */
-  tokenOverrides?: Partial<Record<string, Readonly<Record<string, string>>>>
+  tokenOverrides?: Partial<Record<string, Readonly<Record<string, string | Readonly<Record<string, string>>>>>>
 
   /**
    * Если `true`, запрещает override токенов, которых нет ни в одном провайдере.
@@ -71,12 +82,27 @@ export interface PresetGranularResolution {
 }
 
 /**
+ * Кэш резолюции по идентичности объекта `options`. Приложение обычно передаёт
+ * ОДИН и тот же объект опций и в `presetGranularNode`, и в `granularContent`
+ * (и во внутренние резолверы), поэтому мемоизация по ссылке избавляет от
+ * 3–4-кратного пересчёта одного и того же графа за один конфиг.
+ *
+ * Предполагается, что `options` не мутируется после первого резолва.
+ */
+const resolutionCache = new WeakMap<PresetGranularOptions, PresetGranularResolution>()
+
+/**
  * Вычисляет всё, что нужно для сборки пресета, один раз.
- * Используется и browser-, и node-вариантами.
+ * Используется и browser-, и node-вариантами. Результат мемоизируется по
+ * ссылке на `options`.
  */
 export function resolvePresetGranular(
   options: PresetGranularOptions,
 ): PresetGranularResolution {
+  const cached = resolutionCache.get(options)
+  if (cached)
+    return cached
+
   const providers = expandProviders(options.providers)
   const registry = buildRegistry(providers)
   const resolved = resolveSelection(registry, options.components)
@@ -88,13 +114,15 @@ export function resolvePresetGranular(
     resolved.entries.map(e => ({ providerId: e.provider.id, descriptor: e.descriptor })),
   )
 
-  return {
+  const result: PresetGranularResolution = {
     resolved,
     themes,
     cssFiles,
     safelist,
     providers,
   }
+  resolutionCache.set(options, result)
+  return result
 }
 
 /**

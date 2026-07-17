@@ -19,14 +19,17 @@ function resolveBracketValue(raw: string | undefined): string | undefined {
 }
 
 function resolveOpacityPercent(raw: string | undefined): number | undefined {
-  if (!raw || !/^-?\d+(?:\.\d+)?$/.test(raw))
+  // The rule regexes only ever capture `\d+(\.\d+)?`, so a negative sign can
+  // never reach here — keep the pattern in sync (no `-?`). Values above 100
+  // are clamped to 100 (a `color-mix` percentage can't exceed 100%).
+  if (!raw || !/^\d+(?:\.\d+)?$/.test(raw))
     return undefined
 
   const n = Number(raw)
   if (!Number.isFinite(n))
     return undefined
 
-  return Math.max(0, Math.min(100, n))
+  return Math.min(100, n)
 }
 
 function colorMixSrgbTransparent(color: string, opacityPercent: number): string {

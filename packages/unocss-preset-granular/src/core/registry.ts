@@ -27,6 +27,11 @@ export function buildRegistry(
   const componentMap = new Map<ComponentKey, RegistryEntry>()
 
   for (const provider of providers) {
+    // Каноническая дедупликация провайдеров живёт в `expandProviders` (по id и
+    // по конфликтующим инстансам). Сюда `buildRegistry` получает уже
+    // развёрнутый и дедуплицированный список, поэтому проверка ниже — дешёвый
+    // invariant-guard на случай прямого вызова `buildRegistry` в обход
+    // `expandProviders` (например, из тестов), а не основная линия защиты.
     if (providerMap.has(provider.id))
       throw new DuplicateProviderIdError(provider.id)
 

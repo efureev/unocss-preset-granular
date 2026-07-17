@@ -80,6 +80,21 @@ export default defineConfig({
 })
 ```
 
+> 💡 **Рекомендуется:** оборачивайте обе половины в единый билдер
+> `defineGranular(options)` — тогда `preset()` и `content()` не рассинхронятся,
+> а резолюция считается один раз и мемоизируется:
+>
+> ```ts
+> import { defineGranular } from '@feugene/unocss-preset-granular/node'
+>
+> const g = defineGranular({ providers: [...], components: [...] })
+>
+> export default defineConfig({
+>   presets: [presetMini(), g.preset()],
+>   content: g.content(),
+> })
+> ```
+
 `granularContent(options)` возвращает:
 
 ```ts

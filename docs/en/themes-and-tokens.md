@@ -83,10 +83,26 @@ Full list of use cases (single‑theme filtering, multi‑theme, overriding
 a provider token, `strictTokens` behavior) is in
 [component-authoring.md §7](./component-authoring.md#7-component-level-theme-tokens-tokendefinitions).
 
+## Multi‑selector themes
+
+A theme is **not** limited to a single selector. Token sets are grouped by
+`selector` into `tokenRegistry[theme].blocks`, so different providers /
+components can each contribute their own selector block to the same theme.
+For example one provider ships `dark` under `.dark` and another under
+`[data-theme="dark"]` — both blocks are emitted:
+
+```css
+.dark { --a: 1; }
+[data-theme="dark"] { --b: 2; }
+```
+
+A token set declared **without** a `selector` merges into the theme's
+**primary** (first‑seen) block instead of spawning a stray `:root` block.
+
 ## Priority chain
 
-When merging tokens for a concrete `(theme, selector, token)` triple,
-the highest layer wins:
+When merging tokens for a concrete `(theme, selector, token)` triple, the
+highest layer wins:
 
 ```
 provider.theme.tokenDefinitions        (lowest)
@@ -95,11 +111,35 @@ provider.theme.tokenDefinitions        (lowest)
 ```
 
 - Components can override providers.
-- App‑level `tokenOverrides` override both providers and components,
-  and can add brand‑new tokens not declared below.
-- Under `strictTokens`, tokens declared by a **component** are also
-  treated as “known”: `tokenOverrides` for such tokens pass without a
-  warning.
+- App‑level `tokenOverrides` override both providers and components, and can
+  add brand‑new tokens not declared below.
+- Under `strictTokens`, tokens declared by a **component** are also treated
+  as “known”: `tokenOverrides` for such tokens pass without a warning.
+
+### `tokenOverrides` — two forms
+
+The value for a theme accepts either shape (told apart by value type):
+
+```ts
+themes: {
+  names: ['light', 'dark'],
+  tokenOverrides: {
+    // 1. FLAT — `{ token: value }` (no `--` prefix). Writes into the
+    //    theme's primary selector (usually `:root`; created if the theme
+    //    has no block yet). This is the common case (see apps/app-2).
+    light: { brd: '#0070f3', 'card-fg': '#111' },
+
+    // 2. NESTED — `{ selector: { token: value } }`. Targets a specific
+    //    selector block of a multi‑selector theme (created if absent).
+    dark: {
+      '.dark': { brd: '#334155' },
+      '[data-theme="dark"]': { brd: '#1e293b' },
+    },
+  },
+}
+```
+
+Tokens are written **without** the leading `--` in both forms.
 
 ## App‑side overrides
 
@@ -110,7 +150,8 @@ presetGranularNode({
   themes: {
     names: ['light', 'dark'],
 
-    // replace base.css globally:
+    // replace base.css globally (applies even to providers without a `theme`,
+    // and is emitted only once regardless of provider count):
     baseFile: './app/base.css',
 
     // replace tokens.css per provider:

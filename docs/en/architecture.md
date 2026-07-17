@@ -31,30 +31,41 @@ entry (`presetGranularNode`) composes on top and adds:
 
 For a given `presetGranular*(options)` call the core does, in order:
 
-1. **Provider validation** — ensures every `id` is unique, `contractVersion`
-   is supported, no duplicate component names within a provider.
-2. **Expand providers** — `expandProviders(options.providers)` flattens a
-   mix of objects, factory functions, and arrays into a canonical list.
-3. **Build the component registry** — a map `providerId:Name → descriptor`
+1. **Expand providers** — `expandProviders(options.providers)` walks
+   `provider.dependencies` and flattens the graph into a deduplicated,
+   topologically ordered list of `GranularProvider` objects. Duplicate `id`s
+   backed by two different instances raise `DuplicateProviderIdError`;
+   provider dependency cycles raise `CircularProviderDependencyError`. The
+   `contractVersion` field is reserved for future compatibility checks — it
+   is **not** validated at runtime today.
+2. **Build the component registry** — a map `providerId:Name → descriptor`
    across all providers. Cross‑provider `dependencies` are resolved against
-   this registry.
-4. **Resolve selection** — from `options.components` (which is `'all'` or a
+   this registry. Two components with the same name inside one provider are
+   **not** an error today: the last one wins (the provider owns that choice).
+3. **Resolve selection** — from `options.components` (which is `'all'` or a
    list of selectors) compute the set of selected components.
-5. **Resolve transitive dependencies** — BFS over `descriptor.dependencies`
-   with cycle detection (`CircularDependencyError` /
-   `CircularProviderDependencyError`).
-6. **Resolve themes** — intersect `options.themes.names` with what each
-   provider declares in `theme.themes`; fall back to `defaultThemes`.
-7. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
+4. **Resolve transitive dependencies** — DFS (post‑order) over
+   `descriptor.dependencies` with cycle detection (`CircularDependencyError` /
+   `CircularProviderDependencyError`); dependencies are emitted before the
+   components that depend on them.
+5. **Resolve themes** — intersect `options.themes.names` with what each
+   provider declares in `theme.themes`; fall back to `defaultThemes`. Token
+   sets are grouped **per selector** into `tokenRegistry[theme].blocks`, so
+   different sources can contribute distinct selector blocks to one theme.
+6. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
    component.
-8. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
+7. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
    each selected theme CSS, and each resolved component's `cssFiles` from
    disk; embed the concatenated string into a UnoCSS preflight.
-9. **Emit `rules` / `variants` / custom preflights** — from
+8. **Emit `rules` / `variants` / custom preflights** — from
    `provider.unocss.*` of every *used* provider (unless
    `includeProviderUnocss: false`).
-10. **Emit `content.filesystem`** — only the node entry; consumed via
-    `granularContent(options)`.
+9. **Emit `content.filesystem`** — only the node entry; consumed via
+   `granularContent(options)`.
+
+The whole resolution above (`resolvePresetGranular`) is **memoized by the
+identity of the `options` object**, so calling `presetGranularNode(options)`
+and `granularContent(options)` with the same object computes the graph once.
 
 If any step fails (unknown component, cross‑provider edge to a
 non‑registered provider, missing CSS file in strict mode) a typed error is
@@ -115,11 +126,19 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     `./contract`.
   - `expandProviders`, `ComponentSelection`, `ResolvedThemeItem`,
     `CircularDependencyError`, etc.
-- `@feugene/unocss-preset-granular/node`
+- `@feugene/unocss-preset-granular/node` — a **superset** of the root entry
+  (it re‑exports everything from `.` plus the node‑only helpers below), so an
+  app config only needs this one import.
+  - `defineGranular(options)` — recommended single builder; returns
+    `{ preset(), content(), resolution(), nodeCss() }` backed by one memoized
+    resolution (keeps `preset()` and `content()` in sync automatically).
   - `presetGranularNode(options)` — node preset factory.
-  - `granularContent(options)` — mandatory content helper.
+  - `granularContent(options)` — mandatory content helper (when not using
+    `defineGranular`).
   - `resolveGranularFilesystemGlobs(options)` — lower‑level access to the
     globs.
+  - `getGranularThemeCss` / `getGranularComponentCss` — theme‑only and
+    component‑only CSS slices (their concatenation equals `getGranularNodeCss`).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
 - `@feugene/unocss-preset-granular/contract`

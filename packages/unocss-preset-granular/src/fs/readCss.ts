@@ -23,7 +23,13 @@ export function resolveCssFilePath(file: string): string {
     const url = new URL(file)
     if (url.protocol === 'file:')
       return fileURLToPath(url)
-    return resolve(process.cwd(), url.pathname.replace(/^\/+/, ''))
+    // Only `file:` URLs (and data: CSS handled above) are readable from disk.
+    // Remote protocols (`http:`, `https:`, …) cannot be inlined at build time;
+    // fail loudly instead of silently mapping the pathname onto `cwd`.
+    throw new Error(
+      `[granular] cannot read CSS from a non-file URL '${file}'. `
+      + `Only local paths, 'file://' URLs and 'data:text/css' URLs are supported.`,
+    )
   }
 
   if (isAbsolute(file))

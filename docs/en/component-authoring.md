@@ -175,12 +175,19 @@ import { MyButton } from '@your-scope/your-package'
 
 After the component folder is created, wire it in **three** places:
 
-### 5.1. Root `src/index.ts` of the package
+### 5.1. Root `src/index.ts` of the package (optional)
 
 ```ts
 export * from './components/MyButton'
 export * from './components/MyIcon'
 ```
+
+This barrel is **optional** — it only enables the ergonomic root import
+`import { MyButton } from '@your-scope/your-package'`. The preset does **not**
+need it: components are discovered through `provider.components` (§5.2) and
+consumed via their `./components/<Name>` subpath export. It's fine to expose
+only some components here (the reference `@feugene/simple-package` does exactly
+that). The two mandatory wiring points are §5.2 and §5.3.
 
 ### 5.2. `src/granular-provider/index.ts`
 
@@ -468,8 +475,11 @@ provider.theme.tokenDefinitions        ← base layer from the donor package
    a specific component refines it to `--brand: crimson` for its layer
    — component wins over provider.
 4. **Final app override.** The app locks the brand on top of the
-   component: `tokenOverrides: { light: { ':root': { '--brand': '#0070f3' } } }`
-   — the app wins.
+   component. Flat form (writes into the theme's primary selector):
+   `tokenOverrides: { light: { brand: '#0070f3' } }`; or nested form to
+   target a specific selector:
+   `tokenOverrides: { light: { ':root': { brand: '#0070f3' } } }`. Tokens are
+   written **without** the `--` prefix — the app wins either way.
 5. **`strictTokens`.** Tokens declared by a component are considered
    "known": app-level `tokenOverrides` on such tokens pass without
    warnings.

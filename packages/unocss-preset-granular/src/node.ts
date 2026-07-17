@@ -26,6 +26,8 @@ export {
 } from './node-utils/tokenDefinitionsFromCss'
 export {
   createGranularNodePreflight,
+  defineGranular,
+  type GranularBuilder,
   getGranularComponentCss,
   getGranularComponentCssFiles,
   getGranularNodeCss,

@@ -16,6 +16,8 @@ export {
   GRANULAR_DEFAULT_THEME_NAMES,
   type ResolvedThemeItem,
   type ResolvedThemes,
+  type ResolvedThemeSelectorBlock,
+  type ResolvedThemeTokens,
   resolveThemes,
   type ResolveThemesComponentEntry,
   type ResolveThemesInput,

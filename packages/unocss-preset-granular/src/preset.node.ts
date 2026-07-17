@@ -1,6 +1,7 @@
 import type { Preflight, Preset } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
+import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
 import type { PresetGranularOptions } from './preset'
 import { applyLayerToAll } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
@@ -86,103 +87,210 @@ function pickThemeUrl(
   return providerUrl
 }
 
-/** Генерирует CSS-блок токенов из реестра и overrides. */
-function generateTokenBlock(
-  themeName: string,
-  selector: string | undefined,
-  tokens: Record<string, string>,
-  overrides: Record<string, string> | undefined,
-  strict: boolean,
-): string {
-  const finalTokens = { ...tokens }
-
-  if (overrides) {
-    for (const [key, value] of Object.entries(overrides)) {
-      if (strict && tokens[key] === undefined) {
-        console.warn(`[granular] strictTokens: token "${key}" not found in providers for theme "${themeName}". Skipping.`)
-        continue
-      }
-      finalTokens[key] = value
+/**
+ * Собирает URL'ы base/tokens.css в порядке «все tokens → все base».
+ *
+ * Глобальный строковый override (`baseFile`/`tokensFile` — строка) эмитится
+ * ОДИН раз и НЕ зависит от того, есть ли у провайдеров `theme` (иначе для
+ * провайдера без темы глобальный base не подключался вовсе). Per-providerId
+ * override и провайдерские значения по-прежнему берутся по провайдеру, но
+ * дедуплицируются по итоговому URL.
+ */
+function resolveBaseTokenUrls(
+  providers: readonly GranularProvider[],
+  themes: PresetGranularNodeOptions['themes'],
+): string[] {
+  const urls: string[] = []
+  const seen = new Set<string>()
+  const add = (url: string | undefined): void => {
+    if (url && !seen.has(url)) {
+      seen.add(url)
+      urls.push(url)
     }
   }
 
-  const lines = Object.entries(finalTokens)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `  --${k}: ${v};`)
+  const tokensFile = themes?.tokensFile
+  if (typeof tokensFile === 'string') {
+    add(tokensFile)
+  }
+  else {
+    for (const p of providers)
+      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile))
+  }
 
-  if (lines.length === 0)
-    return ''
+  const baseFile = themes?.baseFile
+  if (typeof baseFile === 'string') {
+    add(baseFile)
+  }
+  else {
+    for (const p of providers)
+      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile))
+  }
 
-  return `${selector || ':root'} {\n${lines.join('\n')}\n}`
+  return urls
+}
+
+type ThemeOverride = Readonly<Record<string, string | Readonly<Record<string, string>>>>
+
+/**
+ * Генерирует CSS-блоки токенов темы из её `blocks` (по одному на селектор) с
+ * учётом `tokenOverrides`.
+ *
+ * Overrides:
+ *   - плоское значение (строка) → пишется в ПЕРВИЧНЫЙ селектор темы;
+ *   - объект → это `{ selector: { token: value } }`, пишется под указанный
+ *     селектор (создаётся при необходимости).
+ *
+ * В `strict`-режиме override неизвестного токена (нет ни в одном блоке темы)
+ * пропускается с `console.warn`.
+ */
+function generateThemeBlocks(
+  themeName: string,
+  blocks: readonly ResolvedThemeSelectorBlock[],
+  overrides: ThemeOverride | undefined,
+  strict: boolean,
+): string[] {
+  const order: string[] = []
+  const bySelector = new Map<string, Record<string, string>>()
+  const ensure = (selector: string): Record<string, string> => {
+    let tokens = bySelector.get(selector)
+    if (!tokens) {
+      tokens = {}
+      bySelector.set(selector, tokens)
+      order.push(selector)
+    }
+    return tokens
+  }
+
+  for (const block of blocks)
+    Object.assign(ensure(block.selector), block.tokens)
+
+  const known = new Set<string>()
+  for (const block of blocks) {
+    for (const key of Object.keys(block.tokens))
+      known.add(key)
+  }
+
+  const warnUnknown = (token: string): void => {
+    console.warn(`[granular] strictTokens: token "${token}" not found in providers for theme "${themeName}". Skipping.`)
+  }
+
+  if (overrides) {
+    const primarySelector = blocks[0]?.selector ?? ':root'
+    for (const [key, value] of Object.entries(overrides)) {
+      if (typeof value === 'string') {
+        if (strict && !known.has(key)) {
+          warnUnknown(key)
+          continue
+        }
+        ensure(primarySelector)[key] = value
+        continue
+      }
+
+      const target = ensure(key)
+      for (const [token, tokenValue] of Object.entries(value)) {
+        if (strict && !known.has(token)) {
+          warnUnknown(token)
+          continue
+        }
+        target[token] = tokenValue
+      }
+    }
+  }
+
+  const result: string[] = []
+  for (const selector of order) {
+    const tokens = bySelector.get(selector)!
+    const lines = Object.entries(tokens)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `  --${k}: ${v};`)
+    if (lines.length === 0)
+      continue
+    result.push(`${selector || ':root'} {\n${lines.join('\n')}\n}`)
+  }
+  return result
+}
+
+/** Секции node-CSS, вычисленные один раз. См. {@link getGranularNodeCss}. */
+interface NodeCssSections {
+  /** tokens.css + base.css (провайдерские или app-override). */
+  baseTokens: string[]
+  /** Структурные блоки токенов тем (`tokenDefinitions` + `tokenOverrides`). */
+  themeTokens: string[]
+  /** Файлы тем (`themes[name]` c учётом `themeFiles`-override). */
+  themeFiles: string[]
+  /** CSS выбранных компонентов (`cssFiles`). */
+  components: string[]
 }
 
 /**
- * Собирает FS-preflights для выбранных провайдеров в заданном порядке:
- *   tokens → base → [theme overrides] → [theme files] → component CSS
- * Возвращает один агрегирующий Preflight с асинхронным `getCSS`.
+ * Считывает и раскладывает весь node-CSS по секциям в заданном порядке:
+ *   tokens → base → [theme token blocks] → [theme files] → component CSS
+ * Секционное представление позволяет отдавать подмножества
+ * ({@link getGranularThemeCss} / {@link getGranularComponentCss}) без повторного
+ * склеивания «всего и сразу».
  */
-export async function getGranularNodeCss(
+async function collectNodeCssSections(
   options: PresetGranularNodeOptions,
-): Promise<string> {
+): Promise<NodeCssSections> {
   const resolution = resolvePresetGranular(options)
-  const chunks: string[] = []
 
-  // 1. Tokens & Base
-  for (const provider of resolution.providers) {
-    const theme = provider.theme
-    if (!theme)
-      continue
+  // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
+  const baseTokenUrls = resolveBaseTokenUrls(resolution.providers, options.themes)
+  const baseTokens = await Promise.all(
+    baseTokenUrls.map(url => readCss(resolveCssFilePath(url))),
+  )
 
-    const tokensUrl = pickThemeUrl(provider.id, theme.tokensCssUrl, options.themes?.tokensFile)
-    if (tokensUrl)
-      chunks.push(await readCss(resolveCssFilePath(tokensUrl)))
-
-    const baseUrl = pickThemeUrl(provider.id, theme.baseCssUrl, options.themes?.baseFile)
-    if (baseUrl)
-      chunks.push(await readCss(resolveCssFilePath(baseUrl)))
-  }
-
-  // 2. Theme Token Overrides (Structural)
+  // 2. Theme token blocks (structural tokenDefinitions + tokenOverrides).
+  const themeTokens: string[] = []
   for (const themeName of resolution.themes.names) {
-    const registry = resolution.themes.tokenRegistry[themeName]
+    const entry = resolution.themes.tokenRegistry[themeName]
     const overrides = options.themes?.tokenOverrides?.[themeName]
     const strict = !!options.themes?.strictTokens
 
-    if (registry || overrides) {
-      const block = generateTokenBlock(
-        themeName,
-        registry?.selector,
-        registry?.tokens || {},
-        overrides,
-        strict,
-      )
-      if (block)
-        chunks.push(block)
-    }
+    if (!entry && !overrides)
+      continue
+
+    for (const block of generateThemeBlocks(themeName, entry?.blocks ?? [], overrides, strict))
+      themeTokens.push(block)
   }
 
-  // 3. Theme Files (Level 1 Override)
+  // 3. Theme files (level-1 override).
+  const themeFiles: string[] = []
   for (const { providerId, themeName, cssUrl, tokenDefinition } of resolution.themes.items) {
-    // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы, файл themes[name] уже пропущен резолвером.
-    // Если tokenDefinition нет, берем cssUrl и проверяем override themeFiles.
+    // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы — файл темы уже
+    // не используется (токены эмитятся структурно). Иначе берём cssUrl + override.
     if (tokenDefinition)
       continue
 
     if (cssUrl) {
       const override = options.themes?.themeFiles?.[themeName]
-      const finalUrl = pickThemeUrl(providerId, cssUrl, override as any)
-
+      const finalUrl = pickThemeUrl(providerId, cssUrl, override as string | Partial<Record<string, string>> | undefined)
       if (finalUrl)
-        chunks.push(await readCss(resolveCssFilePath(finalUrl)))
+        themeFiles.push(await readCss(resolveCssFilePath(finalUrl)))
     }
   }
 
-  // 4. Component CSS
+  // 4. Component CSS.
   const componentFiles = await resolveComponentCssFiles(resolution)
-  for (const { filePath } of componentFiles)
-    chunks.push(await readCss(filePath))
+  const components = await Promise.all(
+    componentFiles.map(f => readCss(f.filePath)),
+  )
 
-  return chunks.filter(Boolean).join('\n')
+  return { baseTokens, themeTokens, themeFiles, components }
+}
+
+/**
+ * Собирает весь node-CSS для FS-preflight в порядке:
+ *   tokens → base → [theme token blocks] → [theme files] → component CSS
+ */
+export async function getGranularNodeCss(
+  options: PresetGranularNodeOptions,
+): Promise<string> {
+  const s = await collectNodeCssSections(options)
+  return [...s.baseTokens, ...s.themeTokens, ...s.themeFiles, ...s.components]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /** Возвращает один агрегирующий preflight, который лениво читает все CSS файлы. */
@@ -222,14 +330,19 @@ export async function getGranularComponentCss(
   return parts.join('\n')
 }
 
-/** Читает и склеивает ТОЛЬКО темы (пересечение с `themes.names`). */
+/**
+ * Читает и склеивает ТОЛЬКО «тематический» CSS: base + tokens + структурные
+ * блоки токенов тем + файлы тем. Component-CSS сюда НЕ входит — его отдаёт
+ * {@link getGranularComponentCss}. Вместе они дают тот же результат, что и
+ * {@link getGranularNodeCss}.
+ */
 export async function getGranularThemeCss(
   options: PresetGranularNodeOptions,
 ): Promise<string> {
-  const css = await getGranularNodeCss(options)
-  // TODO: Если нужно разделить, придется фильтровать или переписывать.
-  // Но обычно getGranularThemeCss используется для отладки.
-  return css
+  const s = await collectNodeCssSections(options)
+  return [...s.baseTokens, ...s.themeTokens, ...s.themeFiles]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /**
@@ -237,12 +350,16 @@ export async function getGranularThemeCss(
  * на каждую директорию исходников выбранных компонентов (и их транзитивных
  * `dependencies`). Не затрагивает компоненты провайдера, которые не выбраны.
  */
-export function resolveGranularFilesystemGlobs(
-  options: PresetGranularNodeOptions,
-): string[] {
+/**
+ * Абсолютные директории сканирования выбранных компонентов (и их транзитивных
+ * `dependencies`). Возвращает `[]`, если авто-скан выключен (`scan.enabled:false`).
+ * Единая точка вычисления — переиспользуется `resolveGranularFilesystemGlobs`
+ * и `granularContent`, чтобы не гонять `resolveComponentScanDirs` дважды.
+ */
+function computeScanDirs(options: PresetGranularNodeOptions): string[] {
   const scan = options.scan ?? {}
   if (scan.enabled === false)
-    return [...(scan.extraGlobs ?? [])]
+    return []
 
   const resolution = resolvePresetGranular(options)
   let dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
@@ -250,8 +367,18 @@ export function resolveGranularFilesystemGlobs(
   if (scan.includeNodeModules === false)
     dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
 
+  return dirs
+}
+
+export function resolveGranularFilesystemGlobs(
+  options: PresetGranularNodeOptions,
+): string[] {
+  const scan = options.scan ?? {}
+  if (scan.enabled === false)
+    return [...(scan.extraGlobs ?? [])]
+
   return buildFilesystemGlobs({
-    dirs,
+    dirs: computeScanDirs(options),
     extensions: scan.extensions,
     extraGlobs: scan.extraGlobs,
   })
@@ -322,16 +449,19 @@ function buildComponentPipelineIncludes(dirs: readonly string[]): RegExp[] {
 export function granularContent(
   options: PresetGranularNodeOptions,
 ): { filesystem: string[], pipeline: { include: RegExp[] } } {
-  const filesystem = resolveGranularFilesystemGlobs(options)
-
   const scan = options.scan ?? {}
-  let dirs: string[] = []
-  if (scan.enabled !== false) {
-    const resolution = resolvePresetGranular(options)
-    dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
-    if (scan.includeNodeModules === false)
-      dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
-  }
+
+  // Один расчёт директорий скана — из него строятся и filesystem-globs,
+  // и таргетированные pipeline.include-regex (раньше считалось дважды).
+  const dirs = computeScanDirs(options)
+
+  const filesystem = scan.enabled === false
+    ? [...(scan.extraGlobs ?? [])]
+    : buildFilesystemGlobs({
+        dirs,
+        extensions: scan.extensions,
+        extraGlobs: scan.extraGlobs,
+      })
 
   return {
     filesystem,
@@ -375,5 +505,43 @@ export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
           pipeline: fsContent.pipeline ?? base.content?.pipeline,
         }
       : base.content,
+  }
+}
+
+/** Единый билдер granular-конфигурации для node-слоя. См. {@link defineGranular}. */
+export interface GranularBuilder {
+  /** Исходные опции (та же ссылка — на ней завязана мемоизация резолюции). */
+  readonly options: PresetGranularNodeOptions
+  /** `Preset` для `defineConfig({ presets: [...] })`. */
+  preset: () => Preset
+  /** `content` для `defineConfig({ content })`. */
+  content: () => { filesystem: string[], pipeline: { include: RegExp[] } }
+  /** Ленивая резолюция (мемоизирована по `options`). */
+  resolution: () => ReturnType<typeof resolvePresetGranular>
+  /** Полный node-CSS (для отладки/генераторов). */
+  nodeCss: () => Promise<string>
+}
+
+/**
+ * Единая точка входа для приложения: считает резолюцию один раз (мемоизация по
+ * `options`) и отдаёт согласованные `preset()` и `content()`. Избавляет от
+ * ручной синхронизации `presetGranularNode(options)` и `granularContent(options)`
+ * — обе половины гарантированно видят одни и те же опции.
+ *
+ * ```ts
+ * const g = defineGranular({ providers: [...], components: [...] })
+ * export default defineConfig({
+ *   presets: [presetMini(), g.preset()],
+ *   content: g.content(),
+ * })
+ * ```
+ */
+export function defineGranular(options: PresetGranularNodeOptions): GranularBuilder {
+  return {
+    options,
+    preset: () => presetGranularNode(options),
+    content: () => granularContent(options),
+    resolution: () => resolvePresetGranular(options),
+    nodeCss: () => getGranularNodeCss(options),
   }
 }

@@ -8,6 +8,10 @@ import {XTestStyled} from "@feugene/simple-package/components/XTestStyled";
       Test
     </XTestStyled>
 
-    <div class="border-2 border-slate-900">dasdas</div>
+    <!-- Визуализация токенов, созданных приложением через tokenOverrides.light:
+         рамка красится в --brd, текст — в --card-fg. -->
+    <div class="rounded-lg border-2 border-[var(--brd)] p-4 text-[var(--card-fg)]">
+      tokenOverrides.light → border=<code>--brd</code>, text=<code>--card-fg</code>
+    </div>
   </main>
 </template>

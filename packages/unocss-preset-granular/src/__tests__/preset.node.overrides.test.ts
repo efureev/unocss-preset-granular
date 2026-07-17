@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineGranularComponent, defineGranularProvider } from '../contract'
 import { tokenDefinitionsFromCssSync } from '../node-utils/tokenDefinitionsFromCss'
-import { getGranularNodeCss } from '../preset.node'
+import { defineGranular, getGranularNodeCss, getGranularThemeCss } from '../preset.node'
 
 vi.mock('../fs/readCss', async () => {
   const actual = await vi.importActual<any>('../fs/readCss')
@@ -333,5 +333,92 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('.custom-tokens{}')
     expect(css).toContain('.custom-base{}')
     expect(css).not.toContain('/* content of file:///a/tokens.css */')
+  })
+
+  it('A1: разные селекторы одной темы эмитятся отдельными блоками', async () => {
+    const p1 = defineGranularProvider({
+      id: 'p1',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p1/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '.dark', tokens: { a: '1' } } } },
+    })
+    const p2 = defineGranularProvider({
+      id: 'p2',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p2/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '[data-theme="dark"]', tokens: { b: '2' } } } },
+    })
+    const css = await getGranularNodeCss({ providers: [p1, p2], themes: { names: ['dark'] } })
+    expect(css).toContain('.dark {\n  --a: 1;\n}')
+    expect(css).toContain('[data-theme="dark"] {\n  --b: 2;\n}')
+  })
+
+  it('A1: вложенные tokenOverrides целятся в конкретный селектор', async () => {
+    const p1 = defineGranularProvider({
+      id: 'p1',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p1/',
+      components: [],
+      theme: { tokenDefinitions: { dark: { selector: '.dark', tokens: { a: '1' } } } },
+    })
+    const css = await getGranularNodeCss({
+      providers: [p1],
+      themes: {
+        names: ['dark'],
+        // Плоское — в первичный `.dark`; вложенное — в новый `[data-theme="dark"]`.
+        tokenOverrides: { dark: { a: '9', '[data-theme="dark"]': { c: '3' } } },
+      },
+    })
+    expect(css).toContain('.dark {\n  --a: 9;\n}')
+    expect(css).toContain('[data-theme="dark"] {\n  --c: 3;\n}')
+  })
+
+  it('A3: глобальный baseFile подключается даже у провайдера без theme', async () => {
+    const noTheme = defineGranularProvider({
+      id: 'n',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///n/',
+      components: [],
+    })
+    const css = await getGranularNodeCss({
+      providers: [noTheme],
+      themes: { baseFile: 'data:text/css,.g-base{}' },
+    })
+    expect(css).toContain('.g-base{}')
+  })
+
+  it('A3: глобальный tokensFile не дублируется при нескольких провайдерах', async () => {
+    const css = await getGranularNodeCss({
+      providers: [providerA, providerS],
+      themes: { names: ['light'], tokensFile: 'data:text/css,.once{}' },
+    })
+    expect(css.match(/\.once\{\}/g)?.length).toBe(1)
+  })
+
+  it('A2: getGranularThemeCss отдаёт только тему, без component CSS', async () => {
+    const provider = defineGranularProvider({
+      id: 't',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///t/',
+      components: [{ name: 'C', safelist: [], cssFiles: ['data:text/css,.comp{color:red}'] }],
+      theme: { tokenDefinitions: { light: { selector: ':root', tokens: { primary: 'blue' } } } },
+    })
+    const opts = { providers: [provider], themes: { names: ['light'] } }
+
+    const themeCss = await getGranularThemeCss(opts)
+    expect(themeCss).toContain(':root {\n  --primary: blue;\n}')
+    expect(themeCss).not.toContain('.comp{color:red}')
+
+    const nodeCss = await getGranularNodeCss(opts)
+    expect(nodeCss).toContain('.comp{color:red}')
+  })
+
+  it('A4: defineGranular мемоизирует резолюцию и согласует preset/content', async () => {
+    const g = defineGranular({ providers: [providerA], themes: { names: ['light'] } })
+    expect(g.resolution()).toBe(g.resolution())
+    expect(g.preset().name).toBe('granular-preset')
+    expect(g.content()).toHaveProperty('filesystem')
   })
 })

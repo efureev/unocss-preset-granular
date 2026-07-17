@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import XNestedFooter from '../shared/XNestedFooter.vue'
-import XNestedHeader from '../shared/XNestedHeader.vue'
+import XNestedFooter from '../parts/XNestedFooter.vue'
+import XNestedHeader from '../parts/XNestedHeader.vue'
 </script>
 
 <template>

@@ -12,7 +12,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
     "@feugene/unocss-preset-granular": "^0.3.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "unocss": "^66.7.5",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"

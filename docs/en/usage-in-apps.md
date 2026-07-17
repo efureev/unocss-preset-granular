@@ -82,6 +82,21 @@ export default defineConfig({
 })
 ```
 
+> 💡 **Recommended:** wrap both halves in a single `defineGranular(options)`
+> builder so `preset()` and `content()` can never drift apart (and the
+> resolution is computed once, then memoized):
+>
+> ```ts
+> import { defineGranular } from '@feugene/unocss-preset-granular/node'
+>
+> const g = defineGranular({ providers: [...], components: [...] })
+>
+> export default defineConfig({
+>   presets: [presetMini(), g.preset()],
+>   content: g.content(),
+> })
+> ```
+
 `granularContent(options)` returns:
 
 ```ts
