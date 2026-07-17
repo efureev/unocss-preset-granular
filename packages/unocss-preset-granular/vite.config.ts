@@ -33,11 +33,14 @@ function getDistPackageJson() {
     engines: pkg.engines,
     type: pkg.type,
     sideEffects: pkg.sideEffects,
+    bin: stripDist(pkg.bin),
     exports: stripDist(pkg.exports),
     peerDependencies: pkg.peerDependencies,
     peerDependenciesMeta: pkg.peerDependenciesMeta,
   }
 }
+
+const SHEBANG = '#!/usr/bin/env node'
 
 export default defineConfig({
   plugins: [
@@ -52,6 +55,16 @@ export default defineConfig({
         })
       },
     },
+    {
+      // Гарантируем шебанг у CLI-энтрипоинта bin.js (бандлер может его срезать).
+      name: 'unocss-preset-granular:bin-shebang',
+      apply: 'build',
+      generateBundle(_options, bundle) {
+        const chunk = bundle['bin.js']
+        if (chunk && chunk.type === 'chunk' && !chunk.code.startsWith(SHEBANG))
+          chunk.code = `${SHEBANG}\n${chunk.code}`
+      },
+    },
   ],
   build: {
     target: 'esnext',
@@ -63,6 +76,7 @@ export default defineConfig({
         node: fileURLToPath(new URL('./src/node.ts', import.meta.url)),
         contract: fileURLToPath(new URL('./src/contract/index.ts', import.meta.url)),
         vite: fileURLToPath(new URL('./src/vite.ts', import.meta.url)),
+        bin: fileURLToPath(new URL('./src/bin.ts', import.meta.url)),
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`,
@@ -73,8 +87,10 @@ export default defineConfig({
         'node:fs',
         'node:fs/promises',
         'node:path',
+        'node:process',
         'node:url',
         'unocss',
+        'magic-string',
         '@unocss/core',
       ],
     },

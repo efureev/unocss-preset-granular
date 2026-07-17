@@ -83,6 +83,37 @@ URL не менялся — поможет полная пересборка п�
 dev‑сервера. Для чисто CSS‑изменений обычно хватает сохранения файла —
 watcher перегенерирует preflight.
 
+## `granular doctor` — диагностика
+
+В пресете есть CLI `granular` с подкомандой `doctor`, печатающей полный отчёт:
+резолвнутые провайдеры, транзитивный граф выбранных компонентов
+(deps → зависящие), блоки токенов тем по селекторам, **конфликты токенов**
+между слоями (провайдер → компонент → app‑override), итоговые скан‑globs и
+**отсутствующие директории `components/<Name>/`** (нарушения layout‑контракта).
+Возвращает код `1` при любом нарушении — удобно для CI.
+
+Укажите модуль, экспортирующий ваши granular‑опции:
+
+```js
+// granular.options.mjs
+import provider from '@your/pkg/granular-provider/node'
+export default { providers: [provider], components: 'all' }
+```
+
+```bash
+npx granular doctor ./granular.options.mjs
+```
+
+Тот же отчёт доступен программно (например, из Vite‑плагина или скрипта):
+
+```ts
+import { granularDoctor, formatDoctorReport } from '@feugene/unocss-preset-granular/node'
+
+const report = granularDoctor(options)   // структурированный DoctorReport
+console.log(formatDoctorReport(report))  // человекочитаемый текст
+if (!report.ok) process.exit(1)
+```
+
 ## Куда копать глубже
 
 - Тесты пресета

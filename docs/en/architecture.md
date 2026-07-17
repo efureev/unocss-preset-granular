@@ -139,6 +139,8 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     globs.
   - `getGranularThemeCss` / `getGranularComponentCss` — theme‑only and
     component‑only CSS slices (their concatenation equals `getGranularNodeCss`).
+  - `granularDoctor(options)` / `formatDoctorReport(report)` — diagnostics
+    (also exposed as the `granular doctor` CLI).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
 - `@feugene/unocss-preset-granular/contract`

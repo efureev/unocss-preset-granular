@@ -136,6 +136,8 @@ Node entry ожидает такую раскладку (относительн�
   - `resolveGranularFilesystemGlobs(options)` — low‑level доступ к globs.
   - `getGranularThemeCss` / `getGranularComponentCss` — срезы «только темы» и
     «только компоненты» (их конкатенация равна `getGranularNodeCss`).
+  - `granularDoctor(options)` / `formatDoctorReport(report)` — диагностика
+    (та же, что CLI `granular doctor`).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
 - `@feugene/unocss-preset-granular/contract`

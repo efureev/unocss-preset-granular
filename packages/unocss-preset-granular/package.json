@@ -32,6 +32,9 @@
   },
   "type": "module",
   "types": "./dist/types/src/index.d.ts",
+  "bin": {
+    "granular": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],

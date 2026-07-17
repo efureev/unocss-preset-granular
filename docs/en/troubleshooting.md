@@ -85,6 +85,38 @@ URL didn't change, a full rebuild of the app (or a hard dev‑server
 restart) fixes it. For pure CSS changes it's usually enough to save the
 CSS file — the watcher picks it up and the preflight regenerates.
 
+## `granular doctor` — diagnostics
+
+The preset ships a `granular` CLI whose `doctor` subcommand prints a full
+diagnostic: resolved providers, the transitive selected‑component graph
+(deps → dependents), theme token blocks per selector, **token conflicts**
+across layers (provider → component → app override), the final scan globs,
+and any **missing `components/<Name>/` directories** (layout‑contract
+violations). It exits `1` if any violation is found — handy in CI.
+
+Point it at a small module that exports your granular options:
+
+```js
+// granular.options.mjs
+import provider from '@your/pkg/granular-provider/node'
+export default { providers: [provider], components: 'all' }
+```
+
+```bash
+npx granular doctor ./granular.options.mjs
+```
+
+The same report is available programmatically (e.g. from a Vite plugin or a
+one‑off script):
+
+```ts
+import { granularDoctor, formatDoctorReport } from '@feugene/unocss-preset-granular/node'
+
+const report = granularDoctor(options)   // structured DoctorReport
+console.log(formatDoctorReport(report))  // human‑readable text
+if (!report.ok) process.exit(1)
+```
+
 ## Getting more insight
 
 - The test suite of the preset

@@ -3,6 +3,17 @@ export {
   buildFilesystemGlobs,
 } from './fs/buildContentFilesystem'
 export {
+  type DoctorComponentInfo,
+  type DoctorMissingDir,
+  type DoctorProviderInfo,
+  type DoctorReport,
+  type DoctorScanDir,
+  type DoctorThemeBlock,
+  type DoctorTokenConflict,
+  formatDoctorReport,
+  granularDoctor,
+} from './doctor'
+export {
   fileExists,
   isCssDataUrl,
   readCss,
