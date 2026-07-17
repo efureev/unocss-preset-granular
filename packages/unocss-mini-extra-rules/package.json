@@ -51,13 +51,13 @@
     "@unocss/rule-utils": ">=0.60.0 <1.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.5.2",
-    "@unocss/core": "^66.6.8",
-    "@unocss/preset-mini": "^66.6.8",
-    "@unocss/rule-utils": "^66.6.8",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.7",
-    "vue-tsc": "^3.2.6"
+    "@types/node": "^26.1.1",
+    "@unocss/core": "^66.7.5",
+    "@unocss/preset-mini": "^66.7.5",
+    "@unocss/rule-utils": "^66.7.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vue-tsc": "^3.3.7"
   },
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.build.json",
