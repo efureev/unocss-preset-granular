@@ -90,7 +90,10 @@ function variantSpaceAndDivide(matcher: string) {
   if (matcher.startsWith('_'))
     return
 
-  if (!/^space-[xy]-.+$/.test(matcher))
+  // Applies the sibling selector to both `space-x/y-*` and `divide-x/y*`
+  // utilities (incl. the bare `divide-x` / `divide-y` and their
+  // `*-reverse` forms).
+  if (!/^(?:space|divide)-[xy](?:-.+)?$/.test(matcher))
     return
 
   return {
@@ -169,9 +172,71 @@ function handlerSpaceReverse(match: RegExpMatchArray, _ctx: any) {
   }
 }
 
+/**
+ * Resolves a divide border width. Unlike `space-*` (which maps to the
+ * spacing scale), `divide-*` values are border widths: a bare number is
+ * treated as pixels, mirroring Tailwind (`divide-x-2` → `2px`, bare
+ * `divide-x` → `1px`).
+ */
+function resolveDivideWidth(raw: string | undefined): string | undefined {
+  if (raw == null || raw === '')
+    return '1px'
+
+  if (raw.startsWith('[') && raw.endsWith(']') && raw.length > 2)
+    return normalizeCalcOperators(raw.slice(1, -1))
+
+  if (/^\d+(?:\.\d+)?$/.test(raw))
+    return `${raw}px`
+
+  if (CSS_LENGTH_RE.test(raw))
+    return raw
+
+  if (CSS_VAR_RE.test(raw))
+    return raw
+
+  return undefined
+}
+
+function handlerDivide(match: RegExpMatchArray, _ctx: any) {
+  const [, capturedAxis, capturedValue] = match
+
+  const d = capturedAxis === 'x' || capturedAxis === 'y' ? capturedAxis : undefined
+  if (!d)
+    return
+
+  const w = resolveDivideWidth(capturedValue)
+  if (!w)
+    return
+
+  const startProp = d === 'x' ? 'border-left-width' : 'border-top-width'
+  const endProp = d === 'x' ? 'border-right-width' : 'border-bottom-width'
+
+  return {
+    [`--un-divide-${d}-reverse`]: '0',
+    [startProp]: `calc(${w} * calc(1 - var(--un-divide-${d}-reverse)))`,
+    [endProp]: `calc(${w} * var(--un-divide-${d}-reverse))`,
+  }
+}
+
+function handlerDivideReverse(match: RegExpMatchArray, _ctx: any) {
+  const [, capturedAxis] = match
+
+  const d = capturedAxis === 'x' || capturedAxis === 'y' ? capturedAxis : undefined
+  if (!d)
+    return
+
+  return {
+    [`--un-divide-${d}-reverse`]: '1',
+  }
+}
+
 export const spacingVariants = [variantSpaceAndDivide]
 
 export const spacingRules: Rule[] = [
-  [/^space-([xy])-(.+)$/, handlerSpace],
+  // `*-reverse` rules are listed before the greedy value rules so the
+  // `(.+)` capture never swallows the `reverse` keyword.
   [/^space-([xy])-reverse$/, handlerSpaceReverse],
+  [/^space-([xy])-(.+)$/, handlerSpace],
+  [/^divide-([xy])-reverse$/, handlerDivideReverse],
+  [/^divide-([xy])(?:-(.+))?$/, handlerDivide],
 ]
