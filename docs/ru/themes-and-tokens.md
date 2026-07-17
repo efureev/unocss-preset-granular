@@ -225,16 +225,19 @@ export default defineGranularProvider({
 
 `cssFiles` подключаются как UnoCSS **preflights**. Трансформер UnoCSS
 `transformer-directives` (разворачивает `@apply`, `@screen`, `theme()`)
-работает только на стадии Vite‑transform обычных CSS‑модулей — и **не
-применяется** к preflights. Есть два практических варианта:
+работает только на стадии Vite‑transform обычных CSS‑модулей — по умолчанию
+**не применяется** к preflights. Три практических варианта:
 
-1. **Положите CSS в SFC** (`<style src="./styles.css">` или inline
+1. **Включите `expandDirectives`** (node entry). При
+   `presetGranularNode({ ..., expandDirectives: true })` пресет прогоняет
+   встраиваемый CSS (base / tokens / темы / `cssFiles`) через
+   `transformer-directives` прямо в preflight, и `@apply` / `@screen` /
+   `theme()` разворачиваются. Нужны разрешимые `unocss` (реэкспортит
+   `transformerDirectives`) и `magic-string` — обе едут вместе с `unocss`;
+   если их нет — CSS остаётся без изменений с одним `console.warn`.
+2. **Положите CSS в SFC** (`<style src="./styles.css">` или inline
    `<style>`) и включите `transformerDirectives()` в `uno.config.ts`.
    SFC‑импорт CSS пройдёт через трансформер, `@apply` корректно
    развернётся.
-2. **Оставьте `cssFiles`** для CSS, которому не нужно разворачивание
+3. **Оставьте `cssFiles`** для CSS, которому не нужно разворачивание
    директив (pure base, tokens, fonts). Комбинируйте по ситуации.
-
-Автоматическое применение `transformer-directives` к preflight‑CSS из
-`cssFiles` — пункт бэклога, см.
-[Рецепты и отладку](./troubleshooting.md).

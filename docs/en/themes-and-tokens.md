@@ -228,15 +228,19 @@ Absolute path, `file://` URL, or `data:text/css,...`.
 
 `cssFiles` are loaded as **preflights**. UnoCSS's `transformer-directives`
 (which expands `@apply`, `@screen`, `theme()`) operates only at Vite's
-transform stage on regular CSS modules — it does **not** apply to
-preflights. Two practical options:
+transform stage on regular CSS modules — by default it does **not** apply to
+preflights. Three practical options:
 
-1. **Put the CSS inside the SFC** (`<style src="./styles.css">` or inline
+1. **Enable `expandDirectives`** (node entry). Set
+   `presetGranularNode({ ..., expandDirectives: true })` and the preset runs
+   the injected CSS (base / tokens / themes / `cssFiles`) through
+   `transformer-directives` inside the preflight, so `@apply`, `@screen` and
+   `theme()` resolve. Requires `unocss` (re‑exports `transformerDirectives`)
+   and `magic-string` to be resolvable — both ship with `unocss`; if they
+   aren't, the CSS is left unchanged with a single `console.warn`.
+2. **Put the CSS inside the SFC** (`<style src="./styles.css">` or inline
    `<style>`) and enable `transformerDirectives()` in the app's
    `uno.config.ts`. The SFC‑imported CSS flows through the transformer and
    `@apply` resolves correctly.
-2. **Keep `cssFiles`** for CSS that doesn't need directive expansion (pure
+3. **Keep `cssFiles`** for CSS that doesn't need directive expansion (pure
    base, tokens, fonts). Mix approaches as needed.
-
-Automatic directive expansion for preflight CSS from `cssFiles` is a
-roadmap item — see [Troubleshooting & recipes](./troubleshooting.md).

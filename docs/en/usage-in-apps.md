@@ -28,6 +28,7 @@ scanning.
 | `preflights`                            | Extra inline preflights injected by the app itself.                                  |
 | `includeProviderUnocss`                 | If `false`, skip `provider.unocss.*`. Default: `true`.                               |
 | `scan`                                  | Scan options for the `/node` entry (see below).                                      |
+| `expandDirectives`                      | `/node` only. If `true`, expand `@apply`/`@screen`/`theme()` in the injected preflight CSS. Default: `false`. |
 
 ### `components` selectors
 

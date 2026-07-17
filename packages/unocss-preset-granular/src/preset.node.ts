@@ -45,6 +45,17 @@ export interface GranularScanOptions {
 export interface PresetGranularNodeOptions extends PresetGranularOptions {
   /** Авто-сканирование исходников провайдеров (для UnoCSS `content.filesystem`). */
   scan?: GranularScanOptions
+  /**
+   * Прогонять инлайн-CSS (base/tokens/темы/`cssFiles`), который node-слой
+   * встраивает как preflight, через `transformer-directives` — раскрывая
+   * `@apply`, `@screen` и `theme()`. По умолчанию `false` (preflight'ы UnoCSS
+   * идут в обход трансформера, поэтому директивы в `cssFiles` не раскрываются).
+   *
+   * Требует, чтобы в окружении резолвились `@unocss/transformer-directives`
+   * (реэкспортится из `unocss`) и `magic-string` — обе едут вместе с `unocss`.
+   * Если их нет — CSS возвращается без изменений с одним `console.warn`.
+   */
+  expandDirectives?: boolean
 }
 
 interface ResolvedFile {
@@ -293,6 +304,45 @@ export async function getGranularNodeCss(
     .join('\n')
 }
 
+let directivesUnavailableWarned = false
+
+/**
+ * Прогоняет инлайн-CSS через `transformer-directives`, раскрывая `@apply` /
+ * `@screen` / `theme()`. Трансформер и `magic-string` подгружаются лениво
+ * (динамический импорт), чтобы не тянуть их, если `expandDirectives` выключен.
+ * При недоступности зависимостей — возвращает CSS как есть с одним `warn`.
+ */
+async function expandCssDirectives(
+  css: string,
+  generator: unknown,
+): Promise<string> {
+  if (!css || !generator)
+    return css
+
+  try {
+    const [{ transformerDirectives }, { default: MagicString }] = await Promise.all([
+      import('unocss'),
+      import('magic-string'),
+    ])
+    const transformer = transformerDirectives()
+    const magic = new MagicString(css)
+    // `transformer.transform(code, id, ctx)` читает только `ctx.uno`.
+    await transformer.transform(magic, 'granular-inline.css', { uno: generator } as never)
+    return magic.toString()
+  }
+  catch (error) {
+    if (!directivesUnavailableWarned) {
+      directivesUnavailableWarned = true
+      console.warn(
+        `[granular] expandDirectives: не удалось раскрыть @apply/@screen/theme() — `
+        + `нужны разрешимые 'unocss' (transformerDirectives) и 'magic-string'. `
+        + `CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
+      )
+    }
+    return css
+  }
+}
+
 /** Возвращает один агрегирующий preflight, который лениво читает все CSS файлы. */
 export function createGranularNodePreflight(
   options: PresetGranularNodeOptions,
@@ -300,7 +350,12 @@ export function createGranularNodePreflight(
 ): Preflight {
   return {
     layer,
-    getCSS: () => getGranularNodeCss(options),
+    getCSS: async (ctx) => {
+      const css = await getGranularNodeCss(options)
+      if (!options.expandDirectives)
+        return css
+      return expandCssDirectives(css, ctx?.generator)
+    },
   }
 }
 

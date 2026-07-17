@@ -43,11 +43,12 @@
 
 ## «У меня `@apply` в `styles.css` провайдера и он не разворачивается»
 
-`cssFiles` подключаются как UnoCSS **preflights** — в обход
-`transformer-directives`. См. рецепт в
+`cssFiles` подключаются как UnoCSS **preflights** — по умолчанию в обход
+`transformer-directives`. Два решения: (1) `presetGranularNode({ expandDirectives: true })`
+— пресет сам развернёт `@apply` / `@screen` / `theme()` во встраиваемом CSS;
+либо (2) переложите CSS в SFC `<style src="./styles.css">` и включите
+`transformerDirectives()` в `uno.config.ts`. См. рецепт в
 [Темы и токены → `@apply` внутри per‑component `styles.css`](./themes-and-tokens.md#apply-внутри-per-component-stylescss).
-Коротко: переложите CSS в SFC `<style src="./styles.css">` и включите
-`transformerDirectives()` в `uno.config.ts`.
 
 ## «Arbitrary values вроде `bg-[var(--card)]` не появляются»
 

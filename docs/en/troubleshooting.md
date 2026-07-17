@@ -44,11 +44,13 @@ works out of the box.
 
 ## "I have `@apply` inside a provider's `styles.css` and it's not expanded"
 
-`cssFiles` are loaded as UnoCSS **preflights**, which bypass the
-`transformer-directives` transformer. See the recipe in
+`cssFiles` are loaded as UnoCSS **preflights**, which by default bypass the
+`transformer-directives` transformer. Two fixes: (1) set
+`presetGranularNode({ expandDirectives: true })` so the preset expands
+`@apply` / `@screen` / `theme()` in the injected CSS itself; or (2) move the
+stylesheet into an SFC `<style src="./styles.css">` and enable
+`transformerDirectives()` in `uno.config.ts`. See the recipe in
 [Themes and tokens → `@apply` inside per‑component `styles.css`](./themes-and-tokens.md#apply-inside-per-component-stylescss).
-TL;DR — move the stylesheet into an SFC `<style src="./styles.css">` and
-enable `transformerDirectives()` in `uno.config.ts`.
 
 ## "Arbitrary values like `bg-[var(--card)]` don't show up"
 

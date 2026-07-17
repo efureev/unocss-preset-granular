@@ -28,6 +28,7 @@
 | `preflights`                            | Дополнительные inline‑preflights, добавляемые приложением.                              |
 | `includeProviderUnocss`                 | `false` — не тянуть `provider.unocss.*`. По умолчанию `true`.                           |
 | `scan`                                  | Опции сканирования для `/node` (см. ниже).                                              |
+| `expandDirectives`                      | Только `/node`. `true` — раскрывать `@apply`/`@screen`/`theme()` во встраиваемом preflight‑CSS. По умолчанию `false`. |
 
 ### Селекторы `components`
 
