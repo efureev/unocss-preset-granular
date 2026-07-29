@@ -1,7 +1,10 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+
+/** Имена granular-компонентов пакета. */
+const COMPONENT_NAMES = ['XgQuick', 'XTokenizedLevel2']
 
 export default defineConfig({
   plugins: [vue()],
@@ -10,6 +13,9 @@ export default defineConfig({
     minify: 'oxc',
     reportCompressedSize: true,
     emptyOutDir: true,
+    // Каждому компоненту — свой CSS-ассет, иначе на выходе один общий файл
+    // пакета, который нельзя честно назвать `components/<Name>/styles.css`.
+    cssCodeSplit: true,
     lib: {
       entry: {
         index: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
@@ -48,14 +54,13 @@ export default defineConfig({
          * `chunks/`, иначе сломается `packageBaseUrl`).
          */
         chunkFileNames: granularChunkFileNames(),
-        assetFileNames: (assetInfo) => {
-          // Vite names the combined library CSS after the package ("extra-granularity.css").
-          // Rename it to match the package.json export `./components/XgQuickForm/styles.css`.
-          if (assetInfo.name?.endsWith('.css'))
-            return 'components/XgQuick/styles.css'
-
-          return assetInfo.name ?? '[name][extname]'
-        },
+        /**
+         * CSS компонентов — в `components/<Name>/styles.css`, как объявляет
+         * `styleAssetFileName` дескриптора. Раньше тут стоял рукописный
+         * маппинг, который отправлял ЛЮБОЙ css-ассет в `XgQuick` — с
+         * появлением второго компонента со стилями он бы их склеил.
+         */
+        assetFileNames: granularAssetFileNames({ components: COMPONENT_NAMES }),
       },
     },
   },

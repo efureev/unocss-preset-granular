@@ -11,7 +11,7 @@
 | `@feugene/unocss-preset-granular`               | browser / runtime / edge / sandboxes  |
 | `@feugene/unocss-preset-granular/node`          | Node build‑time (Vite, CLI, tests)    |
 | `@feugene/unocss-preset-granular/contract`      | types + `defineGranularComponent/Provider` for provider authors |
-| `@feugene/unocss-preset-granular/vite`          | `granularChunkFileNames` for a **provider's** Vite build |
+| `@feugene/unocss-preset-granular/vite`          | `granularChunkFileNames` / `granularAssetFileNames` for a **provider's** Vite build |
 
 For apps built with Vite you almost always want `/node` — it reads CSS files
 from disk, resolves the `cssFiles` fallback (see

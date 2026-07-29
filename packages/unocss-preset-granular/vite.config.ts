@@ -1,60 +1,16 @@
 import { fileURLToPath, URL } from 'node:url'
-import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 
-function getDistPackageJson() {
-  const pkg = JSON.parse(
-    readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
-  )
-
-  const stripDist = (value: unknown): unknown => {
-    if (typeof value === 'string')
-      return value.replace(/^\.\/dist\//, './')
-    if (Array.isArray(value))
-      return value.map(stripDist)
-    if (value && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, stripDist(v)]),
-      )
-    }
-    return value
-  }
-
-  return {
-    name: pkg.name,
-    version: pkg.version,
-    description: pkg.description,
-    license: pkg.license,
-    author: pkg.author,
-    homepage: pkg.homepage,
-    repository: pkg.repository,
-    bugs: pkg.bugs,
-    keywords: pkg.keywords,
-    engines: pkg.engines,
-    type: pkg.type,
-    sideEffects: pkg.sideEffects,
-    bin: stripDist(pkg.bin),
-    exports: stripDist(pkg.exports),
-    peerDependencies: pkg.peerDependencies,
-    peerDependenciesMeta: pkg.peerDependenciesMeta,
-  }
-}
+// ВНИМАНИЕ: пакет публикуется ИЗ КОРНЯ каталога (`npm publish` в
+// `packages/unocss-preset-granular`, `files: ["dist"]`), а не из `dist/`.
+// Поэтому здесь НЕ генерируется `dist/package.json`: вложенный манифест
+// с полем `exports` Node игнорирует, а часть бандлеров всё-таки читает —
+// получая другую карту резолва (см. `publint`).
 
 const SHEBANG = '#!/usr/bin/env node'
 
 export default defineConfig({
   plugins: [
-    {
-      name: 'unocss-preset-granular:emit-package-json',
-      apply: 'build',
-      generateBundle() {
-        this.emitFile({
-          type: 'asset',
-          fileName: 'package.json',
-          source: `${JSON.stringify(getDistPackageJson(), null, 2)}\n`,
-        })
-      },
-    },
     {
       // Гарантируем шебанг у CLI-энтрипоинта bin.js (бандлер может его срезать).
       name: 'unocss-preset-granular:bin-shebang',

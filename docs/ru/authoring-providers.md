@@ -119,7 +119,7 @@ export const buttonConfig = defineGranularComponent(import.meta.url, {
 ## Определение провайдера: `granular-provider/index.ts`
 
 ```ts
-import { defineGranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 import { buttonConfig } from '../components/MyButton/config'
 import { iconConfig } from '../components/MyIcon/config'
 
@@ -132,9 +132,11 @@ export default defineGranularProvider({
   // `components/<Name>/` — значит он должен указывать на корень
   // ИМЕННО ЭТОЙ раскладки, будь то src/ или dist/.
   //
-  // ВАЖНО: литерал `new URL('..', import.meta.url)` rolldown заменяет на
-  // data:-URL при build'е. Собирайте URL в рантайме:
-  packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
+  // `resolvePackageBaseUrl(importMetaUrl, levelsUp = 1)` поднимается на одну
+  // директорию от вызывающего модуля. Писать `new URL('..', import.meta.url)`
+  // НЕЛЬЗЯ: rolldown распознаёт этот литерал и заменяет на data:-URL при
+  // сборке — скан после этого молча схлопывается в ничто.
+  packageBaseUrl: resolvePackageBaseUrl(import.meta.url),
 
   components: [buttonConfig, iconConfig],
 
@@ -181,7 +183,7 @@ SFC‑чанки в плоский `dist/chunks/`, который находит
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -203,6 +205,14 @@ export default defineConfig({
         // SFC‑чанки компонентов → `components/<Name>/chunks/`,
         // остальное остаётся во flat `chunks/`.
         chunkFileNames: granularChunkFileNames(),
+        // CSS компонента → `components/<Name>/styles.css`: это же значение
+        // `defineGranularComponent` пишет в `styleAssetFileName`, и по нему
+        // node‑слой ищет CSS, когда пакет опубликован без исходников.
+        // Нужен `build.cssCodeSplit: true`, иначе на выходе будет один
+        // общий CSS пакета, а не по файлу на компонент.
+        assetFileNames: granularAssetFileNames({
+          components: ['MyButton', 'MyIcon'],
+        }),
       },
     },
   },
@@ -312,7 +322,7 @@ export const xTokenizedNodeConfig = {
 
 ```ts
 // granular-provider/index.ts
-export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
 export const browserComponents = [xTokenizedConfig /* , ... */]
 
 export function createMyProvider(components: typeof browserComponents) {

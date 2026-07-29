@@ -1,6 +1,5 @@
 import type {
   GranularComponentDependency,
-  GranularComponentDescriptor,
   GranularProvider,
 } from '../contract'
 import type { ComponentKey, ComponentRegistry, RegistryEntry } from './registry'
@@ -180,16 +179,6 @@ export function collectSafelist(entries: readonly RegistryEntry[]): string[] {
   return [...set]
 }
 
-/** Union абсолютных URL/путей cssFiles всех компонентов (с сохранением порядка post-order). */
-export function collectCssFiles(entries: readonly RegistryEntry[]): string[] {
-  const set = new Set<string>()
-  for (const { descriptor } of entries) {
-    for (const file of descriptor.cssFiles ?? [])
-      set.add(file)
-  }
-  return [...set]
-}
-
 /** Описание компонента по его позиции в `order` — удобно для FS-слоя. */
 export function collectCssFilesDetailed(
   entries: readonly RegistryEntry[],
@@ -214,9 +203,4 @@ export function collectCssFilesDetailed(
   }
 
   return result
-}
-
-/** Утилита для внешнего доступа к списку дескрипторов. */
-export function toDescriptors(entries: readonly RegistryEntry[]): readonly GranularComponentDescriptor[] {
-  return entries.map(e => e.descriptor)
 }

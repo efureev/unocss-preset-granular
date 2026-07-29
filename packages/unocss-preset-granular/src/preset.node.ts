@@ -329,7 +329,17 @@ let directivesUnavailableWarned = false
  * Прогоняет инлайн-CSS через `transformer-directives`, раскрывая `@apply` /
  * `@screen` / `theme()`. Трансформер и `magic-string` подгружаются лениво
  * (динамический импорт), чтобы не тянуть их, если `expandDirectives` выключен.
- * При недоступности зависимостей — возвращает CSS как есть с одним `warn`.
+ *
+ * Два отказа разведены намеренно:
+ *
+ *   1. НЕТ ЗАВИСИМОСТЕЙ — окружение без `unocss`/`magic-string`. Это состояние
+ *      окружения, оно не меняется от вызова к вызову: warn один раз за процесс,
+ *      CSS возвращается как есть.
+ *   2. ОШИБКА В САМОМ CSS — например `@apply` неизвестного класса. Это ошибка
+ *      пользователя в конкретном месте, и сообщать о ней надо КАЖДЫЙ раз и с
+ *      исходным текстом ошибки. Раньше оба случая ловил один `catch`, выдавая
+ *      «нужны разрешимые 'unocss' и 'magic-string'» — и, из-за флага, ровно
+ *      один раз за процесс. Отладка `@apply` в таком режиме была невозможна.
  */
 async function expandCssDirectives(
   css: string,
@@ -338,26 +348,45 @@ async function expandCssDirectives(
   if (!css || !generator)
     return css
 
+  let transformer: { transform: (...args: never[]) => unknown }
+  let magic: { toString: () => string }
+
   try {
     const [{ transformerDirectives }, { default: MagicString }] = await Promise.all([
       import('unocss'),
       import('magic-string'),
     ])
-    const transformer = transformerDirectives()
-    const magic = new MagicString(css)
-    // `transformer.transform(code, id, ctx)` читает только `ctx.uno`.
-    await transformer.transform(magic, 'granular-inline.css', { uno: generator } as never)
-    return magic.toString()
+    transformer = transformerDirectives() as typeof transformer
+    magic = new MagicString(css)
   }
   catch (error) {
     if (!directivesUnavailableWarned) {
       directivesUnavailableWarned = true
       console.warn(
-        `[granular] expandDirectives: не удалось раскрыть @apply/@screen/theme() — `
+        `[granular] expandDirectives: не удалось загрузить трансформер — `
         + `нужны разрешимые 'unocss' (transformerDirectives) и 'magic-string'. `
         + `CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
       )
     }
+    return css
+  }
+
+  try {
+    // `transformer.transform(code, id, ctx)` читает только `ctx.uno`.
+    await (transformer.transform as unknown as (
+      code: unknown,
+      id: string,
+      ctx: unknown,
+    ) => Promise<unknown>)(magic, 'granular-inline.css', { uno: generator })
+    return magic.toString()
+  }
+  catch (error) {
+    // НЕ глушим повторы: это ошибка в CSS, и она нужна пользователю каждый
+    // раз, пока не исправлена.
+    console.warn(
+      `[granular] expandDirectives: ошибка при раскрытии @apply/@screen/theme() `
+      + `в инлайн-CSS. CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
+    )
     return css
   }
 }

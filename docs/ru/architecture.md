@@ -13,7 +13,7 @@
 | `@feugene/unocss-preset-granular`           | Браузер / runtime (без `fs`)                | нет              |
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, тесты)               | читает файлы     |
 | `@feugene/unocss-preset-granular/contract`  | Авторам провайдеров — типы + `define*`      | нет (типы)       |
-| `@feugene/unocss-preset-granular/vite`      | Vite‑сборке **провайдера** — `granularChunkFileNames` | нет (чистые функции) |
+| `@feugene/unocss-preset-granular/vite`      | Vite‑сборке **провайдера** — `granularChunkFileNames`, `granularAssetFileNames` | нет (чистые функции) |
 
 Entry `/vite` — часть контракта сканирования, а не опциональное удобство: без
 `granularChunkFileNames` в `build.rollupOptions` провайдера SFC‑чанки лягут
@@ -195,6 +195,15 @@ Node entry ожидает такую раскладку (относительн�
     (та же, что CLI `granular doctor`).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
+  - `inspectGranularScanDirs(options)` — что реально уходит в скан (`dirs`)
+    и что отсеяно layout‑контрактом (`skipped`); единый мемоизированный обход
+    FS, общий с `granularContent` и doctor'ом.
 - `@feugene/unocss-preset-granular/contract`
-  - Типовая поверхность для авторов провайдеров:
-    `GranularProvider`, `GranularComponentDescriptor`, `defineGranular*`.
+  - Поверхность для авторов провайдеров: `GranularProvider`,
+    `GranularComponentDescriptor`, `defineGranular*` и
+    `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
+- `@feugene/unocss-preset-granular/vite`
+  - `granularChunkFileNames(options?)` — SFC‑чанки в
+    `components/<Name>/chunks/`.
+  - `granularAssetFileNames(options?)` — CSS компонента в
+    `components/<Name>/styles.css`.

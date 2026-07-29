@@ -11,7 +11,7 @@ import {
 } from '../core/errors'
 import { buildRegistry } from '../core/registry'
 import {
-  collectCssFiles,
+  collectCssFilesDetailed,
   collectSafelist,
   resolveSelection,
 } from '../core/resolveSelection'
@@ -165,6 +165,7 @@ describe('resolveSelection', () => {
       'ds:DsButton',
       { provider: 'ds', names: ['DsButton'] },
     ])
-    expect(collectCssFiles(r.entries)).toEqual(['file:///ds/DsButton.css'])
+    expect(collectCssFilesDetailed(r.entries).map(f => f.url))
+      .toEqual(['file:///ds/DsButton.css'])
   })
 })

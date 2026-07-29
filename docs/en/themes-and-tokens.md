@@ -182,7 +182,7 @@ duplicating values.
 
 ```ts
 // granular-provider/node.ts
-import { defineGranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 import { tokenDefinitionsFromCssSync } from '@feugene/unocss-preset-granular/node'
 
 const lightUrl = new URL('../styles/themes/light.css', import.meta.url).href
@@ -191,7 +191,7 @@ const darkUrl  = new URL('../styles/themes/dark.css',  import.meta.url).href
 export default defineGranularProvider({
   id: '@your-scope/your-package',
   contractVersion: 1,
-  packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
+  packageBaseUrl: resolvePackageBaseUrl(import.meta.url),
   components: [/* ... */],
   theme: {
     baseCssUrl: new URL('../styles/base.css', import.meta.url).href,

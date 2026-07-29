@@ -3,7 +3,8 @@
  *
  * These utilities are used while **building a provider package** (e.g.
  * `@feugene/simple-package`), not by end applications. End apps do NOT need
- * to configure `chunkFileNames` — they consume the already‑built `dist/`.
+ * to configure `chunkFileNames`/`assetFileNames` — they consume the
+ * already‑built `dist/`.
  *
  * The helpers are pure functions: they do not import Vite, rolldown, node
  * or UnoCSS, so it is safe to import them from a provider's `vite.config.ts`
@@ -137,5 +138,113 @@ export function granularChunkFileNames(
         return componentPattern.replace('<name>', m[1])
     }
     return fallback
+  }
+}
+
+/**
+ * Shape of the `assetInfo` argument Vite/rolldown passes to
+ * `output.assetFileNames`. Kept structural on purpose — see
+ * {@link GranularChunkInfo}.
+ */
+export interface GranularAssetInfo {
+  /** Asset name as computed by the bundler, e.g. `XTest1.css`. */
+  name?: string
+  /** Source files the asset came from (may be empty for SFC styles). */
+  originalFileNames?: readonly string[]
+}
+
+/** Options for {@link granularAssetFileNames}. */
+export interface GranularAssetFileNamesOptions {
+  /**
+   * Component names of the package. When given, an asset is routed into a
+   * component directory **only** if it belongs to one of these — the exact,
+   * recommended mode.
+   *
+   * Without it the helper falls back to {@link componentAssetRegex}.
+   */
+  components?: readonly string[]
+
+  /**
+   * Regex applied to the asset name when {@link components} is not given.
+   * Group 1 must capture the component name.
+   *
+   * Default: `/^([A-Z][\w-]*)\.css$/` — the usual convention where a
+   * component directory (and therefore its style asset) starts with an
+   * uppercase letter, so `index.css` of the package entry stays put.
+   */
+  componentAssetRegex?: RegExp
+
+  /**
+   * Pattern for a component's style asset. `<name>` is replaced with the
+   * component name.
+   *
+   * Default: `'components/<name>/styles.css'` — exactly the value
+   * `defineGranularComponent` puts into
+   * `GranularComponentDescriptor.styleAssetFileName`, and the path the node
+   * layer falls back to when reading `cssFiles` from a published package.
+   */
+  styleAssetPattern?: string
+
+  /**
+   * Pattern for everything else (package-level CSS, fonts, images).
+   *
+   * Default: `'[name][extname]'`.
+   */
+  fallbackAssetPattern?: string
+}
+
+/**
+ * Build an `output.assetFileNames` callback that puts a component's style
+ * asset where the contract says it lives — `components/<Name>/styles.css`.
+ *
+ * Why it matters: `defineGranularComponent` fills
+ * `styleAssetFileName`/`cssFileAssetNames` with `components/<Name>/…` paths,
+ * and the node layer uses them as the **fallback** when reading `cssFiles`
+ * from a package that ships only `dist/`. With the default Vite naming the
+ * asset lands flat (`dist/XTest1.css`), so that fallback resolves to a file
+ * that was never emitted — and the consumer gets a bare `ENOENT`.
+ *
+ * ```ts
+ * import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+ *
+ * const components = ['XTest1', 'XTokenized']
+ *
+ * export default defineConfig({
+ *   build: {
+ *     rolldownOptions: {
+ *       output: {
+ *         chunkFileNames: granularChunkFileNames(),
+ *         assetFileNames: granularAssetFileNames({ components }),
+ *       },
+ *     },
+ *   },
+ * })
+ * ```
+ */
+export function granularAssetFileNames(
+  options: GranularAssetFileNamesOptions = {},
+): (assetInfo: GranularAssetInfo) => string {
+  const known = options.components ? new Set(options.components) : undefined
+  const assetRegex = options.componentAssetRegex ?? /^([A-Z][\w-]*)\.css$/
+  const stylePattern = options.styleAssetPattern ?? 'components/<name>/styles.css'
+  const fallback = options.fallbackAssetPattern ?? '[name][extname]'
+
+  return (assetInfo) => {
+    const name = assetInfo.name
+    if (!name)
+      return fallback
+
+    // Явный список компонентов — точный режим, без эвристик.
+    if (known) {
+      const base = name.replace(/\.css$/, '')
+      return base !== name && known.has(base)
+        ? stylePattern.replace('<name>', base)
+        : fallback
+    }
+
+    const matched = name.match(assetRegex)
+    return matched && matched[1]
+      ? stylePattern.replace('<name>', matched[1])
+      : fallback
   }
 }

@@ -40,7 +40,17 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * отключает fallback для «хвоста».
    */
   cssFileAssetNames?: readonly string[]
-  /** Имя style-asset'а (применяет внешний build при необходимости). */
+  /**
+   * Куда build провайдера должен положить CSS этого компонента:
+   * `components/<Name>/styles.css` (или `null`, если сборка ассета отключена
+   * через `emitStyleAsset: false`).
+   *
+   * Потребитель — `granularAssetFileNames()` из
+   * `@feugene/unocss-preset-granular/vite`: он воспроизводит ровно этот путь
+   * в `output.assetFileNames`. Пресет поле не читает — ему достаточно
+   * `cssFileAssetNames`, но обе величины обязаны совпадать по раскладке,
+   * иначе fallback чтения CSS в опубликованном пакете упрётся в ENOENT.
+   */
   styleAssetFileName?: string | null
   /**
    * Структурные токены, которые ПУБЛИКУЕТ этот компонент для тем.
@@ -215,4 +225,51 @@ export function defineGranularComponent<Name extends string>(
     ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
     ...(options.group ? { group: options.group } : {}),
   }
+}
+
+/**
+ * Базовый URL пакета для `GranularProvider.packageBaseUrl`.
+ *
+ * Заменяет копипасту вида
+ * `` `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', ...))}` ``,
+ * которую до сих пор приходилось переносить из провайдера в провайдер.
+ *
+ * ```ts
+ * // granular-provider/index.ts (лежит на один уровень ниже корня раскладки)
+ * packageBaseUrl: resolvePackageBaseUrl(import.meta.url)
+ * ```
+ *
+ * Почему не `new URL('..', import.meta.url)` на стороне провайдера: Vite и
+ * rolldown распознают ИМЕННО этот литерал и заменяют его на `data:`-URL при
+ * сборке — скан-директории после этого схлопываются в ничто, молча. Здесь
+ * база приходит аргументом, статически подставить бандлеру нечего.
+ *
+ * @param importMetaUrl `import.meta.url` вызывающего модуля.
+ * @param levelsUp Сколько уровней подняться от модуля до корня раскладки
+ *   пакета. По умолчанию `1` — модуль лежит в подкаталоге
+ *   (`<base>/granular-provider/index.js`, а в сборке — `<base>/chunks/*.js`).
+ *
+ * ВАЖНО: значение зависит от того, куда бандлер положит ЭТОТ модуль, а не от
+ * структуры исходников. Проверяйте результат через `npx granular doctor` —
+ * неверная база даёт пустой скан, а не ошибку.
+ */
+export function resolvePackageBaseUrl(importMetaUrl: string, levelsUp = 1): string {
+  if (typeof importMetaUrl !== 'string' || importMetaUrl.length === 0)
+    throw new TypeError('resolvePackageBaseUrl: importMetaUrl must be a non-empty string')
+  if (!Number.isInteger(levelsUp) || levelsUp < 0)
+    throw new TypeError(`resolvePackageBaseUrl: levelsUp must be a non-negative integer, got ${levelsUp}`)
+
+  // Отрезаем имя файла, затем — по одному сегменту на каждый уровень.
+  let end = importMetaUrl.lastIndexOf('/')
+  if (end < 0)
+    throw new TypeError(`resolvePackageBaseUrl: '${importMetaUrl}' has no path separator`)
+
+  for (let i = 0; i < levelsUp; i++) {
+    const next = importMetaUrl.lastIndexOf('/', end - 1)
+    if (next < 0)
+      throw new RangeError(`resolvePackageBaseUrl: cannot go ${levelsUp} level(s) up from '${importMetaUrl}'`)
+    end = next
+  }
+
+  return importMetaUrl.slice(0, end + 1)
 }

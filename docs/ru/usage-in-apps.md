@@ -11,7 +11,7 @@
 | `@feugene/unocss-preset-granular`            | браузер / runtime / edge / sandboxes   |
 | `@feugene/unocss-preset-granular/node`       | Node build‑time (Vite, CLI, тесты)     |
 | `@feugene/unocss-preset-granular/contract`   | типы + `defineGranularComponent/Provider` для авторов провайдеров |
-| `@feugene/unocss-preset-granular/vite`       | `granularChunkFileNames` для Vite‑сборки **провайдера** |
+| `@feugene/unocss-preset-granular/vite`       | `granularChunkFileNames` / `granularAssetFileNames` для Vite‑сборки **провайдера** |
 
 Для приложений на Vite почти всегда нужен `/node` — он читает CSS‑файлы с
 диска, делает fallback для `cssFiles` (см.

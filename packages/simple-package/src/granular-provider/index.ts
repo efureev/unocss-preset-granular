@@ -1,4 +1,4 @@
-import {defineGranularProvider, type GranularProvider} from '@feugene/unocss-preset-granular/contract'
+import {defineGranularProvider, type GranularProvider, resolvePackageBaseUrl} from '@feugene/unocss-preset-granular/contract'
 
 import {xNestedConfig} from '../components/XNested/config'
 import {xXNestedReverseConfig} from '../components/reverses/XNestedReverse/config'
@@ -33,10 +33,10 @@ export const PROVIDER_ID = '@feugene/simple-package'
  * Базовый URL пакета. Вынесен сюда, чтобы node-entry считал его от ТОГО ЖЕ
  * модуля: оба entry делят общий чанк, поэтому значение одинаково.
  *
- * Литеральный `new URL('..', import.meta.url)` тут не годится — rolldown
- * заменяет его на `data:`-URL при сборке.
+ * `resolvePackageBaseUrl` — вместо рукописного слайса и вместо литерального
+ * `new URL('..', import.meta.url)`, который rolldown заменяет на `data:`-URL.
  */
-export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
 
 /** Браузерные конфиги компонентов — без единого FS-импорта. */
 export const browserComponents = [

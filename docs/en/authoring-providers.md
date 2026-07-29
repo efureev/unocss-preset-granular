@@ -122,7 +122,7 @@ Notes:
 ## Define the provider: `granular-provider/index.ts`
 
 ```ts
-import { defineGranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 import { buttonConfig } from '../components/MyButton/config'
 import { iconConfig } from '../components/MyIcon/config'
 
@@ -135,9 +135,11 @@ export default defineGranularProvider({
   // scan dirs against it — so it must point at the root of THIS build's
   // layout, whether that is src/ or dist/.
   //
-  // Caveat: the literal `new URL('..', import.meta.url)` is replaced with
-  // a data: URL by rolldown at build time — we build the URL at runtime:
-  packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
+  // `resolvePackageBaseUrl(importMetaUrl, levelsUp = 1)` goes one directory up
+  // from the calling module. Do NOT write `new URL('..', import.meta.url)`:
+  // rolldown recognises that exact literal and replaces it with a data: URL
+  // at build time, which silently collapses the scan to nothing.
+  packageBaseUrl: resolvePackageBaseUrl(import.meta.url),
 
   components: [buttonConfig, iconConfig],
 
@@ -184,7 +186,7 @@ helper `granularChunkFileNames` under the `./vite` subpath:
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -206,6 +208,14 @@ export default defineConfig({
         // Component SFC chunks → `components/<Name>/chunks/`,
         // everything else stays in flat `chunks/`.
         chunkFileNames: granularChunkFileNames(),
+        // Component CSS → `components/<Name>/styles.css` — the path
+        // `defineGranularComponent` records in `styleAssetFileName` and the
+        // one the node layer falls back to when the package ships `dist/`
+        // only. Requires `build.cssCodeSplit: true` so that each component
+        // gets its own asset instead of one combined library CSS.
+        assetFileNames: granularAssetFileNames({
+          components: ['MyButton', 'MyIcon'],
+        }),
       },
     },
   },
@@ -315,7 +325,7 @@ so the two variants can never drift apart in `id` or `packageBaseUrl`:
 
 ```ts
 // granular-provider/index.ts
-export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
 export const browserComponents = [xTokenizedConfig /* , ... */]
 
 export function createMyProvider(components: typeof browserComponents) {

@@ -13,7 +13,7 @@ reason about its behaviour, trace issues, and extend it.
 | `@feugene/unocss-preset-granular`           | Browser / runtime (no `fs`)                 | none                 |
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, tests)               | reads files from disk|
 | `@feugene/unocss-preset-granular/contract`  | Provider authors — types + `define*` helpers| none (types)         |
-| `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames` | none (pure functions) |
+| `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames`, `granularAssetFileNames` | none (pure functions) |
 
 The `/vite` entry is part of the scanning contract, not an optional extra:
 without `granularChunkFileNames` in the provider's `build.rollupOptions`, SFC
@@ -198,7 +198,15 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     (also exposed as the `granular doctor` CLI).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
+  - `inspectGranularScanDirs(options)` — what actually goes into the scan
+    (`dirs`) and what was skipped by the layout contract (`skipped`); the
+    single, memoized FS walk shared with `granularContent` and the doctor.
 - `@feugene/unocss-preset-granular/contract`
-  - Type‑only re‑export surface for provider authors:
-    `GranularProvider`, `GranularComponentDescriptor`, `defineGranular*`
-    helpers.
+  - Surface for provider authors: `GranularProvider`,
+    `GranularComponentDescriptor`, `defineGranular*` helpers and
+    `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
+- `@feugene/unocss-preset-granular/vite`
+  - `granularChunkFileNames(options?)` — routes SFC chunks into
+    `components/<Name>/chunks/`.
+  - `granularAssetFileNames(options?)` — routes component CSS into
+    `components/<Name>/styles.css`.

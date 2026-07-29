@@ -1,4 +1,4 @@
-import { defineGranularProvider, type GranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, type GranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 // БРАУЗЕРНЫЙ entry донора: `/node` отсюда тянуть нельзя — этот модуль и есть
 // браузерный экспорт `./granular-provider`, и node-слой уехал бы в клиент
 // транзитивно. Node-вариант донора подставляет `./node.ts`.
@@ -9,7 +9,7 @@ import { xTokenizedLevel2Config } from '../components/XTokenizedLevel2/config'
 
 export const EXTRA_SIMPLE_PROVIDER_ID = '@feugene/extra-simple-package'
 
-export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
 
 /**
  * Фабрика провайдера: донор передаётся аргументом, потому что у него два
