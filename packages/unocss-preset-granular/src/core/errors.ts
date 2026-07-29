@@ -95,3 +95,36 @@ export class UnresolvedProviderDependencyError extends Error {
     this.name = 'UnresolvedProviderDependencyError'
   }
 }
+
+/** Причина, по которой провайдер не проходит валидацию при регистрации. */
+export type InvalidProviderReason
+  /** `id` пустой, не строка или состоит из пробельных символов. */
+  = | 'invalid-id'
+  /** `packageBaseUrl` не парсится как абсолютный URL. */
+    | 'invalid-package-base-url'
+  /** `packageBaseUrl` не заканчивается на `/`. */
+    | 'package-base-url-not-a-directory'
+  /** `components` не массив. */
+    | 'invalid-components'
+  /** Длины `cssFiles` и `cssFileAssetNames` не совпадают. */
+    | 'css-files-length-mismatch'
+
+/**
+ * Провайдер объявлен некорректно. Бросается на РЕГИСТРАЦИИ (`expandProviders`),
+ * а не в момент, когда некорректное значение впервые понадобилось FS-слою:
+ * там те же дефекты выглядели как `console.warn` о пустом скане или как голый
+ * `ERR_INVALID_URL_SCHEME` из `fileURLToPath`.
+ */
+export class InvalidProviderError extends Error {
+  constructor(
+    public readonly providerId: string,
+    public readonly reason: InvalidProviderReason,
+    details: string,
+    /** Компонент, из-за которого провайдер невалиден (если применимо). */
+    public readonly componentName?: string,
+  ) {
+    const where = componentName ? `component '${componentName}' of ` : ''
+    super(`Invalid granular provider: ${where}'${providerId}' — ${details}`)
+    this.name = 'InvalidProviderError'
+  }
+}

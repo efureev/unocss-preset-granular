@@ -15,7 +15,9 @@ export {
 } from './fs/buildContentFilesystem'
 export {
   clearCssCache,
+  CSS_CACHE_MAX_ENTRIES,
   fileExists,
+  getCssCacheSize,
   isCssDataUrl,
   readCss,
   resolveComponentCssFile,
@@ -47,6 +49,7 @@ export {
   getGranularThemeCss,
   type GranularBuilder,
   granularContent,
+  GranularCssReadError,
   type GranularScanOptions,
   inspectGranularScanDirs,
   presetGranularNode,

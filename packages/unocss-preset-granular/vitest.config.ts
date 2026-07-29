@@ -10,7 +10,24 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'src/**/__tests__/**'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.spec.ts',
+        'src/**/__tests__/**',
+        // Точка входа CLI: шебанг + вызов `runGranularCli` и установка
+        // `process.exitCode`. Исполняется на импорте, поэтому покрывается
+        // только запуском подпроцесса. Вся логика — в `src/cli.ts` (100%).
+        'src/bin.ts',
+      ],
+      // Пороги — чтобы нулевое покрытие критичных модулей (`vite.ts`, CLI)
+      // не могло вернуться незамеченным. Значения чуть ниже текущих:
+      // это защита от регрессий, а не гонка за процентами.
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
   resolve: {

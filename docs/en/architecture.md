@@ -80,13 +80,19 @@ and `granularContent(options)` with the same object computes the graph once.
 
 If a resolution step fails (unknown component, cross‑provider edge to a
 non‑registered provider, duplicate id, dependency cycle, unsupported
-`contractVersion`) a typed error is raised — see
+`contractVersion`, malformed provider) a typed error is raised — see
 [`src/core/errors.ts`](../../packages/unocss-preset-granular/src/core/errors.ts).
 
-Reading CSS is **not** covered by those: a missing `cssFiles` / theme file
-surfaces as a plain `ENOENT` from `node:fs`, without provider or component
-context. There is no strict mode for CSS reading — `scan.strict` only governs
-the directory layout contract (see below).
+Provider shape is validated **at registration** (`expandProviders`), not when
+the file system first trips over it: an empty `id`, a `packageBaseUrl` that is
+not an absolute URL or does not end with `/`, and a length mismatch between
+`cssFiles` and `cssFileAssetNames` all raise `InvalidProviderError`.
+
+Reading CSS raises `GranularCssReadError`, which names the provider, the
+section (base/tokens, theme, component) and the theme/component involved, and
+keeps the original `ENOENT` in `cause`. There is no strict mode for CSS
+reading — `scan.strict` only governs the directory layout contract (see
+below).
 
 ## Layers
 
@@ -160,8 +166,9 @@ Two consequences worth knowing:
 
 - the two arrays are matched **by position**, so a length mismatch silently
   disables the fallback for the trailing entries;
-- if the fallback path is missing too, you get a bare `ENOENT` naming the
-  path, with no provider/component context.
+- if the fallback path is missing too, the read fails with
+  `GranularCssReadError` naming the provider and component (the raw `ENOENT`
+  stays in `cause`).
 
 ## Why `content` lives on the user config, not on the preset
 
@@ -198,6 +205,10 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     (also exposed as the `granular doctor` CLI).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
+  - `clearCssCache()` / `getCssCacheSize()` — the CSS read cache is
+    invalidated per file by `(mtime, size)` and bounded by
+    `CSS_CACHE_MAX_ENTRIES` (LRU), so a long‑running dev server cannot grow it
+    without limit; the explicit reset is there for tooling.
   - `inspectGranularScanDirs(options)` — what actually goes into the scan
     (`dirs`) and what was skipped by the layout contract (`skipped`); the
     single, memoized FS walk shared with `granularContent` and the doctor.

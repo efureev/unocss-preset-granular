@@ -4,7 +4,7 @@ import type { GranularProvider } from './contract'
 import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
 import type { ScanDirsInspection } from './fs/resolveScanDirs'
 import type { PresetGranularOptions } from './preset'
-import { applyLayerToAll, resolveGranularLayer } from './core/layer'
+import { resolveGranularLayer } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
@@ -69,7 +69,51 @@ export interface PresetGranularNodeOptions extends PresetGranularOptions {
 
 interface ResolvedFile {
   providerId: string
+  componentName: string
   filePath: string
+}
+
+/** Откуда пришёл CSS-файл — для сообщения об ошибке чтения. */
+interface CssSource {
+  /** `provider:<id>` / `app-override` — кто объявил путь. */
+  origin: string
+  /** Секция: base/tokens, тема, компонент. */
+  section: 'base/tokens' | 'theme' | 'component'
+  /** Имя темы или компонента, если применимо. */
+  subject?: string
+}
+
+/**
+ * Ошибка чтения CSS с указанием ВИНОВНИКА.
+ *
+ * Без неё типовая ошибка публикации (провайдер не положил `styles.css` туда,
+ * куда указывает контракт) выглядела как голый `ENOENT` с абсолютным путём:
+ * ни провайдера, ни компонента, ни секции в сообщении не было.
+ */
+export class GranularCssReadError extends Error {
+  constructor(
+    public readonly file: string,
+    public readonly source: CssSource,
+    public readonly cause: unknown,
+  ) {
+    const what = source.subject ? `${source.section} '${source.subject}'` : source.section
+    super(
+      `Granular: failed to read CSS for ${what} declared by ${source.origin}.\n`
+      + `  path: ${file}\n`
+      + `  cause: ${(cause as Error)?.message ?? cause}`,
+    )
+    this.name = 'GranularCssReadError'
+  }
+}
+
+/** `readCss` + контекст в ошибке. */
+async function readCssFrom(file: string, source: CssSource): Promise<string> {
+  try {
+    return await readCss(file)
+  }
+  catch (error) {
+    throw new GranularCssReadError(file, source, error)
+  }
 }
 
 async function resolveComponentCssFiles(
@@ -80,10 +124,10 @@ async function resolveComponentCssFiles(
     byKey.set(provider.id, provider)
 
   const files = await Promise.all(
-    resolution.cssFiles.map(async ({ providerId, url, assetName }) => {
+    resolution.cssFiles.map(async ({ providerId, componentName, url, assetName }) => {
       const provider = byKey.get(providerId)!
       const filePath = await resolveComponentCssFile(url, provider.packageBaseUrl, assetName)
-      return { providerId, filePath }
+      return { providerId, componentName, filePath }
     }),
   )
   // Дедуп по итоговому пути (после fallback src/↔dist/)
@@ -119,32 +163,32 @@ function pickThemeUrl(
 function resolveBaseTokenUrls(
   providers: readonly GranularProvider[],
   themes: PresetGranularNodeOptions['themes'],
-): string[] {
-  const urls: string[] = []
+): Array<{ url: string, origin: string }> {
+  const urls: Array<{ url: string, origin: string }> = []
   const seen = new Set<string>()
-  const add = (url: string | undefined): void => {
+  const add = (url: string | undefined, origin: string): void => {
     if (url && !seen.has(url)) {
       seen.add(url)
-      urls.push(url)
+      urls.push({ url, origin })
     }
   }
 
   const tokensFile = themes?.tokensFile
   if (typeof tokensFile === 'string') {
-    add(tokensFile)
+    add(tokensFile, 'app-override (themes.tokensFile)')
   }
   else {
     for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile))
+      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile), `provider '${p.id}'`)
   }
 
   const baseFile = themes?.baseFile
   if (typeof baseFile === 'string') {
-    add(baseFile)
+    add(baseFile, 'app-override (themes.baseFile)')
   }
   else {
     for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile))
+      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile), `provider '${p.id}'`)
   }
 
   return urls
@@ -258,7 +302,10 @@ async function collectNodeCssSections(
   // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
   const baseTokenUrls = resolveBaseTokenUrls(resolution.providers, options.themes)
   const baseTokens = await Promise.all(
-    baseTokenUrls.map(url => readCss(resolveCssFilePath(url))),
+    baseTokenUrls.map(({ url, origin }) => readCssFrom(
+      resolveCssFilePath(url),
+      { origin, section: 'base/tokens' },
+    )),
   )
 
   // 2. Theme token blocks (structural tokenDefinitions + tokenOverrides).
@@ -280,7 +327,7 @@ async function collectNodeCssSections(
   // семейства могут ссылаться на один и тот же файл темы (или быть сведены к
   // нему через `themes.themeFiles`), и без дедупа он читается и инлайнится
   // столько раз, сколько провайдеров на него сослалось.
-  const themeFileUrls: string[] = []
+  const themeFileUrls: Array<{ url: string, providerId: string, themeName: string }> = []
   const seenThemeUrls = new Set<string>()
   for (const { providerId, themeName, cssUrl, tokenDefinition } of resolution.themes.items) {
     // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы — файл темы уже
@@ -293,18 +340,25 @@ async function collectNodeCssSections(
       const finalUrl = pickThemeUrl(providerId, cssUrl, override as string | Partial<Record<string, string>> | undefined)
       if (finalUrl && !seenThemeUrls.has(finalUrl)) {
         seenThemeUrls.add(finalUrl)
-        themeFileUrls.push(finalUrl)
+        themeFileUrls.push({ url: finalUrl, providerId, themeName })
       }
     }
   }
   const themeFiles: string[] = []
-  for (const url of themeFileUrls)
-    themeFiles.push(await readCss(resolveCssFilePath(url)))
+  for (const { url, providerId, themeName } of themeFileUrls) {
+    themeFiles.push(await readCssFrom(
+      resolveCssFilePath(url),
+      { origin: `provider '${providerId}'`, section: 'theme', subject: themeName },
+    ))
+  }
 
   // 4. Component CSS.
   const componentFiles = await resolveComponentCssFiles(resolution)
   const components = await Promise.all(
-    componentFiles.map(f => readCss(f.filePath)),
+    componentFiles.map(f => readCssFrom(
+      f.filePath,
+      { origin: `provider '${f.providerId}'`, section: 'component', subject: f.componentName },
+    )),
   )
 
   return { baseTokens, themeTokens, themeFiles, components }
@@ -407,7 +461,14 @@ export function createGranularNodePreflight(
   }
 }
 
-/** Возвращает массив preflights, готовых к добавлению в UnoCSS preset. */
+/**
+ * Возвращает preflights, готовые к добавлению в UnoCSS preset — УЖЕ со слоем.
+ *
+ * Единственное место, где node-слой проставляет `layer` своим preflight'ам:
+ * прогонять результат ещё раз через `applyLayerToAll` не нужно (и раньше
+ * `presetGranularNode` делал именно это — безоперационно, но запутывая
+ * вопрос «кто владеет слоем»).
+ */
 export function resolvePresetGranularNodePreflights(
   options: PresetGranularNodeOptions,
 ): Preflight[] {
@@ -625,10 +686,9 @@ export function granularContent(
  */
 export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
   const base = presetGranular(options)
-  const nodePreflights = applyLayerToAll(
-    resolvePresetGranularNodePreflights(options),
-    resolveGranularLayer(options.layer),
-  )
+  // Слой уже проставлен внутри (см. `resolvePresetGranularNodePreflights`),
+  // второй проход был бы безоперационным.
+  const nodePreflights = resolvePresetGranularNodePreflights(options)
 
   // Всё же проставляем `content` и в самом пресете — для тех инструментов,
   // которые уважают resolved‑config (cli, автономные генераторы, будущие
