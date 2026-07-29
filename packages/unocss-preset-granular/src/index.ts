@@ -11,6 +11,11 @@ export {
 } from './core/errors'
 export { expandProviders } from './core/expandProviders'
 export {
+  GRANULAR_DEFAULT_LAYER,
+  GRANULAR_DEFAULT_LAYER_ORDER,
+  resolveGranularLayer,
+} from './core/layer'
+export {
   type ComponentSelection,
   type ComponentSelectionItem,
 } from './core/resolveSelection'

@@ -36,6 +36,7 @@ const granularOptions = {
     { provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] },
   ],
   themes: { names: ['light', 'dark'] },
+  // необязательно — 'granular' и есть дефолт (`null` — вообще без слоя)
   layer: 'granular' as const,
 }
 

@@ -4,17 +4,20 @@
 > [Component scanning](./component-scanning.md),
 > [Themes and tokens](./themes-and-tokens.md).
 
-## Two entry points
+## Four entry points
 
 | Import                                          | Use it in                             |
 |-------------------------------------------------|---------------------------------------|
 | `@feugene/unocss-preset-granular`               | browser / runtime / edge / sandboxes  |
 | `@feugene/unocss-preset-granular/node`          | Node build‑time (Vite, CLI, tests)    |
 | `@feugene/unocss-preset-granular/contract`      | types + `defineGranularComponent/Provider` for provider authors |
+| `@feugene/unocss-preset-granular/vite`          | `granularChunkFileNames` for a **provider's** Vite build |
 
 For apps built with Vite you almost always want `/node` — it reads CSS files
-from disk, resolves `src/ ↔ dist/` fallback, and powers automatic component
-scanning.
+from disk, resolves the `cssFiles` fallback (see
+[Architecture](./architecture.md#file-system-conventions)), and powers
+automatic component scanning. The `/vite` entry is for provider packages
+only; an app never needs it.
 
 ## Options reference (`presetGranular` / `presetGranularNode`)
 
@@ -24,7 +27,7 @@ scanning.
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (see below).                                   |
 | `themes.names`                          | Theme names to emit. Omit — providers' `theme.defaultThemes` (union, fallback `['light']`). Pass `[]` to emit no themes. |
 | `themes.baseFile` / `themes.tokensFile` | Override `base.css` / `tokens.css` globally or per `providerId`.                     |
-| `layer`                                 | UnoCSS layer assigned to preflights that don't declare one themselves.               |
+| `layer`                                 | UnoCSS layer for everything the preset emits. Default: `'granular'` (its order is declared too). `null` — no layer. |
 | `preflights`                            | Extra inline preflights injected by the app itself.                                  |
 | `includeProviderUnocss`                 | If `false`, skip `provider.unocss.*`. Default: `true`.                               |
 | `scan`                                  | Scan options for the `/node` entry (see below).                                      |
@@ -39,11 +42,12 @@ components: [
 
   // object form — multiple names from the same provider:
   { provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] },
-
-  // short form for a single‑provider setup (no qualifier needed):
-  // 'XTest1',
 ]
 ```
+
+A bare `'Name'` **is not** a valid app‑level selector — the preset throws
+`Invalid component key`. The short form works only inside a component's own
+`dependencies`, where the provider is implied.
 
 Use `components: 'all'` to pull everything a provider ships — convenient for
 design‑system demos, discouraged for production apps (defeats the purpose of

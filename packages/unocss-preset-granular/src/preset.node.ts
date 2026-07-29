@@ -3,7 +3,7 @@ import type { Preflight, Preset } from '@unocss/core'
 import type { GranularProvider } from './contract'
 import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
 import type { PresetGranularOptions } from './preset'
-import { applyLayerToAll } from './core/layer'
+import { applyLayerToAll, resolveGranularLayer } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
@@ -381,7 +381,7 @@ export function createGranularNodePreflight(
 export function resolvePresetGranularNodePreflights(
   options: PresetGranularNodeOptions,
 ): Preflight[] {
-  return [createGranularNodePreflight(options, options.layer)]
+  return [createGranularNodePreflight(options, resolveGranularLayer(options.layer))]
 }
 
 /** Возвращает список абсолютных путей/data-URL всех CSS файлов, которые будут в сборке. */
@@ -560,7 +560,7 @@ export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
   const base = presetGranular(options)
   const nodePreflights = applyLayerToAll(
     resolvePresetGranularNodePreflights(options),
-    options.layer,
+    resolveGranularLayer(options.layer),
   )
 
   // Всё же проставляем `content` и в самом пресете — для тех инструментов,

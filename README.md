@@ -5,8 +5,9 @@ any number of **granular providers** (component packages). The preset itself
 is UI‑agnostic — it works on top of the public `GranularProvider` contract.
 
 - **ESM only**, Node ≥ 22, TypeScript strict.
-- Three entries: `.` (browser), `./node` (build‑time FS),
-  `./contract` (types + helpers for provider authors).
+- Four entries: `.` (browser), `./node` (build‑time FS),
+  `./contract` (types + helpers for provider authors),
+  `./vite` (`granularChunkFileNames` for a provider's own build).
 - Transitive `dependencies` (including cross‑provider) are resolved from a
   single component registry.
 - Static classes from provider components are picked up by UnoCSS via
@@ -95,6 +96,21 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 - [Темы и токены](./docs/ru/themes-and-tokens.md)
 - [Архитектура](./docs/ru/architecture.md)
 - [Рецепты и отладка](./docs/ru/troubleshooting.md)
+
+## CLI — `granular doctor`
+
+The package ships a `granular` binary. `doctor` prints the resolved
+configuration — providers, the transitive component graph, theme names (and
+where they came from), token conflicts between layers, the scan globs, and any
+component directory that violates the layout contract:
+
+```bash
+# granular.options.mjs — the same options object you pass to the preset
+npx granular doctor ./granular.options.mjs
+```
+
+Exit code `1` means layout‑contract violations were found, so it can be used
+as a CI check. Details: [Troubleshooting](./docs/en/troubleshooting.md).
 
 ## Reference packages in this monorepo
 

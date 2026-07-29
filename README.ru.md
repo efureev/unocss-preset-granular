@@ -6,8 +6,9 @@
 `GranularProvider`.
 
 - **ESM only**, Node ≥ 22, TypeScript strict.
-- Три entry: `.` (browser), `./node` (build‑time FS),
-  `./contract` (типы + хелперы для авторов провайдеров).
+- Четыре entry: `.` (browser), `./node` (build‑time FS),
+  `./contract` (типы + хелперы для авторов провайдеров),
+  `./vite` (`granularChunkFileNames` для сборки самого провайдера).
 - Транзитивные `dependencies` (в т.ч. cross‑provider) резолвятся через
   единый реестр компонентов.
 - Статические классы из компонентов провайдера подхватывает UnoCSS через
@@ -99,6 +100,21 @@ export default defineConfig({
 - [Themes and tokens](./docs/en/themes-and-tokens.md)
 - [Architecture](./docs/en/architecture.md)
 - [Troubleshooting & recipes](./docs/en/troubleshooting.md)
+
+## CLI — `granular doctor`
+
+Пакет ставит бинарь `granular`. `doctor` печатает резолвнутую конфигурацию:
+провайдеров, транзитивный граф компонентов, имена тем (и откуда они взялись),
+конфликты токенов между слоями, итоговые скан‑globs и директории компонентов,
+нарушающие layout‑контракт:
+
+```bash
+# granular.options.mjs — тот же объект опций, что уходит в пресет
+npx granular doctor ./granular.options.mjs
+```
+
+Код выхода `1` — найдены нарушения layout‑контракта, поэтому команду можно
+ставить в CI. Подробнее: [Рецепты и отладка](./docs/ru/troubleshooting.md).
 
 ## Пакеты в этой монорепе
 

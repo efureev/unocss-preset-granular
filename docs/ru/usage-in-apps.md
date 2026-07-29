@@ -4,17 +4,20 @@
 > [Сканирование компонентов](./component-scanning.md),
 > [Темы и токены](./themes-and-tokens.md).
 
-## Две точки входа
+## Четыре точки входа
 
 | Импорт                                       | Где использовать                       |
 |----------------------------------------------|----------------------------------------|
 | `@feugene/unocss-preset-granular`            | браузер / runtime / edge / sandboxes   |
 | `@feugene/unocss-preset-granular/node`       | Node build‑time (Vite, CLI, тесты)     |
 | `@feugene/unocss-preset-granular/contract`   | типы + `defineGranularComponent/Provider` для авторов провайдеров |
+| `@feugene/unocss-preset-granular/vite`       | `granularChunkFileNames` для Vite‑сборки **провайдера** |
 
 Для приложений на Vite почти всегда нужен `/node` — он читает CSS‑файлы с
-диска, делает `src/ ↔ dist/` fallback и обеспечивает автосканирование
-компонентов.
+диска, делает fallback для `cssFiles` (см.
+[Архитектуру](./architecture.md#файловые-конвенции)) и обеспечивает
+автосканирование компонентов. Entry `/vite` нужен только пакетам‑провайдерам,
+приложению — никогда.
 
 ## Справочник опций (`presetGranular` / `presetGranularNode`)
 
@@ -24,7 +27,7 @@
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (см. ниже).                                       |
 | `themes.names`                          | Имена тем. Опустить — `theme.defaultThemes` провайдеров (объединение, фолбэк `['light']`). Пустой массив — без тем. |
 | `themes.baseFile` / `themes.tokensFile` | Переопределение `base.css` / `tokens.css` глобально или по `providerId`.                |
-| `layer`                                 | UnoCSS‑layer, в который попадают preflights без собственного layer'а.                   |
+| `layer`                                 | UnoCSS‑слой для всего, что эмитит пресет. По умолчанию `'granular'` (порядок слоя тоже объявляется). `null` — без слоя. |
 | `preflights`                            | Дополнительные inline‑preflights, добавляемые приложением.                              |
 | `includeProviderUnocss`                 | `false` — не тянуть `provider.unocss.*`. По умолчанию `true`.                           |
 | `scan`                                  | Опции сканирования для `/node` (см. ниже).                                              |
@@ -39,11 +42,12 @@ components: [
 
   // объектная форма — несколько имён из одного провайдера:
   { provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] },
-
-  // короткая форма для конфига с одним провайдером (без квалификатора):
-  // 'XTest1',
 ]
 ```
+
+Голое `'Name'` — **не** валидный селектор на уровне приложения, пресет
+бросит `Invalid component key`. Короткая форма работает только внутри
+`dependencies` самого компонента, где провайдер подразумевается.
 
 `components: 'all'` — удобно для демо/playground, но нежелательно в
 продакшене: теряется смысл гранулярного выбора.

@@ -4,8 +4,9 @@ Universal UnoCSS preset that aggregates styles, themes and `safelist` from
 any number of **granular providers** (component packages).
 
 - ESM only, Node ≥ 22, TypeScript strict.
-- Three entries: `.` (browser), `./node` (build‑time FS),
-  `./contract` (types + `defineGranular*` helpers).
+- Four entries: `.` (browser), `./node` (build‑time FS),
+  `./contract` (types + `defineGranular*` helpers),
+  `./vite` (`granularChunkFileNames` for a provider's own build).
 - Transitive `dependencies` (including cross‑provider) are resolved from a
   single component registry.
 - Static classes from provider components are picked up by UnoCSS via
@@ -77,6 +78,16 @@ Full documentation is in the monorepo root, in English and Russian:
 [Темы и токены](../../docs/ru/themes-and-tokens.md) ·
 [Архитектура](../../docs/ru/architecture.md) ·
 [Рецепты и отладка](../../docs/ru/troubleshooting.md))
+
+## CLI — `granular doctor`
+
+Prints the resolved configuration: providers, the transitive component graph,
+theme names and their origin, token conflicts, scan globs, and layout‑contract
+violations (exit code `1` when any are found — usable as a CI check).
+
+```bash
+npx granular doctor ./granular.options.mjs
+```
 
 ## License
 

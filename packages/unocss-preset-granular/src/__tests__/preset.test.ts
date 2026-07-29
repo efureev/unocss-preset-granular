@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { defineGranularProvider } from '../contract'
+import { GRANULAR_DEFAULT_LAYER, GRANULAR_DEFAULT_LAYER_ORDER } from '../core/layer'
 import { presetGranular } from '../preset'
 
 const provider = defineGranularProvider({
@@ -22,6 +23,26 @@ describe('presetGranular', () => {
     const p = presetGranular({ providers: [provider], layer: 'granular' })
     expect(p.name).toBe('granular-preset')
     expect(p.layer).toBe('granular')
+  })
+
+  it('layer по умолчанию — granular, с объявленным порядком', () => {
+    const p = presetGranular({ providers: [provider], components: ['ds:DsButton'] })
+    expect(p.layer).toBe(GRANULAR_DEFAULT_LAYER)
+    expect(p.layers).toEqual({ [GRANULAR_DEFAULT_LAYER]: GRANULAR_DEFAULT_LAYER_ORDER })
+    expect(p.preflights?.[0].layer).toBe(GRANULAR_DEFAULT_LAYER)
+  })
+
+  it('кастомное имя слоя — порядок объявляется для него же', () => {
+    const p = presetGranular({ providers: [provider], components: ['ds:DsButton'], layer: 'ds' })
+    expect(p.layer).toBe('ds')
+    expect(p.layers).toEqual({ ds: GRANULAR_DEFAULT_LAYER_ORDER })
+  })
+
+  it('layer: null — слоя нет вовсе', () => {
+    const p = presetGranular({ providers: [provider], components: ['ds:DsButton'], layer: null })
+    expect(p.layer).toBeUndefined()
+    expect(p.layers).toBeUndefined()
+    expect(p.preflights?.[0].layer).toBeUndefined()
   })
 
   it('safelist union с транзитивными deps', () => {

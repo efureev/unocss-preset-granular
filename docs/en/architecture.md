@@ -6,13 +6,19 @@
 This page describes how the preset is put together internally so you can
 reason about its behaviour, trace issues, and extend it.
 
-## Two entry points
+## Four entry points
 
 | Entry                                       | When to use                                 | Side‑effects         |
 |---------------------------------------------|---------------------------------------------|----------------------|
 | `@feugene/unocss-preset-granular`           | Browser / runtime (no `fs`)                 | none                 |
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, tests)               | reads files from disk|
 | `@feugene/unocss-preset-granular/contract`  | Provider authors — types + `define*` helpers| none (types)         |
+| `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames` | none (pure functions) |
+
+The `/vite` entry is part of the scanning contract, not an optional extra:
+without `granularChunkFileNames` in the provider's `build.rollupOptions`, SFC
+chunks land outside the component directory and are never scanned — see
+[Component scanning](./component-scanning.md).
 
 The browser entry (`presetGranular`) produces a pure‑JS preset:
 `rules` / `variants` / `safelist` / `preflights` (inline only). The node
@@ -72,19 +78,51 @@ The whole resolution above (`resolvePresetGranular`) is **memoized by the
 identity of the `options` object**, so calling `presetGranularNode(options)`
 and `granularContent(options)` with the same object computes the graph once.
 
-If any step fails (unknown component, cross‑provider edge to a
-non‑registered provider, missing CSS file in strict mode) a typed error is
-raised — see [`src/core/errors.ts`](../../packages/unocss-preset-granular/src/core/errors.ts).
+If a resolution step fails (unknown component, cross‑provider edge to a
+non‑registered provider, duplicate id, dependency cycle, unsupported
+`contractVersion`) a typed error is raised — see
+[`src/core/errors.ts`](../../packages/unocss-preset-granular/src/core/errors.ts).
+
+Reading CSS is **not** covered by those: a missing `cssFiles` / theme file
+surfaces as a plain `ENOENT` from `node:fs`, without provider or component
+context. There is no strict mode for CSS reading — `scan.strict` only governs
+the directory layout contract (see below).
 
 ## Layers
 
-Everything the preset emits lives under a single configurable `layer`
-(default: `granular`). The layer is opaque to consumers — it just controls
-ordering relative to other UnoCSS layers:
+Everything the preset emits lives under a single `layer`, named **`granular`
+by default**. It covers the FS and inline preflights and — because UnoCSS
+stamps a preset's layer onto its rules — the providers' `unocss.rules` too.
+
+The preset also **declares that layer's order** (`-50`), which places it
+between UnoCSS's own `preflights` (`-100`) and `shortcuts` (`-10`) / `default`
+(`0`):
+
+```
+imports (-200) → preflights (-100) → granular (-50) → shortcuts (-10) → utilities (0)
+```
+
+That ordering is the point: a utility (`p-5`) must win over a component's base
+style, not the other way round. Declaring the order is **required** for that —
+an unknown layer name falls back to order `0`, i.e. the same bucket as
+`default`, where the tie is broken alphabetically and `granular` would end up
+*after* the utilities, silently overriding them.
+
+Two escape hatches:
+
+- `layer: 'my-name'` — same behaviour under a different name (the order is
+  declared for whatever name you pass);
+- `layer: null` — no layer at all: preflights fall back to UnoCSS's
+  `preflights` layer, provider rules to `default`.
+
+The app always has the last word — `layers` in its own `defineConfig` is
+merged after presets:
 
 ```ts
-// Typical layer order in an app, from top to bottom of the output:
-// preflights > granular > utilities > shortcuts
+defineConfig({
+  presets: [presetGranularNode(opts)],
+  layers: { granular: 50 }, // push granular after the utilities instead
+})
 ```
 
 Per‑component / per‑theme preflights are tagged with the same layer (unless
@@ -107,11 +145,23 @@ but **none of these paths is hard‑coded**: they are just convenient defaults.
 Every path is explicit in the provider's `defineGranularProvider(...)` call
 and can point anywhere inside the package.
 
-The **`src/` ↔ `dist/` fallback** applies to `cssFiles`: when reading a
-file, if the primary path doesn't exist, the node layer probes the
-sibling `src/` / `dist/` location. This lets the same provider code work
-both in monorepo dev (sources available) and in a published package
-(`dist/` only).
+The **`cssFiles` fallback** works like this (`src/fs/readCss.ts`,
+`resolveComponentCssFile`): the node layer first tries the URL from
+`descriptor.cssFiles[i]`. If that file does not exist, it takes the matching
+`descriptor.cssFileAssetNames[i]` and resolves it **relative to the provider's
+`packageBaseUrl`** — i.e. `<packageBaseUrl>/<assetName>`. For components built
+with `defineGranularComponent` that asset name is generated as
+`components/<Name>/<file>`. Neither `src/` nor
+`dist/` appears anywhere in that logic; the mechanism works across the two
+only because a provider points `packageBaseUrl` at its own package root, which
+differs between a source checkout and a published build.
+
+Two consequences worth knowing:
+
+- the two arrays are matched **by position**, so a length mismatch silently
+  disables the fallback for the trailing entries;
+- if the fallback path is missing too, you get a bare `ENOENT` naming the
+  path, with no provider/component context.
 
 ## Why `content` lives on the user config, not on the preset
 

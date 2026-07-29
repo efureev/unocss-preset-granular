@@ -33,7 +33,12 @@ export interface GranularComponentDescriptor<Name extends string = string> {
   safelist?: readonly string[]
   /** Абсолютные URL-строки (через `new URL(..., importMetaUrl).href`) на CSS-файлы компонента. */
   cssFiles?: readonly string[]
-  /** Fallback-имена ассетов для dist без сорцов, позиционно к `cssFiles`. */
+  /**
+   * Fallback-имена ассетов, сопоставляются с `cssFiles` ПОЗИЦИОННО.
+   * Если файл из `cssFiles[i]` не существует, node-слой читает
+   * `new URL(cssFileAssetNames[i], packageBaseUrl)`. Рассинхрон длин молча
+   * отключает fallback для «хвоста».
+   */
   cssFileAssetNames?: readonly string[]
   /** Имя style-asset'а (применяет внешний build при необходимости). */
   styleAssetFileName?: string | null
@@ -124,8 +129,13 @@ export interface GranularProvider {
   /** Версия контракта — для будущей совместимости. */
   contractVersion: 1
   /**
-   * Базовый URL пакета (обычно `import.meta.url` корневого модуля).
-   * Используется node-слоем для fallback `src/ ↔ dist/`.
+   * Базовый URL ДИРЕКТОРИИ пакета (не модуля) — от него node-слой резолвит
+   * `cssFileAssetNames` (fallback чтения CSS) и `components/<Name>/`
+   * (директории сканирования).
+   *
+   * Один и тот же код провайдера работает и из исходников, и из `dist/`
+   * именно потому, что этот URL указывает на корень СВОЕЙ раскладки —
+   * никакого «зондирования соседней `src/`/`dist/`» в пресете нет.
    */
   packageBaseUrl: string
   components: readonly GranularComponentDescriptor[]

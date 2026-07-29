@@ -130,8 +130,10 @@ export default defineGranularProvider({
   id: '@your-scope/your-package',
   contractVersion: 1,
 
-  // URL of the package assets root. Used by the /node layer for
-  // src/ ↔ dist/ fallback and for component scan globs.
+  // URL of the package assets root. The /node layer resolves
+  // `cssFileAssetNames` (the cssFiles fallback) and `components/<Name>/`
+  // scan dirs against it — so it must point at the root of THIS build's
+  // layout, whether that is src/ or dist/.
   //
   // Caveat: the literal `new URL('..', import.meta.url)` is replaced with
   // a data: URL by rolldown at build time — we build the URL at runtime:

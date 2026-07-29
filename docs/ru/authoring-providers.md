@@ -127,8 +127,10 @@ export default defineGranularProvider({
   id: '@your-scope/your-package',
   contractVersion: 1,
 
-  // URL корня ассетов пакета. Используется node‑слоем для
-  // src/ ↔ dist/ fallback и для scan‑globs компонентов.
+  // URL корня ассетов пакета. От него node‑слой резолвит
+  // `cssFileAssetNames` (fallback для cssFiles) и scan‑директории
+  // `components/<Name>/` — значит он должен указывать на корень
+  // ИМЕННО ЭТОЙ раскладки, будь то src/ или dist/.
   //
   // ВАЖНО: литерал `new URL('..', import.meta.url)` rolldown заменяет на
   // data:-URL при build'е. Собирайте URL в рантайме:
