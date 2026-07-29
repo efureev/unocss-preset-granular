@@ -26,6 +26,8 @@ export {
   resolveComponentScanDirs,
   type ResolvedScanDir,
   type ResolveScanDirsOptions,
+  type ScanDirsInspection,
+  type SkippedScanDir,
 } from './fs/resolveScanDirs'
 export * from './index'
 export {
@@ -46,6 +48,7 @@ export {
   type GranularBuilder,
   granularContent,
   type GranularScanOptions,
+  inspectGranularScanDirs,
   presetGranularNode,
   type PresetGranularNodeOptions,
   resolveGranularFilesystemGlobs,

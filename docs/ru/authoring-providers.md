@@ -273,6 +273,86 @@ granularChunkFileNames({
 })
 ```
 
+## Чего НЕ делать
+
+Три ошибки, которые собираются без единой жалобы и ломают только рантайм:
+
+**1. Импорт `/node` из `config.ts` компонента.** Этот файл попадает в
+`granular-provider/index.ts` — то есть в **браузерный** экспорт, — и тянет
+`node:fs` в клиентский бандл. Сборка при этом не падает.
+
+Если компоненту нужны токены, вычитанные из CSS, разделите конфиг надвое:
+
+```ts
+// components/XTokenized/config.ts — только литералы, browser‑safe
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+})
+```
+
+```ts
+// components/XTokenized/config.node.ts — можно читать файлы
+import { tokenDefinitionsFromCssSync } from '@feugene/unocss-preset-granular/node'
+import { xTokenizedConfig } from './config'
+
+const lightUrl = new URL('./themes/light.css', import.meta.url).href
+
+export const xTokenizedNodeConfig = {
+  ...xTokenizedConfig,
+  tokenDefinitions: {
+    light: tokenDefinitionsFromCssSync(lightUrl, { selector: ':root' }),
+  },
+}
+```
+
+Дальше — фабрика в браузерном entry, переиспользуемая в node‑entry, чтобы
+варианты не разъехались по `id` и `packageBaseUrl`:
+
+```ts
+// granular-provider/index.ts
+export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const browserComponents = [xTokenizedConfig /* , ... */]
+
+export function createMyProvider(components: typeof browserComponents) {
+  return defineGranularProvider({
+    id: '@your-scope/your-package',
+    contractVersion: 1,
+    packageBaseUrl: PACKAGE_BASE_URL,
+    components,
+  })
+}
+
+export default createMyProvider(browserComponents)
+```
+
+```ts
+// granular-provider/node.ts
+import { xTokenizedNodeConfig } from '../components/XTokenized/config.node'
+import { browserComponents, createMyProvider } from './index'
+
+export default createMyProvider(
+  browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
+)
+```
+
+**2. Импорт `/node`‑entry донора из своего браузерного entry.** Та же утечка
+уровнем выше: `granular-provider/index.ts` должен импортировать
+`@your-donor/pkg/granular-provider`, а `@your-donor/pkg/granular-provider/node` —
+только `granular-provider/node.ts`.
+
+Проверять надо по собранному бандлу, а не по исходникам:
+
+```bash
+grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.js
+# должно быть пусто
+```
+
+**3. Ключи токенов с `--`.** `tokens: { brand: '#fff' }`, а не
+`{ '--brand': '#fff' }` — префикс дописывает генератор, иначе получите
+`----brand`.
+
 ## Правила (сводка)
 
 - `safelist` → **только свои** динамические классы компонента.

@@ -1,11 +1,10 @@
 import type { GranularComponentDependency } from './contract'
 import type { ResolvedThemeWarning, ThemeNamesSource } from './core/resolveThemes'
+import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
 import type { PresetGranularNodeOptions } from './preset.node'
 
-import { existsSync, statSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { resolvePresetGranular } from './preset'
-import { resolveGranularFilesystemGlobs } from './preset.node'
+import { inspectGranularScanDirs, resolveGranularFilesystemGlobs } from './preset.node'
 
 // ---------------------------------------------------------------------------
 // Report shape
@@ -45,19 +44,15 @@ export interface DoctorTokenConflict {
   finalValue: string
 }
 
-export interface DoctorScanDir {
-  providerId: string
-  componentName: string
-  dir: string
-  kind: 'component' | 'group-shared'
-}
+/** Директория, реально уходящая в скан. Тот же тип, что у резолвера. */
+export type DoctorScanDir = ResolvedScanDir
 
-export interface DoctorMissingDir {
-  providerId: string
-  componentName: string
-  expectedDir: string
-  reason: 'missing-dir' | 'missing-entry' | 'invalid-base-url'
-}
+/**
+ * Компонент, не попавший в скан. Это ТОТ ЖЕ тип, что отдаёт резолвер
+ * `content.filesystem` — doctor не имеет собственного обхода FS и потому не
+ * может разойтись с тем, что реально уходит в сборку.
+ */
+export type DoctorMissingDir = SkippedScanDir
 
 export interface DoctorReport {
   providers: DoctorProviderInfo[]
@@ -83,24 +78,6 @@ export interface DoctorReport {
 // ---------------------------------------------------------------------------
 // Collector
 // ---------------------------------------------------------------------------
-
-function isDir(path: string): boolean {
-  try {
-    return existsSync(path) && statSync(path).isDirectory()
-  }
-  catch {
-    return false
-  }
-}
-
-function isFile(path: string): boolean {
-  try {
-    return existsSync(path) && statSync(path).isFile()
-  }
-  catch {
-    return false
-  }
-}
 
 function depToString(dep: GranularComponentDependency): string {
   if (typeof dep === 'string')
@@ -163,61 +140,6 @@ function computeTokenConflicts(
     .map(e => ({ theme: e.theme, selector: e.selector, token: e.token, sources: e.sources, finalValue: e.value }))
 }
 
-function inspectScanDirs(
-  resolution: ReturnType<typeof resolvePresetGranular>,
-): { dirs: DoctorScanDir[], missing: DoctorMissingDir[] } {
-  const dirs: DoctorScanDir[] = []
-  const missing: DoctorMissingDir[] = []
-  const seen = new Set<string>()
-
-  for (const { provider, descriptor } of resolution.resolved.entries) {
-    let dir: string
-    try {
-      dir = fileURLToPath(new URL(`components/${descriptor.name}/`, provider.packageBaseUrl))
-    }
-    catch {
-      missing.push({
-        providerId: provider.id,
-        componentName: descriptor.name,
-        expectedDir: `<packageBaseUrl>/components/${descriptor.name}/`,
-        reason: 'invalid-base-url',
-      })
-      continue
-    }
-
-    if (!isDir(dir)) {
-      missing.push({ providerId: provider.id, componentName: descriptor.name, expectedDir: dir, reason: 'missing-dir' })
-      continue
-    }
-    if (!isFile(`${dir}index.js`)) {
-      missing.push({ providerId: provider.id, componentName: descriptor.name, expectedDir: dir, reason: 'missing-entry' })
-      // Директория есть — всё равно покажем её в списке скана ниже.
-    }
-
-    if (!seen.has(dir)) {
-      seen.add(dir)
-      dirs.push({ providerId: provider.id, componentName: descriptor.name, dir, kind: 'component' })
-    }
-
-    const group = descriptor.group
-    if (typeof group === 'string' && group.length > 0) {
-      let sharedDir: string
-      try {
-        sharedDir = fileURLToPath(new URL(`groups/${group}/shared/`, provider.packageBaseUrl))
-      }
-      catch {
-        continue
-      }
-      if (isDir(sharedDir) && !seen.has(sharedDir)) {
-        seen.add(sharedDir)
-        dirs.push({ providerId: provider.id, componentName: descriptor.name, dir: sharedDir, kind: 'group-shared' })
-      }
-    }
-  }
-
-  return { dirs, missing }
-}
-
 /**
  * Собирает диагностический отчёт по granular-конфигурации: резолвнутые
  * провайдеры, транзитивный граф выбранных компонентов, блоки токенов тем,
@@ -253,7 +175,8 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
 
   const tokenConflicts = computeTokenConflicts(resolution, options.themes)
   const globs = resolveGranularFilesystemGlobs(options)
-  const { dirs, missing } = inspectScanDirs(resolution)
+  // Тот же (мемоизированный) результат, из которого построены globs выше.
+  const { dirs, skipped } = inspectGranularScanDirs(options)
 
   return {
     providers,
@@ -265,8 +188,8 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
       warnings: resolution.themes.warnings,
     },
     tokenConflicts,
-    scan: { globs, dirs, missing },
-    ok: missing.length === 0,
+    scan: { globs, dirs, missing: skipped },
+    ok: skipped.length === 0,
   }
 }
 

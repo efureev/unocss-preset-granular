@@ -276,6 +276,86 @@ granularChunkFileNames({
 })
 ```
 
+## What NOT to do
+
+Three mistakes that build cleanly and break only at runtime:
+
+**1. Importing `/node` from a component's `config.ts`.** That file ends up in
+`granular-provider/index.ts` — your **browser** export — so the import drags
+`node:fs` into the client bundle. Nothing fails at build time.
+
+If a component needs tokens parsed out of CSS, split the config in two:
+
+```ts
+// components/XTokenized/config.ts — literals only, browser‑safe
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+})
+```
+
+```ts
+// components/XTokenized/config.node.ts — may touch the file system
+import { tokenDefinitionsFromCssSync } from '@feugene/unocss-preset-granular/node'
+import { xTokenizedConfig } from './config'
+
+const lightUrl = new URL('./themes/light.css', import.meta.url).href
+
+export const xTokenizedNodeConfig = {
+  ...xTokenizedConfig,
+  tokenDefinitions: {
+    light: tokenDefinitionsFromCssSync(lightUrl, { selector: ':root' }),
+  },
+}
+```
+
+Then expose a factory from the browser entry and reuse it in the node entry —
+so the two variants can never drift apart in `id` or `packageBaseUrl`:
+
+```ts
+// granular-provider/index.ts
+export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+export const browserComponents = [xTokenizedConfig /* , ... */]
+
+export function createMyProvider(components: typeof browserComponents) {
+  return defineGranularProvider({
+    id: '@your-scope/your-package',
+    contractVersion: 1,
+    packageBaseUrl: PACKAGE_BASE_URL,
+    components,
+  })
+}
+
+export default createMyProvider(browserComponents)
+```
+
+```ts
+// granular-provider/node.ts
+import { xTokenizedNodeConfig } from '../components/XTokenized/config.node'
+import { browserComponents, createMyProvider } from './index'
+
+export default createMyProvider(
+  browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
+)
+```
+
+**2. Importing a donor's `/node` entry from your browser entry.** Same leak,
+one level up: `granular-provider/index.ts` must import
+`@your-donor/pkg/granular-provider`, and only `granular-provider/node.ts` may
+import `@your-donor/pkg/granular-provider/node`.
+
+Verify on the built bundle, not on the sources:
+
+```bash
+grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.js
+# must print nothing
+```
+
+**3. Writing token keys with `--`.** `tokens: { brand: '#fff' }`, never
+`{ '--brand': '#fff' }` — the generator adds the prefix and you would get
+`----brand`.
+
 ## Rules recap
 
 - `safelist` → **only** component's own dynamic classes.

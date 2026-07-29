@@ -29,21 +29,40 @@ export const PROVIDER_ID = '@feugene/simple-package'
  * через `dependencies` в `config.ts` — ядро пресета рекурсивно соберёт safelist
  * и CSS всех транзитивных компонентов.
  */
-export const simpleProvider: GranularProvider = defineGranularProvider({
-    id: PROVIDER_ID,
-    contractVersion: 1,
-    packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
-    components: [xTest1Config, xTestStyledConfig, xTokenizedConfig, xNestedConfig, xXNestedReverseConfig, xGroupAOneConfig, xGroupATwoConfig],
-    // theme: {
-    // baseCssUrl: new URL('../styles/base.css', import.meta.url).href,
-    // tokenDefinitions: {
-    //     light: tokenDefinitionsFromCssSync(lightCssUrl, {selector: ':root'}),
-    //     значения лежат в `:root`, но эмитим под селектором `.dark`
-    //     в файле один блок с составным селектором — берём его и переозначиваем
-    // dark: tokenDefinitionsFromCssSync(darkCssUrl, {as: '.dark, [data-theme="dark"]'}),
-    // },
-    // defaultThemes: ['light'],
-    // }
-})
+/**
+ * Базовый URL пакета. Вынесен сюда, чтобы node-entry считал его от ТОГО ЖЕ
+ * модуля: оба entry делят общий чанк, поэтому значение одинаково.
+ *
+ * Литеральный `new URL('..', import.meta.url)` тут не годится — rolldown
+ * заменяет его на `data:`-URL при сборке.
+ */
+export const PACKAGE_BASE_URL = `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`
+
+/** Браузерные конфиги компонентов — без единого FS-импорта. */
+export const browserComponents = [
+    xTest1Config,
+    xTestStyledConfig,
+    xTokenizedConfig,
+    xNestedConfig,
+    xXNestedReverseConfig,
+    xGroupAOneConfig,
+    xGroupATwoConfig,
+]
+
+/**
+ * Фабрика провайдера. Node-entry (`./node.ts`) вызывает её с теми же
+ * компонентами, подменив те, у которых есть `config.node.ts` — так browser- и
+ * node-варианты не разъезжаются по id/базовому URL.
+ */
+export function createSimpleProvider(components: typeof browserComponents): GranularProvider {
+    return defineGranularProvider({
+        id: PROVIDER_ID,
+        contractVersion: 1,
+        packageBaseUrl: PACKAGE_BASE_URL,
+        components,
+    })
+}
+
+export const simpleProvider: GranularProvider = createSimpleProvider(browserComponents)
 
 export default simpleProvider

@@ -2,6 +2,7 @@ import type { Preflight, Preset } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
 import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
+import type { ScanDirsInspection } from './fs/resolveScanDirs'
 import type { PresetGranularOptions } from './preset'
 import { applyLayerToAll, resolveGranularLayer } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
@@ -424,23 +425,60 @@ export async function getGranularThemeCss(
  * `dependencies`). Не затрагивает компоненты провайдера, которые не выбраны.
  */
 /**
+ * Кэш инспекции скан-директорий по идентичности `options` — по образцу
+ * `resolutionCache` в `preset.ts`.
+ *
+ * Один и тот же объект опций проходит через `presetGranularNode`,
+ * `granularContent` (приложение обязано вызвать его в `uno.config`) и
+ * `granularDoctor`. Без мемоизации каждый вызов делал бы `existsSync` +
+ * `statSync` + `realpathSync` НА КАЖДЫЙ выбранный компонент (и столько же на
+ * `groups/<group>/shared/`) — для `components: 'all'` это сотни синхронных
+ * сисколов на загрузке конфига Vite, по 2–3 раза.
+ *
+ * Побочный эффект, на который стоит рассчитывать: `console.warn` о нарушениях
+ * layout-контракта печатается ОДИН раз на объект опций, а не на каждый вызов.
+ *
+ * Инвалидация — та же, что у резолюции: перезагрузка конфига создаёт новый
+ * объект опций, а с ним и новую запись в кэше.
+ */
+const scanInspectionCache = new WeakMap<PresetGranularNodeOptions, ScanDirsInspection>()
+
+/**
+ * Инспекция скан-директорий: что реально уйдёт в `content.filesystem`
+ * (`dirs`) и какие компоненты отвалились по layout-контракту (`skipped`).
+ *
+ * ЕДИНАЯ точка обхода FS для всех потребителей: `granularContent`,
+ * `resolveGranularFilesystemGlobs` и `granularDoctor`. Раньше doctor имел
+ * собственную копию логики и показывал не тот набор директорий, который
+ * попадал в сборку (в частности, включал компоненты без `index.js`).
+ */
+export function inspectGranularScanDirs(options: PresetGranularNodeOptions): ScanDirsInspection {
+  const cached = scanInspectionCache.get(options)
+  if (cached)
+    return cached
+
+  const scan = options.scan ?? {}
+  let result: ScanDirsInspection = scan.enabled === false
+    ? { dirs: [], skipped: [] }
+    : resolveComponentScanDirs(resolvePresetGranular(options), { strict: scan.strict === true })
+
+  if (scan.includeNodeModules === false) {
+    result = {
+      dirs: result.dirs.filter(d => !d.dir.split(/[\\/]/).includes('node_modules')),
+      skipped: result.skipped,
+    }
+  }
+
+  scanInspectionCache.set(options, result)
+  return result
+}
+
+/**
  * Абсолютные директории сканирования выбранных компонентов (и их транзитивных
  * `dependencies`). Возвращает `[]`, если авто-скан выключен (`scan.enabled:false`).
- * Единая точка вычисления — переиспользуется `resolveGranularFilesystemGlobs`
- * и `granularContent`, чтобы не гонять `resolveComponentScanDirs` дважды.
  */
 function computeScanDirs(options: PresetGranularNodeOptions): string[] {
-  const scan = options.scan ?? {}
-  if (scan.enabled === false)
-    return []
-
-  const resolution = resolvePresetGranular(options)
-  let dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
-
-  if (scan.includeNodeModules === false)
-    dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
-
-  return dirs
+  return inspectGranularScanDirs(options).dirs.map(d => d.dir)
 }
 
 export function resolveGranularFilesystemGlobs(
