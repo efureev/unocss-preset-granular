@@ -71,7 +71,7 @@ describe('buildRegistry', () => {
 describe('resolveSelection', () => {
   it('все компоненты всех провайдеров при selection=undefined', () => {
     const r = resolveSelection(buildRegistry([P_DS, P_XG]), undefined)
-    expect(r.order.sort()).toEqual([
+    expect([...r.order].sort()).toEqual([
       'ds:DsButton',
       'ds:DsFormField',
       'ds:DsInput',
@@ -103,7 +103,7 @@ describe('resolveSelection', () => {
 
   it('names=all раскрывается', () => {
     const r = resolveSelection(buildRegistry([P_DS]), [{ provider: 'ds', names: 'all' }])
-    expect(r.order.sort()).toEqual(['ds:DsButton', 'ds:DsFormField', 'ds:DsInput'])
+    expect([...r.order].sort()).toEqual(['ds:DsButton', 'ds:DsFormField', 'ds:DsInput'])
   })
 
   it('ошибка если провайдер не зарегистрирован (через dep)', () => {

@@ -146,6 +146,8 @@ export default defineGranularProvider({
       light: new URL('../styles/themes/light.css', import.meta.url).href,
       dark:  new URL('../styles/themes/dark.css',  import.meta.url).href,
     },
+    // Activated when the app does not pass `themes.names`. Declare only the
+    // themes this provider actually ships — see themes-and-tokens.md.
     defaultThemes: ['light'],
   },
 

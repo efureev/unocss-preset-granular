@@ -21,10 +21,18 @@ export interface GranularScanOptions {
   /** Полностью отключить авто-filesystem. По умолчанию `true`. */
   enabled?: boolean
   /**
-   * Расширения файлов для glob'ов. По умолчанию —
+   * ДОПОЛНИТЕЛЬНЫЕ расширения файлов для glob'ов — добавляются к дефолтным
    * `['js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'jsx', 'tsx', 'vue']`.
+   * Например, `extensions: ['mdx']` даст скан по дефолтным расширениям
+   * ПЛЮС `.mdx`.
    */
   extensions?: readonly string[]
+  /**
+   * `true` — {@link extensions} задаёт полный список расширений вместо
+   * дефолтного. Нужно, только если дефолтные расширения мешают; обычно
+   * достаточно аддитивного `extensions`.
+   */
+  replaceExtensions?: boolean
   /** Дополнительные пользовательские globs (добавляются как есть). */
   extraGlobs?: readonly string[]
   /**
@@ -267,7 +275,12 @@ async function collectNodeCssSections(
   }
 
   // 3. Theme files (level-1 override).
-  const themeFiles: string[] = []
+  // Дедуп по ИТОГОВОМУ url: несколько провайдеров одного дизайн-системного
+  // семейства могут ссылаться на один и тот же файл темы (или быть сведены к
+  // нему через `themes.themeFiles`), и без дедупа он читается и инлайнится
+  // столько раз, сколько провайдеров на него сослалось.
+  const themeFileUrls: string[] = []
+  const seenThemeUrls = new Set<string>()
   for (const { providerId, themeName, cssUrl, tokenDefinition } of resolution.themes.items) {
     // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы — файл темы уже
     // не используется (токены эмитятся структурно). Иначе берём cssUrl + override.
@@ -277,10 +290,15 @@ async function collectNodeCssSections(
     if (cssUrl) {
       const override = options.themes?.themeFiles?.[themeName]
       const finalUrl = pickThemeUrl(providerId, cssUrl, override as string | Partial<Record<string, string>> | undefined)
-      if (finalUrl)
-        themeFiles.push(await readCss(resolveCssFilePath(finalUrl)))
+      if (finalUrl && !seenThemeUrls.has(finalUrl)) {
+        seenThemeUrls.add(finalUrl)
+        themeFileUrls.push(finalUrl)
+      }
     }
   }
+  const themeFiles: string[] = []
+  for (const url of themeFileUrls)
+    themeFiles.push(await readCss(resolveCssFilePath(url)))
 
   // 4. Component CSS.
   const componentFiles = await resolveComponentCssFiles(resolution)
@@ -435,6 +453,7 @@ export function resolveGranularFilesystemGlobs(
   return buildFilesystemGlobs({
     dirs: computeScanDirs(options),
     extensions: scan.extensions,
+    replaceExtensions: scan.replaceExtensions,
     extraGlobs: scan.extraGlobs,
   })
 }
@@ -515,6 +534,7 @@ export function granularContent(
     : buildFilesystemGlobs({
         dirs,
         extensions: scan.extensions,
+        replaceExtensions: scan.replaceExtensions,
         extraGlobs: scan.extraGlobs,
       })
 
@@ -554,12 +574,14 @@ export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
       ...nodePreflights,
       ...(base.preflights ?? []),
     ],
-    content: fsContent.filesystem.length > 0
-      ? {
-          filesystem: [...(base.content?.filesystem ?? []), ...fsContent.filesystem],
-          pipeline: fsContent.pipeline ?? base.content?.pipeline,
-        }
-      : base.content,
+    // `content` отдаём ВСЕГДА, даже когда globs пустые (`scan.enabled: false`
+    // без `extraGlobs`, либо все компоненты отсеяны по layout-контракту):
+    // `pipeline.include` от числа globs не зависит и терять его нельзя —
+    // без него extractor не заглянет в `.js` внутри компонентных директорий.
+    content: {
+      filesystem: [...(base.content?.filesystem ?? []), ...fsContent.filesystem],
+      pipeline: fsContent.pipeline,
+    },
   }
 }
 

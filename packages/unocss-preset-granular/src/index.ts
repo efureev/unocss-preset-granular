@@ -20,8 +20,10 @@ export {
   type ResolvedThemes,
   type ResolvedThemeSelectorBlock,
   type ResolvedThemeTokens,
+  type ResolvedThemeWarning,
   resolveThemes,
   type ResolveThemesComponentEntry,
   type ResolveThemesInput,
+  type ThemeNamesSource,
 } from './core/resolveThemes'
 export * from './preset'

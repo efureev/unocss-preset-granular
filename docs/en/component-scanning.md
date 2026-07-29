@@ -131,7 +131,12 @@ the preset silently skips it — `group` is opt‑in metadata, never an error.
 
 - `enabled: boolean` (default `true`) — set `false` to disable the built‑in
   computation entirely (useful if you build your own globs).
-- `extensions: string[]` — add custom file extensions (e.g. `mdx`).
+- `extensions: string[]` — **additional** file extensions, appended to the
+  defaults `js/mjs/cjs/ts/mts/cts/jsx/tsx/vue` (e.g. `['mdx']` scans the
+  defaults *plus* `.mdx`).
+- `replaceExtensions: boolean` (default `false`) — treat `extensions` as the
+  **complete** list instead of an addition. With `true` and no `extensions`,
+  no extension globs are built at all — only `extraGlobs` remain.
 - `extraGlobs: string[]` — appended as‑is to the generated globs. Useful for
   scanning non‑component files (mixins, helpers) that also contain class
   literals.

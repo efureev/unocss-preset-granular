@@ -6,6 +6,9 @@
     "packages/*",
     "apps/*"
   ],
+  "resolutions": {
+    "typescript": "^6.0.3"
+  },
   "scripts": {
     "build:granular": "yarn workspace @feugene/unocss-preset-granular build",
     "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run",

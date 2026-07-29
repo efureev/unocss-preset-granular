@@ -1,8 +1,4 @@
 export {
-  type BuildContentFsOptions,
-  buildFilesystemGlobs,
-} from './fs/buildContentFilesystem'
-export {
   type DoctorComponentInfo,
   type DoctorMissingDir,
   type DoctorProviderInfo,
@@ -13,6 +9,10 @@ export {
   formatDoctorReport,
   granularDoctor,
 } from './doctor'
+export {
+  type BuildContentFsOptions,
+  buildFilesystemGlobs,
+} from './fs/buildContentFilesystem'
 export {
   clearCssCache,
   fileExists,
@@ -39,11 +39,11 @@ export {
 export {
   createGranularNodePreflight,
   defineGranular,
-  type GranularBuilder,
   getGranularComponentCss,
   getGranularComponentCssFiles,
   getGranularNodeCss,
   getGranularThemeCss,
+  type GranularBuilder,
   granularContent,
   type GranularScanOptions,
   presetGranularNode,

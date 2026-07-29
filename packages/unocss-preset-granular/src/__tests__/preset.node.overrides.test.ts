@@ -335,7 +335,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).not.toContain('/* content of file:///a/tokens.css */')
   })
 
-  it('A1: разные селекторы одной темы эмитятся отдельными блоками', async () => {
+  it('a1: разные селекторы одной темы эмитятся отдельными блоками', async () => {
     const p1 = defineGranularProvider({
       id: 'p1',
       contractVersion: 1,
@@ -355,7 +355,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('[data-theme="dark"] {\n  --b: 2;\n}')
   })
 
-  it('A1: вложенные tokenOverrides целятся в конкретный селектор', async () => {
+  it('a1: вложенные tokenOverrides целятся в конкретный селектор', async () => {
     const p1 = defineGranularProvider({
       id: 'p1',
       contractVersion: 1,
@@ -368,14 +368,14 @@ describe('getGranularNodeCss overrides', () => {
       themes: {
         names: ['dark'],
         // Плоское — в первичный `.dark`; вложенное — в новый `[data-theme="dark"]`.
-        tokenOverrides: { dark: { a: '9', '[data-theme="dark"]': { c: '3' } } },
+        tokenOverrides: { dark: { 'a': '9', '[data-theme="dark"]': { c: '3' } } },
       },
     })
     expect(css).toContain('.dark {\n  --a: 9;\n}')
     expect(css).toContain('[data-theme="dark"] {\n  --c: 3;\n}')
   })
 
-  it('A3: глобальный baseFile подключается даже у провайдера без theme', async () => {
+  it('a3: глобальный baseFile подключается даже у провайдера без theme', async () => {
     const noTheme = defineGranularProvider({
       id: 'n',
       contractVersion: 1,
@@ -389,7 +389,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css).toContain('.g-base{}')
   })
 
-  it('A3: глобальный tokensFile не дублируется при нескольких провайдерах', async () => {
+  it('a3: глобальный tokensFile не дублируется при нескольких провайдерах', async () => {
     const css = await getGranularNodeCss({
       providers: [providerA, providerS],
       themes: { names: ['light'], tokensFile: 'data:text/css,.once{}' },
@@ -397,7 +397,7 @@ describe('getGranularNodeCss overrides', () => {
     expect(css.match(/\.once\{\}/g)?.length).toBe(1)
   })
 
-  it('A2: getGranularThemeCss отдаёт только тему, без component CSS', async () => {
+  it('a2: getGranularThemeCss отдаёт только тему, без component CSS', async () => {
     const provider = defineGranularProvider({
       id: 't',
       contractVersion: 1,
@@ -415,7 +415,42 @@ describe('getGranularNodeCss overrides', () => {
     expect(nodeCss).toContain('.comp{color:red}')
   })
 
-  it('A4: defineGranular мемоизирует резолюцию и согласует preset/content', async () => {
+  it('общий файл темы у двух провайдеров инлайнится один раз', async () => {
+    const shared = 'file:///ds/themes/light.css'
+    const mk = (id: string) => defineGranularProvider({
+      id,
+      contractVersion: 1,
+      packageBaseUrl: `file:///${id}/`,
+      components: [],
+      theme: { themes: { light: shared } },
+    })
+
+    const css = await getGranularNodeCss({
+      providers: [mk('p1'), mk('p2')],
+      themes: { names: ['light'] },
+    })
+
+    const marker = '/* content of /ds/themes/light.css */'
+    expect(css.split(marker).length - 1).toBe(1)
+  })
+
+  it('defaultThemes провайдера доезжает до итогового CSS без themes.names', async () => {
+    const provider = defineGranularProvider({
+      id: 'brand',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///brand/',
+      components: [],
+      theme: {
+        defaultThemes: ['brand-day'],
+        themes: { 'brand-day': 'file:///brand/day.css' },
+      },
+    })
+
+    const css = await getGranularNodeCss({ providers: [provider] })
+    expect(css).toContain('/* content of /brand/day.css */')
+  })
+
+  it('a4: defineGranular мемоизирует резолюцию и согласует preset/content', async () => {
     const g = defineGranular({ providers: [providerA], themes: { names: ['light'] } })
     expect(g.resolution()).toBe(g.resolution())
     expect(g.preset().name).toBe('granular-preset')

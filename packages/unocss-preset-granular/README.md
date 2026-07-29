@@ -78,8 +78,6 @@ Full documentation is in the monorepo root, in English and Russian:
 [Архитектура](../../docs/ru/architecture.md) ·
 [Рецепты и отладка](../../docs/ru/troubleshooting.md))
 
-The full contract / behaviour spec: [`./docs/SPEC.md`](./docs/SPEC.md).
-
 ## License
 
-See [LICENSE](../../LICENSE).
+See [LICENSE](./LICENSE).

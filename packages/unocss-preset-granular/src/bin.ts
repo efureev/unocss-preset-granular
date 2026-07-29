@@ -1,9 +1,9 @@
 #!/usr/bin/env node
+import type { PresetGranularNodeOptions } from './preset.node'
 import { resolve } from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
 
-import type { PresetGranularNodeOptions } from './preset.node'
+import { pathToFileURL } from 'node:url'
 import { formatDoctorReport, granularDoctor } from './doctor'
 
 const USAGE = `granular — диагностика @feugene/unocss-preset-granular

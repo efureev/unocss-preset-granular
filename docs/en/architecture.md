@@ -48,8 +48,10 @@ For a given `presetGranular*(options)` call the core does, in order:
    `descriptor.dependencies` with cycle detection (`CircularDependencyError` /
    `CircularProviderDependencyError`); dependencies are emitted before the
    components that depend on them.
-5. **Resolve themes** — intersect `options.themes.names` with what each
-   provider declares in `theme.themes`; fall back to `defaultThemes`. Token
+5. **Resolve themes** — take the theme names from `options.themes.names`, or,
+   when it is omitted, from the union of every provider's
+   `theme.defaultThemes` (fallback: `['light']`), then intersect them with
+   what each provider declares in `theme.themes`/`tokenDefinitions`. Token
    sets are grouped **per selector** into `tokenRegistry[theme].blocks`, so
    different sources can contribute distinct selector blocks to one theme.
 6. **Emit `safelist`** — union of `descriptor.safelist` of every resolved

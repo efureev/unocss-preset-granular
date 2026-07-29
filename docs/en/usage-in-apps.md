@@ -22,7 +22,7 @@ scanning.
 |-----------------------------------------|--------------------------------------------------------------------------------------|
 | `providers`                             | `GranularProvider[]` — required; providers the app pulls classes/themes from.        |
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (see below).                                   |
-| `themes.names`                          | Theme names to emit. Default: `['light']`. Pass `[]` to emit no themes.              |
+| `themes.names`                          | Theme names to emit. Omit — providers' `theme.defaultThemes` (union, fallback `['light']`). Pass `[]` to emit no themes. |
 | `themes.baseFile` / `themes.tokensFile` | Override `base.css` / `tokens.css` globally or per `providerId`.                     |
 | `layer`                                 | UnoCSS layer assigned to preflights that don't declare one themselves.               |
 | `preflights`                            | Extra inline preflights injected by the app itself.                                  |
@@ -56,7 +56,8 @@ presetGranularNode({
   // ...
   scan: {
     enabled: true,                 // default: true
-    extensions: ['mdx'],           // extra file extensions beyond js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    extensions: ['mdx'],           // ADDED to the defaults js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    replaceExtensions: false,      // true — `extensions` replaces the defaults instead
     extraGlobs: [],                // extra globs appended as‑is
     includeNodeModules: true,      // default: true — allow scanning inside node_modules
   },

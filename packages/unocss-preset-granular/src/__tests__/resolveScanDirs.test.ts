@@ -342,8 +342,28 @@ describe('buildFilesystemGlobs', () => {
   })
 
   it('с одним расширением использует его напрямую без {}', () => {
-    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue'] })
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue'], replaceExtensions: true })
     expect(glob).toBe('/x/**/*.vue')
+  })
+
+  it('extensions ДОПОЛНЯЕТ дефолтный список, а не заменяет его', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['mdx'] })
+    expect(glob).toBe('/x/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue,mdx}')
+  })
+
+  it('лидирующая точка в extensions необязательна и не даёт дублей', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['.mdx', 'vue'] })
+    expect(glob).toBe('/x/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue,mdx}')
+  })
+
+  it('replaceExtensions=true задаёт список целиком', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue', 'mdx'], replaceExtensions: true })
+    expect(glob).toBe('/x/**/*.{vue,mdx}')
+  })
+
+  it('replaceExtensions=true без extensions оставляет только extraGlobs', () => {
+    expect(buildFilesystemGlobs({ dirs: ['/x'], replaceExtensions: true, extraGlobs: ['/b/**/*.ts'] }))
+      .toEqual(['/b/**/*.ts'])
   })
 })
 
@@ -380,6 +400,20 @@ describe('presetGranularNode content.filesystem', () => {
     })
 
     expect(preset.content?.filesystem ?? []).toEqual([])
+  })
+
+  it('scan.enabled=false сохраняет pipeline.include', () => {
+    const preset = presetGranularNode({
+      providers: [setup.providerA, setup.providerB],
+      components: [{ provider: 'pkg-a', names: ['XOne'] }],
+      scan: { enabled: false },
+    })
+
+    // Пустые globs не повод схлопывать весь `content` в undefined: стандартный
+    // фильтр расширений в pipeline.include от числа globs не зависит (AUDIT A6).
+    const include = (preset.content?.pipeline as { include?: RegExp[] } | undefined)?.include ?? []
+    expect(include.length).toBeGreaterThan(0)
+    expect(include.some(re => re.test('/app/src/App.vue'))).toBe(true)
   })
 
   it('scan.extraGlobs добавляются в итоговый список', () => {

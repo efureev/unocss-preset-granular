@@ -9,6 +9,10 @@
  */
 
 function debugPatterns(): string[] {
+  // `node/prefer-global/process` предлагает импорт из `node:process`, но
+  // `src/core/` едет в браузерный бандл — любой `node:`-импорт здесь ломает
+  // экспорт `.`. Поэтому именно глобальный `process` под guard'ом.
+  // eslint-disable-next-line node/prefer-global/process
   const env = (typeof process !== 'undefined' && process.env && process.env.DEBUG) || ''
   return env ? env.split(/[\s,]+/).filter(Boolean) : []
 }

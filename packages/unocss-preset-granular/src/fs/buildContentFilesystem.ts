@@ -5,10 +5,21 @@ export interface BuildContentFsOptions {
   /** Абсолютные пути-директории, по которым строятся globs. */
   dirs: readonly string[]
   /**
-   * Расширения файлов, по которым будут строиться globs.
-   * По умолчанию: `['js', 'mjs', 'cjs', 'ts', 'vue']`.
+   * ДОПОЛНИТЕЛЬНЫЕ расширения файлов, по которым строятся globs — они
+   * добавляются к {@link DEFAULT_EXTENSIONS} (`js`, `mjs`, `cjs`, `ts`, `mts`,
+   * `cts`, `jsx`, `tsx`, `vue`), а не заменяют их. Точка в начале
+   * необязательна: `'mdx'` и `'.mdx'` эквивалентны.
+   *
+   * Чтобы задать список целиком — см. {@link replaceExtensions}.
    */
   extensions?: readonly string[]
+  /**
+   * `true` — трактовать {@link extensions} как ПОЛНЫЙ список расширений,
+   * а не как дополнение к дефолтному. Пустой/незаданный `extensions` при
+   * этом означает «глобов по расширениям не строить вовсе» — останутся
+   * только {@link extraGlobs}.
+   */
+  replaceExtensions?: boolean
   /**
    * Дополнительные пользовательские globs — просто добавляются в результат
    * после авто-сгенерированных (без дедупа — ответственность вызывающего).
@@ -49,9 +60,13 @@ function stripTrailingSlash(path: string): string {
  * сбор утилитарных классов из скомпилированных SFC‑чанков провайдера.
  */
 export function buildFilesystemGlobs(opts: BuildContentFsOptions): string[] {
-  const exts = (opts.extensions?.length ? opts.extensions : DEFAULT_EXTENSIONS)
-    .map(e => e.replace(/^\./, ''))
-    .filter(Boolean)
+  const requested = (opts.extensions ?? []).map(e => e.replace(/^\./, '')).filter(Boolean)
+  // По умолчанию `extensions` ДОПОЛНЯЕТ дефолтный список: пользователь,
+  // написавший `extensions: ['mdx']`, ожидает «mdx в дополнение к vue/ts»,
+  // а не «только mdx» (последнее полностью выключает скан компонентов).
+  const exts = opts.replaceExtensions
+    ? requested
+    : [...new Set([...DEFAULT_EXTENSIONS, ...requested])]
 
   if (exts.length === 0)
     return [...(opts.extraGlobs ?? [])]

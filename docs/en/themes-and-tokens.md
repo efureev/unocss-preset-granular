@@ -34,7 +34,17 @@ presetGranularNode({
 })
 ```
 
-By default, if `themes` is omitted, one theme — `light` — is emitted.
+If `themes` is omitted, the theme names come from the providers: the union of
+every provider's `theme.defaultThemes` (transitive donors included), in
+provider order, deduplicated. If no provider declares the field, the preset
+falls back to a single `light` theme. `themes: { names: [] }` still means
+*no themes at all* — it is not the same as omitting `themes`.
+
+Run `npx granular doctor` to see which names were selected and where they came
+from; it also flags a theme declared in `defaultThemes` but not actually
+shipped by that provider, a theme only some providers cover, and the case
+where more than one theme is activated by default (their blocks are emitted
+at the same time — with overlapping selectors the last one wins).
 
 ## Provider side
 
@@ -65,8 +75,9 @@ token set.
 defineGranularComponent(import.meta.url, {
   name: 'XTokenized',
   tokenDefinitions: {
-    light: { selector: ':root', tokens: { '--x-tokenized': '#2563eb' } },
-    dark:  { selector: '.dark', tokens: { '--x-tokenized': '#93c5fd' } },
+    // NB: token keys are written WITHOUT the `--` prefix — the generator adds it.
+    light: { selector: ':root', tokens: { 'x-tokenized': '#2563eb' } },
+    dark:  { selector: '.dark', tokens: { 'x-tokenized': '#93c5fd' } },
   },
 })
 ```

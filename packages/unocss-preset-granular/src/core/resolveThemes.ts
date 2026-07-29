@@ -1,12 +1,54 @@
 import type { GranularComponentDescriptor, GranularProvider, GranularThemeTokenSet } from '../contract'
 
-/** Жёсткий дефолт ядра пресета: если `names` не передан — грузим только `light`. */
+/**
+ * Последний рубеж: если `names` не передан И ни один провайдер не объявил
+ * `theme.defaultThemes` — грузим только `light`.
+ */
 export const GRANULAR_DEFAULT_THEME_NAMES = ['light'] as const
 
 export interface ResolveThemesInput {
-  /** Если undefined — применяется дефолт `['light']`. Пустой массив — без тем. */
+  /**
+   * Явный список тем.
+   *
+   *   - `undefined` — имена берутся из `theme.defaultThemes` провайдеров
+   *     (объединение в порядке провайдеров, дедуп), а если их никто не
+   *     объявил — из {@link GRANULAR_DEFAULT_THEME_NAMES};
+   *   - `[]` — тем нет вообще (это НЕ то же самое, что `undefined`).
+   */
   names?: readonly string[]
 }
+
+/** Откуда взялся итоговый `names`. */
+export type ThemeNamesSource
+  /** `input.names` задан приложением явно. */
+  = | 'explicit'
+  /** Объединение `theme.defaultThemes` провайдеров. */
+    | 'provider-defaults'
+  /** Никто ничего не объявил — жёсткий фолбэк `['light']`. */
+    | 'fallback'
+
+/**
+ * Диагностика резолва тем. Ошибок не бросает: набор тем — это конфигурация,
+ * а не нарушение контракта. Потребитель — `granular doctor`.
+ */
+export type ResolvedThemeWarning
+  /**
+   * Провайдер объявил тему в `defaultThemes`, но сам её не поставляет
+   * (нет ни `themes[name]`, ни `tokenDefinitions[name]`) — ошибка автора
+   * пакета: тема активируется для ВСЕХ, а вклада от него не будет.
+   */
+  = | { kind: 'default-theme-without-source', providerId: string, theme: string }
+  /**
+   * Активная тема есть не у всех провайдеров, объявивших `theme`. Компоненты
+   * «отставших» провайдеров в этой теме останутся без токенов.
+   */
+    | { kind: 'partial-theme', theme: string, providersWithout: readonly string[] }
+  /**
+   * По умолчанию (без `themes.names`) активирована больше чем одна тема —
+   * их блоки эмитятся ОДНОВРЕМЕННО, и если селекторы пересекаются
+   * (обе пишут в `:root`), выигрывает последняя по каскаду.
+   */
+    | { kind: 'multiple-default-themes', themes: readonly string[] }
 
 export interface ResolvedThemeItem {
   providerId: string
@@ -51,6 +93,10 @@ export interface ResolvedThemes {
   items: ResolvedThemeItem[]
   /** Слитый реестр токенов по темам: themeName -> { selector, tokens, blocks } */
   tokenRegistry: Record<string, ResolvedThemeTokens>
+  /** Откуда взялся `names` — для диагностики (`granular doctor`). */
+  namesSource: ThemeNamesSource
+  /** Подозрительные, но не фатальные ситуации. Пустой массив — всё чисто. */
+  warnings: readonly ResolvedThemeWarning[]
 }
 
 /**
@@ -116,12 +162,14 @@ export function resolveThemes(
   input: ResolveThemesInput = {},
   components: readonly ResolveThemesComponentEntry[] = [],
 ): ResolvedThemes {
-  const names: readonly string[] = input.names === undefined
-    ? GRANULAR_DEFAULT_THEME_NAMES
-    : input.names
+  const { names, namesSource } = input.names === undefined
+    ? resolveDefaultThemeNames(providers)
+    : { names: input.names, namesSource: 'explicit' as const }
+
+  const warnings = collectThemeWarnings(providers, names, namesSource)
 
   if (names.length === 0)
-    return { names: [], items: [], tokenRegistry: {} }
+    return { names: [], items: [], tokenRegistry: {}, namesSource, warnings }
 
   const items: ResolvedThemeItem[] = []
   const tokenRegistry: Record<string, ResolvedThemeTokens> = {}
@@ -173,5 +221,91 @@ export function resolveThemes(
     }
   }
 
-  return { names, items, tokenRegistry }
+  return { names, items, tokenRegistry, namesSource, warnings }
+}
+
+/**
+ * Имена тем, для которых у провайдера есть хоть какой-то вклад.
+ *
+ * Учитываются ОБА уровня: сам провайдер (`theme.themes` / `theme.tokenDefinitions`)
+ * и его компоненты (`descriptor.tokenDefinitions`) — провайдер вправе не иметь
+ * package-wide темы вовсе и отдавать токены только из компонентов. Считаем по
+ * ОБЪЯВЛЕННЫМ компонентам, а не по выбранным: это проверка контракта пакета,
+ * а не конкретной селекции приложения.
+ */
+function suppliedThemeNames(provider: GranularProvider): Set<string> {
+  const names = new Set<string>()
+  for (const name of Object.keys(provider.theme?.themes ?? {}))
+    names.add(name)
+  for (const name of Object.keys(provider.theme?.tokenDefinitions ?? {}))
+    names.add(name)
+  for (const component of provider.components) {
+    for (const name of Object.keys(component.tokenDefinitions ?? {}))
+      names.add(name)
+  }
+  return names
+}
+
+/**
+ * Имена тем по умолчанию — объединение `theme.defaultThemes` всех провайдеров
+ * в ПОРЯДКЕ ПРОВАЙДЕРОВ (топологическом: доноры раньше зависящих) с дедупом.
+ * Порядок важен: он задаёт порядок блоков в итоговом CSS, а значит и каскад.
+ *
+ * Если поле не объявил никто — жёсткий фолбэк {@link GRANULAR_DEFAULT_THEME_NAMES}.
+ */
+function resolveDefaultThemeNames(
+  providers: readonly GranularProvider[],
+): { names: readonly string[], namesSource: ThemeNamesSource } {
+  const names: string[] = []
+  const seen = new Set<string>()
+
+  for (const provider of providers) {
+    for (const name of provider.theme?.defaultThemes ?? []) {
+      if (typeof name !== 'string' || name.length === 0 || seen.has(name))
+        continue
+      seen.add(name)
+      names.push(name)
+    }
+  }
+
+  if (names.length === 0)
+    return { names: GRANULAR_DEFAULT_THEME_NAMES, namesSource: 'fallback' }
+
+  return { names, namesSource: 'provider-defaults' }
+}
+
+function collectThemeWarnings(
+  providers: readonly GranularProvider[],
+  names: readonly string[],
+  namesSource: ThemeNamesSource,
+): ResolvedThemeWarning[] {
+  const warnings: ResolvedThemeWarning[] = []
+  const supplied = new Map(providers.map(p => [p.id, suppliedThemeNames(p)]))
+
+  // 1. Провайдер объявил тему дефолтной, но сам её не поставляет.
+  for (const provider of providers) {
+    for (const name of provider.theme?.defaultThemes ?? []) {
+      if (!supplied.get(provider.id)!.has(name))
+        warnings.push({ kind: 'default-theme-without-source', providerId: provider.id, theme: name })
+    }
+  }
+
+  // 2. Тема покрыта не всеми провайдерами, которые вообще занимаются темами.
+  //    «Занимается» = поставляет хоть одну тему (любую, не обязательно активную).
+  //    Провайдер, который тем не касается вовсе (чистый поставщик компонентов
+  //    или только base.css), не считается «отставшим».
+  const themed = providers.filter(p => supplied.get(p.id)!.size > 0)
+  if (themed.length > 1) {
+    for (const name of names) {
+      const without = themed.filter(p => !supplied.get(p.id)!.has(name)).map(p => p.id)
+      if (without.length > 0 && without.length < themed.length)
+        warnings.push({ kind: 'partial-theme', theme: name, providersWithout: without })
+    }
+  }
+
+  // 3. Молча активированы несколько тем сразу.
+  if (namesSource === 'provider-defaults' && names.length > 1)
+    warnings.push({ kind: 'multiple-default-themes', themes: [...names] })
+
+  return warnings
 }

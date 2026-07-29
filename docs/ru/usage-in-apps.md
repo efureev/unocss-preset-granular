@@ -22,7 +22,7 @@
 |-----------------------------------------|-----------------------------------------------------------------------------------------|
 | `providers`                             | `GranularProvider[]` — обязательно; откуда тянутся классы/темы.                         |
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (см. ниже).                                       |
-| `themes.names`                          | Имена тем. По умолчанию `['light']`. Пустой массив — без тем.                           |
+| `themes.names`                          | Имена тем. Опустить — `theme.defaultThemes` провайдеров (объединение, фолбэк `['light']`). Пустой массив — без тем. |
 | `themes.baseFile` / `themes.tokensFile` | Переопределение `base.css` / `tokens.css` глобально или по `providerId`.                |
 | `layer`                                 | UnoCSS‑layer, в который попадают preflights без собственного layer'а.                   |
 | `preflights`                            | Дополнительные inline‑preflights, добавляемые приложением.                              |
@@ -55,7 +55,8 @@ presetGranularNode({
   // ...
   scan: {
     enabled: true,                 // по умолчанию true
-    extensions: ['mdx'],           // доп. расширения к дефолтным js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    extensions: ['mdx'],           // ДОБАВЛЯЮТСЯ к дефолтным js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    replaceExtensions: false,      // true — `extensions` заменяет дефолтные, а не дополняет
     extraGlobs: [],                // доп. globs, добавляются как есть
     includeNodeModules: true,      // по умолчанию true — разрешить сканирование внутри node_modules
   },

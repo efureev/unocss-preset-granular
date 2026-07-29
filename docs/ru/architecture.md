@@ -48,8 +48,10 @@ entry (`presetGranularNode`) надстраивает и добавляет:
 4. **Транзитивные зависимости** — DFS (post‑order) по
    `descriptor.dependencies` с детекцией циклов (`CircularDependencyError` /
    `CircularProviderDependencyError`); зависимости идут раньше зависящих.
-5. **Resolution тем** — пересечение `options.themes.names` с тем, что
-   каждый провайдер объявил в `theme.themes`; fallback на `defaultThemes`.
+5. **Resolution тем** — имена берутся из `options.themes.names`, а если он
+   опущен — из объединения `theme.defaultThemes` всех провайдеров (фолбэк
+   `['light']`); затем пересекаются с тем, что каждый провайдер объявил в
+   `theme.themes`/`tokenDefinitions`.
    Наборы токенов группируются **по селектору** в
    `tokenRegistry[theme].blocks`, поэтому разные источники могут добавлять в
    одну тему отдельные блоки селекторов.

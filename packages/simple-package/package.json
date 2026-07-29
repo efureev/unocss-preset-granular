@@ -2,7 +2,7 @@
   "name": "@feugene/simple-package",
   "description": "Composite Vue 3 components built on top of @feugene/granularity primitives (DsFormField, DsInput, DsButton, …).",
   "version": "0.1.0",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "author": {
     "name": "Evgeniy Fureev",
     "url": "https://github.com/efureev"

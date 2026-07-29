@@ -119,3 +119,31 @@ describe('formatDoctorReport', () => {
     expect(text).toContain('✗ Найдены нарушения layout-контракта')
   })
 })
+
+describe('doctor: темы по умолчанию', () => {
+  it('показывает источник имён и предупреждения', () => {
+    const provider = defineGranularProvider({
+      id: 'p',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p/',
+      components: [],
+      theme: {
+        defaultThemes: ['brand-day', 'brand-night'],
+        themes: { 'brand-day': 'file:///p/day.css' },
+      },
+    })
+
+    const report = granularDoctor({ providers: [provider], scan: { enabled: false } })
+
+    expect(report.themes.names).toEqual(['brand-day', 'brand-night'])
+    expect(report.themes.namesSource).toBe('provider-defaults')
+    expect(report.themes.warnings.map(w => w.kind)).toEqual([
+      'default-theme-without-source',
+      'multiple-default-themes',
+    ])
+
+    const text = formatDoctorReport(report)
+    expect(text).toContain('defaultThemes провайдеров')
+    expect(text).toContain('не поставляет её')
+  })
+})

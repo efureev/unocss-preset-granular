@@ -238,3 +238,98 @@ describe('resolveThemes', () => {
     expect(r.tokenRegistry.light.tokens['x-tokenized']).toBe('red')
   })
 })
+
+describe('defaultThemes провайдеров', () => {
+  const mk = (id: string, defaults: string[] | undefined, themes: Record<string, string>): GranularProvider =>
+    defineGranularProvider({
+      id,
+      contractVersion: 1,
+      packageBaseUrl: `file:///${id}/`,
+      components: [],
+      theme: {
+        themes,
+        ...(defaults ? { defaultThemes: defaults } : {}),
+      },
+    })
+
+  it('без themes.names имена берутся из defaultThemes', () => {
+    const p = mk('p', ['brand-day'], { 'brand-day': 'file:///p/day.css' })
+    const r = resolveThemes([p])
+    expect(r.names).toEqual(['brand-day'])
+    expect(r.namesSource).toBe('provider-defaults')
+    expect(r.items.map(i => i.cssUrl)).toEqual(['file:///p/day.css'])
+  })
+
+  it('объединение по всем провайдерам в порядке провайдеров, с дедупом', () => {
+    const p1 = mk('p1', ['light', 'dark'], { light: 'file:///p1/l.css', dark: 'file:///p1/d.css' })
+    const p2 = mk('p2', ['dark', 'hc'], { dark: 'file:///p2/d.css', hc: 'file:///p2/hc.css' })
+    const r = resolveThemes([p1, p2])
+    expect(r.names).toEqual(['light', 'dark', 'hc'])
+  })
+
+  it('никто не объявил — жёсткий фолбэк light', () => {
+    const r = resolveThemes([mk('p', undefined, { light: 'file:///p/l.css' })])
+    expect(r.names).toEqual(GRANULAR_DEFAULT_THEME_NAMES)
+    expect(r.namesSource).toBe('fallback')
+  })
+
+  it('явные names перебивают defaultThemes', () => {
+    const p = mk('p', ['dark'], { light: 'file:///p/l.css', dark: 'file:///p/d.css' })
+    const r = resolveThemes([p], { names: ['light'] })
+    expect(r.names).toEqual(['light'])
+    expect(r.namesSource).toBe('explicit')
+  })
+
+  it('names: [] остаётся «тем нет» и при наличии defaultThemes', () => {
+    const p = mk('p', ['dark'], { dark: 'file:///p/d.css' })
+    const r = resolveThemes([p], { names: [] })
+    expect(r.names).toEqual([])
+    expect(r.items).toEqual([])
+  })
+
+  it('ограничитель: defaultThemes без источника у самого провайдера', () => {
+    const p = mk('p', ['dark'], { light: 'file:///p/l.css' })
+    const r = resolveThemes([p])
+    expect(r.warnings).toContainEqual({
+      kind: 'default-theme-without-source',
+      providerId: 'p',
+      theme: 'dark',
+    })
+  })
+
+  it('ограничитель: тема покрыта не всеми провайдерами', () => {
+    const r = resolveThemes([providerA, providerB], { names: ['dark'] })
+    expect(r.warnings).toContainEqual({
+      kind: 'partial-theme',
+      theme: 'dark',
+      providersWithout: ['b'],
+    })
+  })
+
+  it('ограничитель: по умолчанию активировано больше одной темы', () => {
+    const p = mk('p', ['light', 'dark'], { light: 'file:///p/l.css', dark: 'file:///p/d.css' })
+    const r = resolveThemes([p])
+    expect(r.warnings).toContainEqual({ kind: 'multiple-default-themes', themes: ['light', 'dark'] })
+  })
+
+  it('тема, поставляемая только компонентом, не считается «без источника»', () => {
+    const p = defineGranularProvider({
+      id: 'p',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p/',
+      components: [{
+        name: 'XTokenized',
+        tokenDefinitions: { dark: { selector: '.dark', tokens: { brd: '#000' } } },
+      }],
+      theme: { defaultThemes: ['dark'] },
+    })
+    const r = resolveThemes([p])
+    expect(r.names).toEqual(['dark'])
+    expect(r.warnings).toEqual([])
+  })
+
+  it('одна тема по умолчанию предупреждений не даёт', () => {
+    const p = mk('p', ['light'], { light: 'file:///p/l.css' })
+    expect(resolveThemes([p]).warnings).toEqual([])
+  })
+})
