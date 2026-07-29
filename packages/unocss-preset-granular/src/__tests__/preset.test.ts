@@ -47,6 +47,32 @@ describe('presetGranular', () => {
     expect(p.preflights?.[0].layer).toBe('granular')
   })
 
+  it('rules транзитивного донора подключаются, даже если его компонент не выбран', () => {
+    const donor = defineGranularProvider({
+      id: 'donor',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///donor/',
+      components: [{ name: 'DonorOnly', safelist: ['donor-only'] }],
+      unocss: { rules: [[/^donor-grad$/, () => ({ color: 'red' })]] },
+    })
+    const main = defineGranularProvider({
+      id: 'main',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///main/',
+      dependencies: [donor],
+      components: [{ name: 'M', safelist: ['m'] }],
+    })
+
+    const p = presetGranular({ providers: [main], components: ['main:M'] })
+    expect(p.rules?.length).toBe(1)
+  })
+
+  it('unocss провайдера подключается и при пустой селекции компонентов', () => {
+    const p = presetGranular({ providers: [provider], components: [] })
+    expect(p.rules?.length).toBe(1)
+    expect(p.preflights?.length).toBe(1)
+  })
+
   it('includeProviderUnocss=false отключает rules/preflights', () => {
     const p = presetGranular({
       providers: [provider],

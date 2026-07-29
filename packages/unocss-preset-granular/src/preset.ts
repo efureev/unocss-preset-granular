@@ -141,7 +141,7 @@ export function resolvePresetGranular(
  * или приложение (через `options.preflights`).
  */
 export function presetGranular(options: PresetGranularOptions): Preset {
-  const { resolved, safelist } = resolvePresetGranular(options)
+  const { providers, safelist } = resolvePresetGranular(options)
   const includeProviderUnocss = options.includeProviderUnocss !== false
 
   const rules: Rule[] = []
@@ -149,7 +149,11 @@ export function presetGranular(options: PresetGranularOptions): Preset {
   const providerPreflights: Preflight[] = []
 
   if (includeProviderUnocss) {
-    for (const provider of resolved.providers) {
+    // Полный развёрнутый список провайдеров (вместе с транзитивными донорами),
+    // а НЕ только те, чьи компоненты попали в селекцию: провайдер может быть
+    // подключён исключительно ради `unocss.rules`/`variants`, а секции
+    // base/tokens/тем node-слой тоже инлайнит от всех провайдеров.
+    for (const provider of providers) {
       const contrib = provider.unocss
       if (!contrib)
         continue

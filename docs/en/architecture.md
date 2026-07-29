@@ -58,8 +58,11 @@ For a given `presetGranular*(options)` call the core does, in order:
    each selected theme CSS, and each resolved component's `cssFiles` from
    disk; embed the concatenated string into a UnoCSS preflight.
 8. **Emit `rules` / `variants` / custom preflights** — from
-   `provider.unocss.*` of every *used* provider (unless
-   `includeProviderUnocss: false`).
+   `provider.unocss.*` of **every provider in the expanded graph** —
+   `options.providers` plus their transitive `dependencies`, whether or not
+   any of their components ended up selected (unless
+   `includeProviderUnocss: false`). This matches the base/tokens/themes
+   sections, which are inlined from the same full list.
 9. **Emit `content.filesystem`** — only the node entry; consumed via
    `granularContent(options)`.
 

@@ -1,7 +1,5 @@
 .theme-dark,
 .dark,
 [data-theme='dark'] {
-  :root {
-    --x-tokenized: yellow;
-  }
+  --x-tokenized: yellow;
 }

@@ -209,7 +209,9 @@ export default defineGranularProvider({
 - `selector` — which block to pick (default `:root`).
 - `as` — rewrite the selector in the result (e.g. `:root` → `.dark`).
 - `strict` — default `true`: throw if the selector is missing / no custom
-  properties are found. Set to `false` to fall back to the first block.
+  properties are found / the file contains unsupported nested or at‑rule
+  blocks. Set to `false` to fall back to the first block (unsupported blocks
+  are then reported via `console.warn` and skipped).
 
 ### Accepted sources
 
@@ -219,10 +221,16 @@ Absolute path, `file://` URL, or `data:text/css,...`.
 
 - Node‑only. Do **not** import these helpers from the browser entry
   (`granular-provider/index.ts`) — they use `node:fs`.
-- The parser is intentionally lightweight (regex over a stripped‑comments
-  stream). For files with `@media` / nesting / non‑trivial grammar, prefer
-  running `postcss` in your own provider code — the return shape is the
-  same.
+- The parser is intentionally lightweight (brace matching over a
+  stripped‑comments stream). It understands **only flat top‑level blocks**:
+  the `{ selector, tokens }` shape cannot express a conditional
+  (`@media (...) { :root { ... } }`) or nested (`.dark { :root { ... } }`)
+  block. Such blocks are **skipped**, never emitted as unconditional ones —
+  `strict: true` throws, `strict: false` prints one `console.warn`. For files
+  with `@media` / nesting / non‑trivial grammar, prefer running `postcss` in
+  your own provider code — the return shape is the same.
+- The trailing `;` of the last declaration in a block is optional, as in CSS:
+  `:root { --a: 1px; --b: 2px }` yields both tokens.
 
 ## `@apply` inside per‑component `styles.css`
 

@@ -92,13 +92,28 @@ export async function parseCssCustomPropertyBlocks(
   const css = looksLikeCssLiteral(source)
     ? source
     : await readCss(isCssDataUrl(source) ? source : resolveCssFilePath(source))
-  return extractBlocks(css)
+  return extractFlatBlocks(css, source)
 }
 
 /** Синхронный аналог `parseCssCustomPropertyBlocks`. */
 export function parseCssCustomPropertyBlocksSync(source: string): ParsedTokenBlock[] {
   const css = looksLikeCssLiteral(source) ? source : readCssSync(source)
-  return extractBlocks(css)
+  return extractFlatBlocks(css, source)
+}
+
+/**
+ * Плоские блоки + предупреждение (один раз на сообщение) про вложенные и
+ * at-rule-блоки, которые контракт `{ selector, tokens }` выразить не может.
+ */
+function extractFlatBlocks(css: string, source: string): ParsedTokenBlock[] {
+  const { blocks, skipped } = extractBlocksDetailed(css)
+  if (skipped.length > 0) {
+    warnOnce(
+      `parseCssCustomPropertyBlocks: skipped unsupported CSS block(s) in ${truncate(source)}: `
+      + `${describeSkipped(skipped)}. Only flat top-level blocks are parsed.`,
+    )
+  }
+  return blocks
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +126,16 @@ function parseAndPick(
   options: TokenDefinitionsFromCssOptions,
 ): GranularThemeTokenSet {
   const { selector = DEFAULT_SELECTOR, as, strict = true } = options
-  const blocks = extractBlocks(css)
+  const { blocks, skipped } = extractBlocksDetailed(css)
+
+  if (skipped.length > 0) {
+    const message
+      = `tokenDefinitionsFromCss: unsupported CSS block(s) in ${truncate(source)}: ${describeSkipped(skipped)}. `
+        + 'Only flat top-level blocks are parsed; move the custom properties to a top-level selector.'
+    if (strict)
+      throw new Error(message)
+    warnOnce(message)
+  }
 
   if (blocks.length === 0) {
     if (strict)
@@ -171,29 +195,101 @@ function looksLikeCssLiteral(source: string): boolean {
   return source.includes('{')
 }
 
-const BLOCK_RE = /([^{}]+)\{([^{}]*)\}/g
-const DECL_RE = /--([\w-]+)\s*:([^;]*);/g
+// Точка с запятой у ПОСЛЕДНЕГО объявления в блоке опциональна — CSS это
+// разрешает, поэтому конец тела блока тоже завершает объявление.
+const DECL_RE = /--([\w-]+)\s*:([^;]*)(?:;|$)/g
 
-function extractBlocks(rawCss: string): ParsedTokenBlock[] {
+/** Блок, который парсер нашёл, но не может представить как плоский. */
+interface SkippedBlock {
+  /** Полный путь селекторов от корня файла: `['@media (...)', ':root']`. */
+  path: readonly string[]
+  reason: 'at-rule' | 'nested'
+}
+
+interface ExtractResult {
+  blocks: ParsedTokenBlock[]
+  skipped: SkippedBlock[]
+}
+
+/**
+ * Разбирает CSS на блоки верхнего уровня с custom properties.
+ *
+ * Поддерживаются только ПЛОСКИЕ блоки: вложенные (CSS Nesting) и любые
+ * блоки внутри at-rules (`@media`, `@supports`, ...) не могут быть выражены
+ * парой `{ selector, tokens }` — они попадают в `skipped`, а вызывающий код
+ * решает, бросать ошибку или предупреждать. Молча отдавать внутренний
+ * селектор как безусловный нельзя: это тихо ломает тему.
+ */
+function extractBlocksDetailed(rawCss: string): ExtractResult {
   const css = stripComments(rawCss)
   const blocks: ParsedTokenBlock[] = []
+  const skipped: SkippedBlock[] = []
 
-  for (const match of css.matchAll(BLOCK_RE)) {
-    const selector = normalizeSelector(match[1])
-    if (!selector || selector.startsWith('@'))
+  // Стек открытых уровней: прелюдия (селектор / at-rule-условие) и накопленные
+  // куски СОБСТВЕННОГО тела — куски, потому что вложенный блок разрывает тело
+  // уровня на части (`--a: 1px; @media … { … } --b: 2px`).
+  const stack: Array<{ prelude: string, body: string[] }> = []
+  // Позиция, с которой идёт непрочитанный текст текущего уровня.
+  let chunkStart = 0
+
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i]
+    if (ch !== '{' && ch !== '}')
       continue
-    const body = match[2]
-    const tokens: Record<string, string> = {}
-    for (const decl of body.matchAll(DECL_RE)) {
-      const value = decl[2].trim()
-      if (value)
-        tokens[decl[1]] = value
+
+    if (ch === '{') {
+      // Текст до `{` — это хвост тела родителя плюс прелюдия нового уровня.
+      // Граница — последняя `;`: ни селектор, ни at-rule-прелюдия её не содержат.
+      const raw = css.slice(chunkStart, i)
+      const cut = raw.lastIndexOf(';')
+      if (cut >= 0)
+        stack[stack.length - 1]?.body.push(raw.slice(0, cut + 1))
+      stack.push({ prelude: normalizeSelector(raw.slice(cut + 1)), body: [] })
+      chunkStart = i + 1
+      continue
     }
-    if (Object.keys(tokens).length > 0)
-      blocks.push({ selector, tokens })
+
+    const level = stack.pop()
+    if (!level) {
+      // Непарная закрывающая скобка — дальше разбирать нечего.
+      break
+    }
+
+    level.body.push(css.slice(chunkStart, i))
+    chunkStart = i + 1
+
+    const tokens = parseDeclarations(level.body)
+    if (Object.keys(tokens).length === 0)
+      continue
+
+    const path = [...stack.map(l => l.prelude), level.prelude]
+    if (path.some(p => p.startsWith('@')))
+      skipped.push({ path, reason: 'at-rule' })
+    else if (stack.length > 0)
+      skipped.push({ path, reason: 'nested' })
+    else if (level.prelude)
+      blocks.push({ selector: level.prelude, tokens })
   }
 
-  return blocks
+  return { blocks, skipped }
+}
+
+function parseDeclarations(bodyChunks: readonly string[]): Record<string, string> {
+  const tokens: Record<string, string> = {}
+  // Куски склеиваются через `;`: между ними стоял вложенный блок, и объявление
+  // не может «перетечь» из одного куска в другой.
+  for (const decl of bodyChunks.join(';').matchAll(DECL_RE)) {
+    const value = decl[2].trim()
+    if (value)
+      tokens[decl[1]] = value
+  }
+  return tokens
+}
+
+function describeSkipped(skipped: readonly SkippedBlock[]): string {
+  return skipped
+    .map(s => `${JSON.stringify(s.path.join(' > '))} (${s.reason === 'at-rule' ? 'inside an at-rule' : 'nested block'})`)
+    .join(', ')
 }
 
 function stripComments(css: string): string {
@@ -202,6 +298,16 @@ function stripComments(css: string): string {
 
 function normalizeSelector(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ')
+}
+
+const warned = new Set<string>()
+
+/** Не засорять вывод: одно и то же сообщение печатается один раз за процесс. */
+function warnOnce(message: string): void {
+  if (warned.has(message))
+    return
+  warned.add(message)
+  console.warn(`[granular] ${message}`)
 }
 
 function truncate(value: string, max = 120): string {

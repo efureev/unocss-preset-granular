@@ -207,3 +207,55 @@ describe('parseCssCustomPropertyBlocks', () => {
     expect(blocks).toEqual([{ selector: ':root', tokens: { a: '1' } }])
   })
 })
+
+describe('парсер: последнее объявление без `;` (AUDIT A3)', () => {
+  it('подхватывает последний токен без точки с запятой', () => {
+    expect(parseCssCustomPropertyBlocksSync(':root { --a: 1px; --b: 2px }')).toEqual([
+      { selector: ':root', tokens: { a: '1px', b: '2px' } },
+    ])
+  })
+
+  it('работает и для единственного объявления без `;`', () => {
+    expect(parseCssCustomPropertyBlocksSync(':root{--a:1px}')).toEqual([
+      { selector: ':root', tokens: { a: '1px' } },
+    ])
+  })
+})
+
+describe('парсер: вложенность и at-rules (AUDIT A4)', () => {
+  const NESTED = '.dark { :root { --a: 1px; } }'
+  const AT_RULE = '@media (min-width: 100px) { :root { --a: 1px; } }'
+
+  it('не выдаёт внутренний селектор at-rule-блока как блок верхнего уровня', () => {
+    expect(parseCssCustomPropertyBlocksSync(AT_RULE)).toEqual([])
+  })
+
+  it('не выдаёт вложенный блок как блок верхнего уровня', () => {
+    expect(parseCssCustomPropertyBlocksSync(NESTED)).toEqual([])
+  })
+
+  it('плоские блоки рядом с вложенными разбираются корректно', () => {
+    expect(parseCssCustomPropertyBlocksSync(`${AT_RULE} :root { --b: 2px }`)).toEqual([
+      { selector: ':root', tokens: { b: '2px' } },
+    ])
+  })
+
+  it('объявления собственного уровня не теряются из-за вложенного блока', () => {
+    expect(parseCssCustomPropertyBlocksSync(':root { --a: 1px; @media print { --b: 2px } --c: 3px }')).toEqual([
+      { selector: ':root', tokens: { a: '1px', c: '3px' } },
+    ])
+  })
+
+  it('strict-режим бросает ошибку вместо тихой порчи темы', () => {
+    expect(() => tokenDefinitionsFromCssSync(toDataUrl(NESTED)))
+      .toThrow(/Only flat top-level blocks/)
+  })
+
+  it('в non-strict возвращает только плоские блоки', () => {
+    const result = tokenDefinitionsFromCssSync(
+      toDataUrl(`:root { --a: 1px }${NESTED}`),
+      { strict: false },
+    )
+    expect(result).toEqual({ selector: ':root', tokens: { a: '1px' } })
+  })
+})

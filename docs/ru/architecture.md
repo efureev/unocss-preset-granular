@@ -59,8 +59,11 @@ entry (`presetGranularNode`) надстраивает и добавляет:
    все выбранные темы и `cssFiles` каждого резолвнутого компонента;
    конкатенированный результат — один UnoCSS preflight.
 8. **Emit `rules` / `variants` / кастомные preflights** — из
-   `provider.unocss.*` всех *использованных* провайдеров (если не
-   `includeProviderUnocss: false`).
+   `provider.unocss.*` **всех провайдеров развёрнутого графа** —
+   `options.providers` плюс их транзитивные `dependencies`, независимо от
+   того, попал ли хоть один их компонент в селекцию (если не
+   `includeProviderUnocss: false`). Так же ведут себя секции base/tokens/тем:
+   они инлайнятся от того же полного списка.
 9. **Emit `content.filesystem`** — только node entry; потребляется через
    `granularContent(options)`.
 
