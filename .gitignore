@@ -6,3 +6,4 @@ junit-report.xml
 .env
 .eslintcache
 .DS_Store
+.claude/settings.local.json

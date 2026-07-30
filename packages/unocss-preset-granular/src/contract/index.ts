@@ -33,9 +33,24 @@ export interface GranularComponentDescriptor<Name extends string = string> {
   safelist?: readonly string[]
   /** Абсолютные URL-строки (через `new URL(..., importMetaUrl).href`) на CSS-файлы компонента. */
   cssFiles?: readonly string[]
-  /** Fallback-имена ассетов для dist без сорцов, позиционно к `cssFiles`. */
+  /**
+   * Fallback-имена ассетов, сопоставляются с `cssFiles` ПОЗИЦИОННО.
+   * Если файл из `cssFiles[i]` не существует, node-слой читает
+   * `new URL(cssFileAssetNames[i], packageBaseUrl)`. Рассинхрон длин молча
+   * отключает fallback для «хвоста».
+   */
   cssFileAssetNames?: readonly string[]
-  /** Имя style-asset'а (применяет внешний build при необходимости). */
+  /**
+   * Куда build провайдера должен положить CSS этого компонента:
+   * `components/<Name>/styles.css` (или `null`, если сборка ассета отключена
+   * через `emitStyleAsset: false`).
+   *
+   * Потребитель — `granularAssetFileNames()` из
+   * `@feugene/unocss-preset-granular/vite`: он воспроизводит ровно этот путь
+   * в `output.assetFileNames`. Пресет поле не читает — ему достаточно
+   * `cssFileAssetNames`, но обе величины обязаны совпадать по раскладке,
+   * иначе fallback чтения CSS в опубликованном пакете упрётся в ENOENT.
+   */
   styleAssetFileName?: string | null
   /**
    * Структурные токены, которые ПУБЛИКУЕТ этот компонент для тем.
@@ -53,6 +68,15 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
   /**
+   * То же, что {@link tokenDefinitions}, но значения не перечислены, а взяты
+   * из CSS-файла: `{ light: './themes/light.css' }`.
+   *
+   * Читает файл node-слой пресета на этапе загрузки конфига, поэтому
+   * браузерный `config.ts` остаётся без FS-импортов. Литеральные
+   * `tokenDefinitions` для той же темы имеют приоритет над ссылкой.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  /**
    * Идентификатор группы компонентов, шарящих общие SFC-чанки.
    *
    * Если задан, дополнительно к `dist/components/<Name>/` пресет
@@ -64,6 +88,43 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * Без `group` shared-папка не сканируется — компонент изолирован.
    */
   group?: string
+}
+
+/**
+ * ДЕКЛАРАТИВНАЯ ссылка на CSS-файл, из которого node-слой пресета сам вычитает
+ * токены темы.
+ *
+ * Зачем: без неё провайдер, желающий отдать структурные токены, обязан позвать
+ * `tokenDefinitionsFromCssSync` из `/node` — а этот импорт, попав в браузерный
+ * `config.ts`, утаскивает `node:fs` в клиентский бандл (сборка при этом не
+ * падает, ломается рантайм у потребителя). Обходить приходилось вторым файлом
+ * `config.node.ts`. Ссылка — это просто данные, её можно объявлять в
+ * браузерном конфиге, а читает файл пресет.
+ *
+ * Строковая форма — сокращение для `{ url }` с настройками по умолчанию.
+ */
+export interface GranularThemeTokenRef {
+  /**
+   * Путь к CSS. В `defineGranularComponent`/`defineGranularProvider`
+   * относительный путь резолвится от `import.meta.url` вызывающего модуля,
+   * как и `cssFiles`.
+   */
+  url: string
+  /** Какой селектор извлечь из файла. По умолчанию `:root`. */
+  selector?: string
+  /** Под каким селектором эмитить (например, забрать `:root`, выдать `.dark`). */
+  as?: string
+  /**
+   * Строгий режим парсера. По умолчанию `true`: отсутствие запрошенного
+   * селектора или неподдерживаемая вложенность — ошибка, а не тихо пустая тема.
+   */
+  strict?: boolean
+  /**
+   * Имя ассета для fallback'а — как `cssFileAssetNames` у `cssFiles`.
+   * Проставляется `define*`-хелперами; нужно, когда пакет опубликован без
+   * исходников и `url` указывает в несуществующий `src/`.
+   */
+  assetName?: string
 }
 
 export interface GranularThemeTokenSet {
@@ -94,7 +155,25 @@ export interface GranularThemeContribution {
    * Позволяет приложению делать точечные overrides.
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
-  /** Имена тем, которые подключить, если пользователь не указал `names` явно. */
+  /**
+   * Package-wide аналог {@link GranularComponentDescriptor.tokenDefinitionsRef}:
+   * токены темы вычитываются node-слоем из указанного CSS.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  /**
+   * Имена тем, которые подключить, если приложение не указало
+   * `themes.names` явно.
+   *
+   * Итоговый набор — объединение `defaultThemes` ВСЕХ провайдеров резолюции
+   * (включая транзитивных доноров) в порядке провайдеров, с дедупом. Если
+   * поле не объявил никто — фолбэк `['light']`. `themes.names: []` остаётся
+   * «тем нет» и это поле не смотрит.
+   *
+   * Объявляй сюда только те темы, которые провайдер реально поставляет
+   * (`themes[name]` или `tokenDefinitions[name]`): тема активируется для
+   * всей сборки, и «пустое» объявление оставит без токенов чужие компоненты.
+   * `granular doctor` показывает такие случаи.
+   */
   defaultThemes?: readonly string[]
 }
 
@@ -111,8 +190,13 @@ export interface GranularProvider {
   /** Версия контракта — для будущей совместимости. */
   contractVersion: 1
   /**
-   * Базовый URL пакета (обычно `import.meta.url` корневого модуля).
-   * Используется node-слоем для fallback `src/ ↔ dist/`.
+   * Базовый URL ДИРЕКТОРИИ пакета (не модуля) — от него node-слой резолвит
+   * `cssFileAssetNames` (fallback чтения CSS) и `components/<Name>/`
+   * (директории сканирования).
+   *
+   * Один и тот же код провайдера работает и из исходников, и из `dist/`
+   * именно потому, что этот URL указывает на корень СВОЕЙ раскладки —
+   * никакого «зондирования соседней `src/`/`dist/`» в пресете нет.
    */
   packageBaseUrl: string
   components: readonly GranularComponentDescriptor[]
@@ -161,6 +245,12 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
   /**
+   * Ссылки на CSS с токенами тем: `{ light: './themes/light.css' }`.
+   * Относительные пути резолвятся от `importMetaUrl`, как и `cssFiles`.
+   * См. `GranularComponentDescriptor.tokenDefinitionsRef`.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  /**
    * Идентификатор группы компонентов, шарящих общие SFC.
    * См. `GranularComponentDescriptor.group`.
    */
@@ -190,6 +280,81 @@ export function defineGranularComponent<Name extends string>(
       ? null
       : `components/${options.name}/styles.css`,
     ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
+    ...(options.tokenDefinitionsRef
+      ? { tokenDefinitionsRef: resolveTokenRefs(options.tokenDefinitionsRef, importMetaUrl, options.name) }
+      : {}),
     ...(options.group ? { group: options.group } : {}),
   }
+}
+
+/**
+ * Приводит ссылки к абсолютным URL и проставляет `assetName` — имя, по
+ * которому node-слой найдёт файл в опубликованном пакете (там `src/` нет).
+ * Ровно та же схема, что у пары `cssFiles` / `cssFileAssetNames`.
+ */
+function resolveTokenRefs(
+  refs: Readonly<Record<string, GranularThemeTokenRef | string>>,
+  importMetaUrl: string,
+  componentName?: string,
+): Record<string, GranularThemeTokenRef> {
+  return Object.fromEntries(
+    Object.entries(refs).map(([theme, ref]) => {
+      const normalized: GranularThemeTokenRef = typeof ref === 'string' ? { url: ref } : { ...ref }
+      const relative = normalized.url.replace(/^\.\//, '')
+
+      return [theme, {
+        ...normalized,
+        url: new URL(normalized.url, importMetaUrl).href,
+        assetName: normalized.assetName
+          ?? (componentName ? `components/${componentName}/${relative}` : relative),
+      }]
+    }),
+  )
+}
+
+/**
+ * Базовый URL пакета для `GranularProvider.packageBaseUrl`.
+ *
+ * Заменяет копипасту вида
+ * `` `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', ...))}` ``,
+ * которую до сих пор приходилось переносить из провайдера в провайдер.
+ *
+ * ```ts
+ * // granular-provider/index.ts (лежит на один уровень ниже корня раскладки)
+ * packageBaseUrl: resolvePackageBaseUrl(import.meta.url)
+ * ```
+ *
+ * Почему не `new URL('..', import.meta.url)` на стороне провайдера: Vite и
+ * rolldown распознают ИМЕННО этот литерал и заменяют его на `data:`-URL при
+ * сборке — скан-директории после этого схлопываются в ничто, молча. Здесь
+ * база приходит аргументом, статически подставить бандлеру нечего.
+ *
+ * @param importMetaUrl `import.meta.url` вызывающего модуля.
+ * @param levelsUp Сколько уровней подняться от модуля до корня раскладки
+ *   пакета. По умолчанию `1` — модуль лежит в подкаталоге
+ *   (`<base>/granular-provider/index.js`, а в сборке — `<base>/chunks/*.js`).
+ *
+ * ВАЖНО: значение зависит от того, куда бандлер положит ЭТОТ модуль, а не от
+ * структуры исходников. Проверяйте результат через `npx granular doctor` —
+ * неверная база даёт пустой скан, а не ошибку.
+ */
+export function resolvePackageBaseUrl(importMetaUrl: string, levelsUp = 1): string {
+  if (typeof importMetaUrl !== 'string' || importMetaUrl.length === 0)
+    throw new TypeError('resolvePackageBaseUrl: importMetaUrl must be a non-empty string')
+  if (!Number.isInteger(levelsUp) || levelsUp < 0)
+    throw new TypeError(`resolvePackageBaseUrl: levelsUp must be a non-negative integer, got ${levelsUp}`)
+
+  // Отрезаем имя файла, затем — по одному сегменту на каждый уровень.
+  let end = importMetaUrl.lastIndexOf('/')
+  if (end < 0)
+    throw new TypeError(`resolvePackageBaseUrl: '${importMetaUrl}' has no path separator`)
+
+  for (let i = 0; i < levelsUp; i++) {
+    const next = importMetaUrl.lastIndexOf('/', end - 1)
+    if (next < 0)
+      throw new RangeError(`resolvePackageBaseUrl: cannot go ${levelsUp} level(s) up from '${importMetaUrl}'`)
+    end = next
+  }
+
+  return importMetaUrl.slice(0, end + 1)
 }

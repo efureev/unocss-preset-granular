@@ -62,7 +62,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^1",
+    "@feugene/unocss-preset-granular": "^0.5.0",
     "vue": "^3"
   }
 }
@@ -119,7 +119,7 @@ export const buttonConfig = defineGranularComponent(import.meta.url, {
 ## Определение провайдера: `granular-provider/index.ts`
 
 ```ts
-import { defineGranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 import { buttonConfig } from '../components/MyButton/config'
 import { iconConfig } from '../components/MyIcon/config'
 
@@ -127,12 +127,16 @@ export default defineGranularProvider({
   id: '@your-scope/your-package',
   contractVersion: 1,
 
-  // URL корня ассетов пакета. Используется node‑слоем для
-  // src/ ↔ dist/ fallback и для scan‑globs компонентов.
+  // URL корня ассетов пакета. От него node‑слой резолвит
+  // `cssFileAssetNames` (fallback для cssFiles) и scan‑директории
+  // `components/<Name>/` — значит он должен указывать на корень
+  // ИМЕННО ЭТОЙ раскладки, будь то src/ или dist/.
   //
-  // ВАЖНО: литерал `new URL('..', import.meta.url)` rolldown заменяет на
-  // data:-URL при build'е. Собирайте URL в рантайме:
-  packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
+  // `resolvePackageBaseUrl(importMetaUrl, levelsUp = 1)` поднимается на одну
+  // директорию от вызывающего модуля. Писать `new URL('..', import.meta.url)`
+  // НЕЛЬЗЯ: rolldown распознаёт этот литерал и заменяет на data:-URL при
+  // сборке — скан после этого молча схлопывается в ничто.
+  packageBaseUrl: resolvePackageBaseUrl(import.meta.url),
 
   components: [buttonConfig, iconConfig],
 
@@ -143,6 +147,8 @@ export default defineGranularProvider({
       light: new URL('../styles/themes/light.css', import.meta.url).href,
       dark:  new URL('../styles/themes/dark.css',  import.meta.url).href,
     },
+    // Активируются, если приложение не задало `themes.names`. Объявляй
+    // только реально поставляемые темы — см. themes-and-tokens.md.
     defaultThemes: ['light'],
   },
 
@@ -177,7 +183,7 @@ SFC‑чанки в плоский `dist/chunks/`, который находит
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -199,6 +205,14 @@ export default defineConfig({
         // SFC‑чанки компонентов → `components/<Name>/chunks/`,
         // остальное остаётся во flat `chunks/`.
         chunkFileNames: granularChunkFileNames(),
+        // CSS компонента → `components/<Name>/styles.css`: это же значение
+        // `defineGranularComponent` пишет в `styleAssetFileName`, и по нему
+        // node‑слой ищет CSS, когда пакет опубликован без исходников.
+        // Нужен `build.cssCodeSplit: true`, иначе на выходе будет один
+        // общий CSS пакета, а не по файлу на компонент.
+        assetFileNames: granularAssetFileNames({
+          components: ['MyButton', 'MyIcon'],
+        }),
       },
     },
   },
@@ -268,6 +282,138 @@ granularChunkFileNames({
   sharedChunkPattern: 'groups/<group>/shared/[name]-[hash].js',
 })
 ```
+
+## Чего НЕ делать
+
+Шесть ошибок, которые собираются без единой жалобы и ломают только рантайм —
+или только опубликованный пакет:
+
+**1. Импорт `/node` из `config.ts` компонента.** Этот файл попадает в
+`granular-provider/index.ts` — то есть в **браузерный** экспорт, — и тянет
+`node:fs` в клиентский бандл. Сборка при этом не падает.
+
+Если компоненту нужны токены, вычитанные из CSS, **объявляйте ссылку вместо
+чтения файла**: `tokenDefinitionsRef` — это данные, а разворачивает их node‑слой
+пресета при загрузке конфига приложения:
+
+```ts
+// components/XTokenized/config.ts — ни импорта /node, ни второго файла
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitionsRef: {
+    // Литеральный `new URL(..., import.meta.url)` — то, на что реагирует
+    // бандлер, эмитя (или инлайня) CSS. См. «Две формы ссылки» ниже.
+    light: new URL('./themes/light.css', import.meta.url).href,
+    dark: { url: new URL('./themes/dark.css', import.meta.url).href, as: '.dark' },
+  },
+})
+```
+
+Обе формы ссылки и что с ними делает node‑слой — в
+[Темы и токены →
+`tokenDefinitionsRef`](./themes-and-tokens.md#tokendefinitionsref--ссылки-вместо-обращения-к-fs).
+
+<details>
+<summary>До <code>tokenDefinitionsRef</code>: обходной путь с двумя файлами</summary>
+
+Раньше конфиг приходилось делить надвое — способ остаётся рабочим, если нужны
+произвольные вычисления на стороне node, а не просто разбор CSS:
+
+```ts
+// components/XTokenized/config.ts — только литералы, browser‑safe
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+})
+```
+
+```ts
+// components/XTokenized/config.node.ts — можно читать файлы
+import { tokenDefinitionsFromCssSync } from '@feugene/unocss-preset-granular/node'
+import { xTokenizedConfig } from './config'
+
+const lightUrl = new URL('./themes/light.css', import.meta.url).href
+
+export const xTokenizedNodeConfig = {
+  ...xTokenizedConfig,
+  tokenDefinitions: {
+    light: tokenDefinitionsFromCssSync(lightUrl, { selector: ':root' }),
+  },
+}
+```
+
+Дальше — фабрика в браузерном entry, переиспользуемая в node‑entry, чтобы
+варианты не разъехались по `id` и `packageBaseUrl`:
+
+```ts
+// granular-provider/index.ts
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
+export const browserComponents = [xTokenizedConfig /* , ... */]
+
+export function createMyProvider(components: typeof browserComponents) {
+  return defineGranularProvider({
+    id: '@your-scope/your-package',
+    contractVersion: 1,
+    packageBaseUrl: PACKAGE_BASE_URL,
+    components,
+  })
+}
+
+export default createMyProvider(browserComponents)
+```
+
+```ts
+// granular-provider/node.ts
+import { xTokenizedNodeConfig } from '../components/XTokenized/config.node'
+import { browserComponents, createMyProvider } from './index'
+
+export default createMyProvider(
+  browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
+)
+```
+
+</details>
+
+**2. Импорт `/node`‑entry донора из своего браузерного entry.** Та же утечка
+уровнем выше: `granular-provider/index.ts` должен импортировать
+`@your-donor/pkg/granular-provider`, а `@your-donor/pkg/granular-provider/node` —
+только `granular-provider/node.ts`.
+
+Проверять надо по собранному бандлу, а не по исходникам:
+
+```bash
+grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.js
+# должно быть пусто
+```
+
+**3. Ключи токенов с `--`.** `tokens: { brand: '#fff' }`, а не
+`{ '--brand': '#fff' }` — префикс дописывает генератор, иначе получите
+`----brand`.
+
+**4. Тема в `defaultThemes`, которую вы не поставляете.** `defaultThemes`
+активирует тему не для *ваших* компонентов, а для **всей сборки**. Объявите
+`dark`, не отдав ни `themes.dark`, ни `tokenDefinitions.dark`, — и компоненты
+всех остальных провайдеров поедут под темой, токенов для которой им никто не
+дал. Объявляйте только то, что реально поставляете (остальное `granular doctor`
+показывает как `default-theme-without-source`).
+
+**5. Разошедшиеся раскладки `styleAssetFileName` и `cssFileAssetNames`.**
+Пресет читает только `cssFileAssetNames`, а `assetFileNames` бандлера идёт
+только за `styleAssetFileName`. Пока вы разрабатываете в монорепе, CSS
+находится по пути из `cssFiles` и fallback не срабатывает вовсе — расхождение
+может жить сколько угодно. Ломается оно в **опубликованном** пакете, где `src/`
+уже нет и fallback остаётся единственным путём, — и ломается как `ENOENT` в
+чужой сборке. Эмитьте оба значения через `defineGranularComponent` и не пишите
+их руками.
+
+**6. Чужие классы в собственном `safelist`.** Выглядит рабочим: классы в CSS
+появляются. Но `dependencies` подтягивает и `cssFiles` чужого компонента, и его
+скан-директорию, а запись в `safelist` — ни то ни другое: утилитарные классы вы
+получите, а собственную таблицу стилей компонента потеряете. Объявляйте связь
+через `dependencies` — транзитивные `safelist` и CSS пресет соберёт сам.
 
 ## Правила (сводка)
 

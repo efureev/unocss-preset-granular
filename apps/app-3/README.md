@@ -18,6 +18,10 @@ Playground композиции провайдеров.
 - `granularContent(...)` строит globs скана **по обоим** пакетам: и по
   `dist/components/XgQuick/`, и по транзитивному `dist/components/XTest1/`.
   Классы «чужих» невыбранных компонентов доноров в CSS не попадают.
+- `cssFiles` компонента `XgQuick` инлайнятся пресетом в granular-слой:
+  `@feugene/extra-simple-package` не подключает свой CSS из JS (в его сборке
+  нет `libInjectCss`), поэтому единственный способ доставить `.xg-quick` в
+  приложение — объявить файл в дескрипторе компонента.
 - `transformerDirectives()` включён (без compile-class).
 
 ## Запуск
@@ -27,3 +31,15 @@ yarn workspace @feugene/simple-package build
 yarn workspace @feugene/extra-simple-package build
 yarn workspace @feugene/granular-app-3 dev
 ```
+
+## Проверка
+
+```bash
+yarn workspace @feugene/granular-app-3 build
+yarn workspace @feugene/granular-app-3 verify
+```
+
+Ожидания — в [`expected-css.mjs`](./expected-css.mjs). Маркером «скан прошёл по
+пакету-донору» служит `var(--brd)`: эта строка встречается только в шаблоне
+`XTest1` внутри донора и никогда — в исходниках самого приложения. Если убрать
+`granularContent(...)` из `uno.config.ts`, проверка падает именно на ней.

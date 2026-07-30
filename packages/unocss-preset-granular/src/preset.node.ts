@@ -2,11 +2,13 @@ import type { Preflight, Preset } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
 import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
+import type { ScanDirsInspection } from './fs/resolveScanDirs'
 import type { PresetGranularOptions } from './preset'
-import { applyLayerToAll } from './core/layer'
+import { resolveGranularLayer } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
+import { materializeGranularOptions } from './node-utils/materializeRefs'
 import {
   presetGranular,
 
@@ -21,10 +23,18 @@ export interface GranularScanOptions {
   /** Полностью отключить авто-filesystem. По умолчанию `true`. */
   enabled?: boolean
   /**
-   * Расширения файлов для glob'ов. По умолчанию —
+   * ДОПОЛНИТЕЛЬНЫЕ расширения файлов для glob'ов — добавляются к дефолтным
    * `['js', 'mjs', 'cjs', 'ts', 'mts', 'cts', 'jsx', 'tsx', 'vue']`.
+   * Например, `extensions: ['mdx']` даст скан по дефолтным расширениям
+   * ПЛЮС `.mdx`.
    */
   extensions?: readonly string[]
+  /**
+   * `true` — {@link extensions} задаёт полный список расширений вместо
+   * дефолтного. Нужно, только если дефолтные расширения мешают; обычно
+   * достаточно аддитивного `extensions`.
+   */
+  replaceExtensions?: boolean
   /** Дополнительные пользовательские globs (добавляются как есть). */
   extraGlobs?: readonly string[]
   /**
@@ -58,12 +68,108 @@ export interface PresetGranularNodeOptions extends PresetGranularOptions {
   expandDirectives?: boolean
 }
 
+/**
+ * Резолюция для node-слоя: то же, что `resolvePresetGranular`, но поверх
+ * опций с РАЗВЁРНУТЫМИ `tokenDefinitionsRef`.
+ *
+ * Все node-потребители обязаны ходить через неё: материализация возвращает
+ * стабильный по ссылке объект, и только так резолюция, скан и `content`
+ * попадают в одни и те же кэши. Прямой `resolvePresetGranular(options)` в
+ * node-слое дал бы вторую резолюцию — с нераскрытыми ссылками.
+ */
+export function resolveGranularNode(
+  options: PresetGranularNodeOptions,
+): ReturnType<typeof resolvePresetGranular> {
+  return resolvePresetGranular(materializeGranularOptions(options))
+}
+
 interface ResolvedFile {
   providerId: string
+  componentName: string
   filePath: string
 }
 
-async function resolveComponentCssFiles(
+/** Откуда пришёл CSS-файл — для сообщения об ошибке чтения. */
+interface CssSource {
+  /** `provider:<id>` / `app-override` — кто объявил путь. */
+  origin: string
+  /** Секция: base/tokens, тема, компонент. */
+  section: 'base/tokens' | 'theme' | 'component'
+  /** Имя темы или компонента, если применимо. */
+  subject?: string
+}
+
+/**
+ * Ошибка чтения CSS с указанием ВИНОВНИКА.
+ *
+ * Без неё типовая ошибка публикации (провайдер не положил `styles.css` туда,
+ * куда указывает контракт) выглядела как голый `ENOENT` с абсолютным путём:
+ * ни провайдера, ни компонента, ни секции в сообщении не было.
+ */
+export class GranularCssReadError extends Error {
+  constructor(
+    public readonly file: string,
+    public readonly source: CssSource,
+    public readonly cause: unknown,
+  ) {
+    const what = source.subject ? `${source.section} '${source.subject}'` : source.section
+    super(
+      `Granular: failed to read CSS for ${what} declared by ${source.origin}.\n`
+      + `  path: ${file}\n`
+      + `  cause: ${(cause as Error)?.message ?? cause}`,
+    )
+    this.name = 'GranularCssReadError'
+  }
+}
+
+/** `readCss` + контекст в ошибке. */
+async function readCssFrom(file: string, source: CssSource): Promise<string> {
+  try {
+    return await readCss(file)
+  }
+  catch (error) {
+    throw new GranularCssReadError(file, source, error)
+  }
+}
+
+/**
+ * Кэш резолва путей к CSS компонентов по идентичности РЕЗОЛЮЦИИ (а не опций):
+ * резолюция сама мемоизирована по `options`, так что ключ эквивалентен, зато
+ * функция остаётся вызываемой напрямую.
+ *
+ * Резолв делает `access` на каждый URL из `cssFiles` (проверка «есть ли
+ * исходник, или брать fallback по `cssFileAssetNames`»), а вызывается из трёх
+ * мест — `collectNodeCssSections`, `getGranularComponentCssFiles`,
+ * `getGranularComponentCss` — и заново на КАЖДУЮ регенерацию UnoCSS при HMR.
+ * `readCss` кэширован по mtime, а `access`-проверки не были.
+ *
+ * Кэшируется промис, а не результат: параллельные вызовы (а они и идут
+ * параллельно — секции собираются через `Promise.all`) не должны множить
+ * обход FS.
+ *
+ * Инвалидация: новый объект опций → новая резолюция → новая запись. Появление
+ * или исчезновение файла на диске в пределах ОДНОЙ резолюции не подхватится —
+ * пересборка провайдера в dev-режиме путей не меняет, а перезагрузка конфига
+ * создаёт новый объект опций.
+ */
+const componentCssFilesCache = new WeakMap<
+  ReturnType<typeof resolvePresetGranular>,
+  Promise<ResolvedFile[]>
+>()
+
+function resolveComponentCssFiles(
+  resolution: ReturnType<typeof resolvePresetGranular>,
+): Promise<ResolvedFile[]> {
+  const cached = componentCssFilesCache.get(resolution)
+  if (cached)
+    return cached
+
+  const promise = computeComponentCssFiles(resolution)
+  componentCssFilesCache.set(resolution, promise)
+  return promise
+}
+
+async function computeComponentCssFiles(
   resolution: ReturnType<typeof resolvePresetGranular>,
 ): Promise<ResolvedFile[]> {
   const byKey = new Map<string, GranularProvider>()
@@ -71,10 +177,10 @@ async function resolveComponentCssFiles(
     byKey.set(provider.id, provider)
 
   const files = await Promise.all(
-    resolution.cssFiles.map(async ({ providerId, url, assetName }) => {
+    resolution.cssFiles.map(async ({ providerId, componentName, url, assetName }) => {
       const provider = byKey.get(providerId)!
       const filePath = await resolveComponentCssFile(url, provider.packageBaseUrl, assetName)
-      return { providerId, filePath }
+      return { providerId, componentName, filePath }
     }),
   )
   // Дедуп по итоговому пути (после fallback src/↔dist/)
@@ -110,32 +216,32 @@ function pickThemeUrl(
 function resolveBaseTokenUrls(
   providers: readonly GranularProvider[],
   themes: PresetGranularNodeOptions['themes'],
-): string[] {
-  const urls: string[] = []
+): Array<{ url: string, origin: string }> {
+  const urls: Array<{ url: string, origin: string }> = []
   const seen = new Set<string>()
-  const add = (url: string | undefined): void => {
+  const add = (url: string | undefined, origin: string): void => {
     if (url && !seen.has(url)) {
       seen.add(url)
-      urls.push(url)
+      urls.push({ url, origin })
     }
   }
 
   const tokensFile = themes?.tokensFile
   if (typeof tokensFile === 'string') {
-    add(tokensFile)
+    add(tokensFile, 'app-override (themes.tokensFile)')
   }
   else {
     for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile))
+      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile), `provider '${p.id}'`)
   }
 
   const baseFile = themes?.baseFile
   if (typeof baseFile === 'string') {
-    add(baseFile)
+    add(baseFile, 'app-override (themes.baseFile)')
   }
   else {
     for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile))
+      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile), `provider '${p.id}'`)
   }
 
   return urls
@@ -173,11 +279,11 @@ function generateThemeBlocks(
     return tokens
   }
 
-  for (const block of blocks)
-    Object.assign(ensure(block.selector), block.tokens)
-
+  // Один проход: и раскладываем токены по селекторам, и собираем множество
+  // известных имён для `strictTokens` (раньше по `blocks` шли дважды подряд).
   const known = new Set<string>()
   for (const block of blocks) {
+    Object.assign(ensure(block.selector), block.tokens)
     for (const key of Object.keys(block.tokens))
       known.add(key)
   }
@@ -244,12 +350,15 @@ interface NodeCssSections {
 async function collectNodeCssSections(
   options: PresetGranularNodeOptions,
 ): Promise<NodeCssSections> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
 
   // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
   const baseTokenUrls = resolveBaseTokenUrls(resolution.providers, options.themes)
   const baseTokens = await Promise.all(
-    baseTokenUrls.map(url => readCss(resolveCssFilePath(url))),
+    baseTokenUrls.map(({ url, origin }) => readCssFrom(
+      resolveCssFilePath(url),
+      { origin, section: 'base/tokens' },
+    )),
   )
 
   // 2. Theme token blocks (structural tokenDefinitions + tokenOverrides).
@@ -267,7 +376,12 @@ async function collectNodeCssSections(
   }
 
   // 3. Theme files (level-1 override).
-  const themeFiles: string[] = []
+  // Дедуп по ИТОГОВОМУ url: несколько провайдеров одного дизайн-системного
+  // семейства могут ссылаться на один и тот же файл темы (или быть сведены к
+  // нему через `themes.themeFiles`), и без дедупа он читается и инлайнится
+  // столько раз, сколько провайдеров на него сослалось.
+  const themeFileUrls: Array<{ url: string, providerId: string, themeName: string }> = []
+  const seenThemeUrls = new Set<string>()
   for (const { providerId, themeName, cssUrl, tokenDefinition } of resolution.themes.items) {
     // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы — файл темы уже
     // не используется (токены эмитятся структурно). Иначе берём cssUrl + override.
@@ -277,15 +391,28 @@ async function collectNodeCssSections(
     if (cssUrl) {
       const override = options.themes?.themeFiles?.[themeName]
       const finalUrl = pickThemeUrl(providerId, cssUrl, override as string | Partial<Record<string, string>> | undefined)
-      if (finalUrl)
-        themeFiles.push(await readCss(resolveCssFilePath(finalUrl)))
+      if (finalUrl && !seenThemeUrls.has(finalUrl)) {
+        seenThemeUrls.add(finalUrl)
+        themeFileUrls.push({ url: finalUrl, providerId, themeName })
+      }
     }
   }
+  // Параллельно, как и соседние секции: список URL уже дедуплицирован выше,
+  // порядок сохраняет `Promise.all`.
+  const themeFiles = await Promise.all(
+    themeFileUrls.map(({ url, providerId, themeName }) => readCssFrom(
+      resolveCssFilePath(url),
+      { origin: `provider '${providerId}'`, section: 'theme', subject: themeName },
+    )),
+  )
 
   // 4. Component CSS.
   const componentFiles = await resolveComponentCssFiles(resolution)
   const components = await Promise.all(
-    componentFiles.map(f => readCss(f.filePath)),
+    componentFiles.map(f => readCssFrom(
+      f.filePath,
+      { origin: `provider '${f.providerId}'`, section: 'component', subject: f.componentName },
+    )),
   )
 
   return { baseTokens, themeTokens, themeFiles, components }
@@ -310,7 +437,17 @@ let directivesUnavailableWarned = false
  * Прогоняет инлайн-CSS через `transformer-directives`, раскрывая `@apply` /
  * `@screen` / `theme()`. Трансформер и `magic-string` подгружаются лениво
  * (динамический импорт), чтобы не тянуть их, если `expandDirectives` выключен.
- * При недоступности зависимостей — возвращает CSS как есть с одним `warn`.
+ *
+ * Два отказа разведены намеренно:
+ *
+ *   1. НЕТ ЗАВИСИМОСТЕЙ — окружение без `unocss`/`magic-string`. Это состояние
+ *      окружения, оно не меняется от вызова к вызову: warn один раз за процесс,
+ *      CSS возвращается как есть.
+ *   2. ОШИБКА В САМОМ CSS — например `@apply` неизвестного класса. Это ошибка
+ *      пользователя в конкретном месте, и сообщать о ней надо КАЖДЫЙ раз и с
+ *      исходным текстом ошибки. Раньше оба случая ловил один `catch`, выдавая
+ *      «нужны разрешимые 'unocss' и 'magic-string'» — и, из-за флага, ровно
+ *      один раз за процесс. Отладка `@apply` в таком режиме была невозможна.
  */
 async function expandCssDirectives(
   css: string,
@@ -319,26 +456,45 @@ async function expandCssDirectives(
   if (!css || !generator)
     return css
 
+  let transformer: { transform: (...args: never[]) => unknown }
+  let magic: { toString: () => string }
+
   try {
     const [{ transformerDirectives }, { default: MagicString }] = await Promise.all([
       import('unocss'),
       import('magic-string'),
     ])
-    const transformer = transformerDirectives()
-    const magic = new MagicString(css)
-    // `transformer.transform(code, id, ctx)` читает только `ctx.uno`.
-    await transformer.transform(magic, 'granular-inline.css', { uno: generator } as never)
-    return magic.toString()
+    transformer = transformerDirectives() as typeof transformer
+    magic = new MagicString(css)
   }
   catch (error) {
     if (!directivesUnavailableWarned) {
       directivesUnavailableWarned = true
       console.warn(
-        `[granular] expandDirectives: не удалось раскрыть @apply/@screen/theme() — `
+        `[granular] expandDirectives: не удалось загрузить трансформер — `
         + `нужны разрешимые 'unocss' (transformerDirectives) и 'magic-string'. `
         + `CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
       )
     }
+    return css
+  }
+
+  try {
+    // `transformer.transform(code, id, ctx)` читает только `ctx.uno`.
+    await (transformer.transform as unknown as (
+      code: unknown,
+      id: string,
+      ctx: unknown,
+    ) => Promise<unknown>)(magic, 'granular-inline.css', { uno: generator })
+    return magic.toString()
+  }
+  catch (error) {
+    // НЕ глушим повторы: это ошибка в CSS, и она нужна пользователю каждый
+    // раз, пока не исправлена.
+    console.warn(
+      `[granular] expandDirectives: ошибка при раскрытии @apply/@screen/theme() `
+      + `в инлайн-CSS. CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
+    )
     return css
   }
 }
@@ -359,18 +515,25 @@ export function createGranularNodePreflight(
   }
 }
 
-/** Возвращает массив preflights, готовых к добавлению в UnoCSS preset. */
+/**
+ * Возвращает preflights, готовые к добавлению в UnoCSS preset — УЖЕ со слоем.
+ *
+ * Единственное место, где node-слой проставляет `layer` своим preflight'ам:
+ * прогонять результат ещё раз через `applyLayerToAll` не нужно (и раньше
+ * `presetGranularNode` делал именно это — безоперационно, но запутывая
+ * вопрос «кто владеет слоем»).
+ */
 export function resolvePresetGranularNodePreflights(
   options: PresetGranularNodeOptions,
 ): Preflight[] {
-  return [createGranularNodePreflight(options, options.layer)]
+  return [createGranularNodePreflight(options, resolveGranularLayer(options.layer))]
 }
 
 /** Возвращает список абсолютных путей/data-URL всех CSS файлов, которые будут в сборке. */
 export async function getGranularComponentCssFiles(
   options: PresetGranularNodeOptions,
 ): Promise<string[]> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
   const files = await resolveComponentCssFiles(resolution)
   return files.map(f => f.filePath)
 }
@@ -379,7 +542,7 @@ export async function getGranularComponentCssFiles(
 export async function getGranularComponentCss(
   options: PresetGranularNodeOptions,
 ): Promise<string> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
   const files = await resolveComponentCssFiles(resolution)
   const parts = await Promise.all(files.map(f => readCss(f.filePath)))
   return parts.join('\n')
@@ -406,23 +569,60 @@ export async function getGranularThemeCss(
  * `dependencies`). Не затрагивает компоненты провайдера, которые не выбраны.
  */
 /**
+ * Кэш инспекции скан-директорий по идентичности `options` — по образцу
+ * `resolutionCache` в `preset.ts`.
+ *
+ * Один и тот же объект опций проходит через `presetGranularNode`,
+ * `granularContent` (приложение обязано вызвать его в `uno.config`) и
+ * `granularDoctor`. Без мемоизации каждый вызов делал бы `existsSync` +
+ * `statSync` + `realpathSync` НА КАЖДЫЙ выбранный компонент (и столько же на
+ * `groups/<group>/shared/`) — для `components: 'all'` это сотни синхронных
+ * сисколов на загрузке конфига Vite, по 2–3 раза.
+ *
+ * Побочный эффект, на который стоит рассчитывать: `console.warn` о нарушениях
+ * layout-контракта печатается ОДИН раз на объект опций, а не на каждый вызов.
+ *
+ * Инвалидация — та же, что у резолюции: перезагрузка конфига создаёт новый
+ * объект опций, а с ним и новую запись в кэше.
+ */
+const scanInspectionCache = new WeakMap<PresetGranularNodeOptions, ScanDirsInspection>()
+
+/**
+ * Инспекция скан-директорий: что реально уйдёт в `content.filesystem`
+ * (`dirs`) и какие компоненты отвалились по layout-контракту (`skipped`).
+ *
+ * ЕДИНАЯ точка обхода FS для всех потребителей: `granularContent`,
+ * `resolveGranularFilesystemGlobs` и `granularDoctor`. Раньше doctor имел
+ * собственную копию логики и показывал не тот набор директорий, который
+ * попадал в сборку (в частности, включал компоненты без `index.js`).
+ */
+export function inspectGranularScanDirs(options: PresetGranularNodeOptions): ScanDirsInspection {
+  const cached = scanInspectionCache.get(options)
+  if (cached)
+    return cached
+
+  const scan = options.scan ?? {}
+  let result: ScanDirsInspection = scan.enabled === false
+    ? { dirs: [], skipped: [] }
+    : resolveComponentScanDirs(resolveGranularNode(options), { strict: scan.strict === true })
+
+  if (scan.includeNodeModules === false) {
+    result = {
+      dirs: result.dirs.filter(d => !d.dir.split(/[\\/]/).includes('node_modules')),
+      skipped: result.skipped,
+    }
+  }
+
+  scanInspectionCache.set(options, result)
+  return result
+}
+
+/**
  * Абсолютные директории сканирования выбранных компонентов (и их транзитивных
  * `dependencies`). Возвращает `[]`, если авто-скан выключен (`scan.enabled:false`).
- * Единая точка вычисления — переиспользуется `resolveGranularFilesystemGlobs`
- * и `granularContent`, чтобы не гонять `resolveComponentScanDirs` дважды.
  */
 function computeScanDirs(options: PresetGranularNodeOptions): string[] {
-  const scan = options.scan ?? {}
-  if (scan.enabled === false)
-    return []
-
-  const resolution = resolvePresetGranular(options)
-  let dirs = resolveComponentScanDirs(resolution, { strict: scan.strict === true }).map(d => d.dir)
-
-  if (scan.includeNodeModules === false)
-    dirs = dirs.filter(d => !d.split(/[\\/]/).includes('node_modules'))
-
-  return dirs
+  return inspectGranularScanDirs(options).dirs.map(d => d.dir)
 }
 
 export function resolveGranularFilesystemGlobs(
@@ -435,6 +635,7 @@ export function resolveGranularFilesystemGlobs(
   return buildFilesystemGlobs({
     dirs: computeScanDirs(options),
     extensions: scan.extensions,
+    replaceExtensions: scan.replaceExtensions,
     extraGlobs: scan.extraGlobs,
   })
 }
@@ -501,9 +702,27 @@ function buildComponentPipelineIncludes(dirs: readonly string[]): RegExp[] {
  * })
  * ```
  */
+/**
+ * Кэш готового `content` по идентичности `options`.
+ *
+ * `granularContent` вызывает приложение в `uno.config`, а следом — сам
+ * `presetGranularNode`. Обход FS уже мемоизирован, но глобы и `new RegExp` на
+ * каждую компонентную директорию собирались заново на каждый вызов.
+ *
+ * Возвращается ОДИН и тот же объект: UnoCSS его только читает.
+ */
+const contentCache = new WeakMap<
+  PresetGranularNodeOptions,
+  { filesystem: string[], pipeline: { include: RegExp[] } }
+>()
+
 export function granularContent(
   options: PresetGranularNodeOptions,
 ): { filesystem: string[], pipeline: { include: RegExp[] } } {
+  const cached = contentCache.get(options)
+  if (cached)
+    return cached
+
   const scan = options.scan ?? {}
 
   // Один расчёт директорий скана — из него строятся и filesystem-globs,
@@ -515,10 +734,11 @@ export function granularContent(
     : buildFilesystemGlobs({
         dirs,
         extensions: scan.extensions,
+        replaceExtensions: scan.replaceExtensions,
         extraGlobs: scan.extraGlobs,
       })
 
-  return {
+  const content = {
     filesystem,
     pipeline: {
       include: [
@@ -527,6 +747,9 @@ export function granularContent(
       ],
     },
   }
+
+  contentCache.set(options, content)
+  return content
 }
 
 /**
@@ -537,11 +760,12 @@ export function granularContent(
  * используйте хелпер {@link granularContent} в своём `defineConfig`.
  */
 export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
-  const base = presetGranular(options)
-  const nodePreflights = applyLayerToAll(
-    resolvePresetGranularNodePreflights(options),
-    options.layer,
-  )
+  // Материализованные опции и здесь: иначе браузерный пресет посчитал бы
+  // ВТОРУЮ резолюцию — по исходному объекту.
+  const base = presetGranular(materializeGranularOptions(options))
+  // Слой уже проставлен внутри (см. `resolvePresetGranularNodePreflights`),
+  // второй проход был бы безоперационным.
+  const nodePreflights = resolvePresetGranularNodePreflights(options)
 
   // Всё же проставляем `content` и в самом пресете — для тех инструментов,
   // которые уважают resolved‑config (cli, автономные генераторы, будущие
@@ -554,12 +778,14 @@ export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
       ...nodePreflights,
       ...(base.preflights ?? []),
     ],
-    content: fsContent.filesystem.length > 0
-      ? {
-          filesystem: [...(base.content?.filesystem ?? []), ...fsContent.filesystem],
-          pipeline: fsContent.pipeline ?? base.content?.pipeline,
-        }
-      : base.content,
+    // `content` отдаём ВСЕГДА, даже когда globs пустые (`scan.enabled: false`
+    // без `extraGlobs`, либо все компоненты отсеяны по layout-контракту):
+    // `pipeline.include` от числа globs не зависит и терять его нельзя —
+    // без него extractor не заглянет в `.js` внутри компонентных директорий.
+    content: {
+      filesystem: [...(base.content?.filesystem ?? []), ...fsContent.filesystem],
+      pipeline: fsContent.pipeline,
+    },
   }
 }
 
@@ -596,7 +822,7 @@ export function defineGranular(options: PresetGranularNodeOptions): GranularBuil
     options,
     preset: () => presetGranularNode(options),
     content: () => granularContent(options),
-    resolution: () => resolvePresetGranular(options),
+    resolution: () => resolveGranularNode(options),
     nodeCss: () => getGranularNodeCss(options),
   }
 }

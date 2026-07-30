@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { defineGranularProvider } from '../contract'
-import { formatDoctorReport, granularDoctor } from '../doctor'
+import { countDoctorDiagnostics, formatDoctorReport, granularDoctor } from '../doctor'
 
 describe('granularDoctor', () => {
   it('репортит провайдеров, транзитивный граф и порядок компонентов', () => {
@@ -117,5 +117,149 @@ describe('formatDoctorReport', () => {
     expect(text).toContain('light → :root (1 токен(ов))')
     // s:X отсутствует на диске → нарушение
     expect(text).toContain('✗ Найдены нарушения layout-контракта')
+  })
+})
+
+describe('doctor: уровни диагностики', () => {
+  it('нарушение layout-контракта — error: ok=false и clean=false', () => {
+    const provider = defineGranularProvider({
+      id: 'n',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///definitely/not/here/',
+      components: [{ name: 'A', safelist: [] }],
+    })
+
+    const report = granularDoctor({ providers: [provider], components: 'all' })
+
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({ level: 'error', code: 'layout-contract', subject: 'n:A' }),
+    ])
+    expect(report.ok).toBe(false)
+    expect(report.clean).toBe(false)
+    expect(countDoctorDiagnostics(report)).toEqual({ errors: 1, warnings: 0 })
+  })
+
+  it('конфликт токенов и предупреждение тем — warn: ok=true, clean=false', () => {
+    const provider = defineGranularProvider({
+      id: 's',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///s/',
+      components: [],
+      theme: {
+        defaultThemes: ['light'],
+        tokenDefinitions: { light: { selector: ':root', tokens: { primary: 'blue' } } },
+      },
+    })
+
+    const report = granularDoctor({
+      providers: [provider],
+      scan: { enabled: false },
+      themes: { tokenOverrides: { light: { primary: 'red' } } },
+    })
+
+    expect(report.diagnostics.map(d => d.code)).toEqual(['token-conflict'])
+    expect(report.diagnostics[0]).toMatchObject({ level: 'warn', subject: 'light:primary' })
+    expect(report.ok).toBe(true)
+    expect(report.clean).toBe(false)
+  })
+
+  it('провайдер без вклада — warn unused-provider', () => {
+    const useful = defineGranularProvider({
+      id: 'useful',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///useful/',
+      components: [{ name: 'X', safelist: ['x'] }],
+    })
+    const idle = defineGranularProvider({
+      id: 'idle',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///idle/',
+      components: [],
+    })
+
+    const report = granularDoctor({
+      providers: [useful, idle],
+      components: ['useful:X'],
+      scan: { enabled: false },
+    })
+
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({ level: 'warn', code: 'unused-provider', subject: 'idle' }),
+    ])
+  })
+
+  it('провайдер без выбранных компонентов, но с unocss-вкладом, — не предупреждение', () => {
+    const rulesOnly = defineGranularProvider({
+      id: 'rules',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///rules/',
+      components: [],
+      unocss: { rules: [[/^x-(\d+)$/, ([, d]) => ({ width: `${d}px` })]] },
+    })
+
+    const report = granularDoctor({ providers: [rulesOnly], scan: { enabled: false } })
+
+    expect(report.diagnostics).toEqual([])
+    expect(report.clean).toBe(true)
+  })
+
+  it('чистый конфиг — пустая диагностика и обычный статус в тексте', () => {
+    const provider = defineGranularProvider({
+      id: 'p',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p/',
+      components: [{ name: 'X', safelist: ['x'] }],
+    })
+
+    const report = granularDoctor({ providers: [provider], components: 'all', scan: { enabled: false } })
+    const text = formatDoctorReport(report)
+
+    expect(report.clean).toBe(true)
+    expect(text).toContain('✓ OK — нарушений layout-контракта не найдено.')
+    expect(text).not.toContain('Итоги диагностики')
+  })
+
+  it('текстовый отчёт со сводкой упоминает --strict', () => {
+    const provider = defineGranularProvider({
+      id: 'p',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p/',
+      components: [],
+      theme: { defaultThemes: ['day', 'night'], themes: { day: 'file:///p/day.css' } },
+    })
+
+    const text = formatDoctorReport(granularDoctor({ providers: [provider], scan: { enabled: false } }))
+
+    expect(text).toContain('Итоги диагностики (ошибок: 0, предупреждений: 2):')
+    expect(text).toContain('[theme-warning]')
+    expect(text).toContain('падают только с --strict')
+  })
+})
+
+describe('doctor: темы по умолчанию', () => {
+  it('показывает источник имён и предупреждения', () => {
+    const provider = defineGranularProvider({
+      id: 'p',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///p/',
+      components: [],
+      theme: {
+        defaultThemes: ['brand-day', 'brand-night'],
+        themes: { 'brand-day': 'file:///p/day.css' },
+      },
+    })
+
+    const report = granularDoctor({ providers: [provider], scan: { enabled: false } })
+
+    expect(report.themes.names).toEqual(['brand-day', 'brand-night'])
+    expect(report.themes.namesSource).toBe('provider-defaults')
+    expect(report.themes.warnings.map(w => w.kind)).toEqual([
+      'default-theme-without-source',
+      'multiple-default-themes',
+    ])
+
+    const text = formatDoctorReport(report)
+    expect(text).toContain('defaultThemes провайдеров')
+    expect(text).toContain('не поставляет её')
   })
 })

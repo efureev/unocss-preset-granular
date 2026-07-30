@@ -65,10 +65,29 @@ interface CssCacheEntry {
 }
 
 /**
+ * Верхняя граница числа записей в {@link cssCache}.
+ *
+ * Кэш живёт столько же, сколько процесс: в долгом `vite dev` при большом
+ * числе провайдеров он рос бы монотонно и никогда не отдавал память. Записи
+ * — это содержимое CSS-файлов, так что «безлимитный Map» здесь означает
+ * «держим в памяти весь CSS, который когда-либо читали».
+ *
+ * 512 файлов с запасом покрывают любой реальный конфиг (крупный
+ * дизайн-системный пакет — это десятки компонентов), а вытеснение по LRU
+ * бьёт по тем файлам, которые давно не запрашивались.
+ */
+export const CSS_CACHE_MAX_ENTRIES = 512
+
+/**
  * mtime+size кэш чтения CSS с диска. Один и тот же base/tokens/theme файл
  * читается пресетом многократно (по preflight-`getCSS` на каждую регенерацию
  * при HMR) — кэш отдаёт содержимое без повторного `readFile`, пока файл не
- * изменился. Инвалидация — по (mtimeMs, size); для явного сброса —
+ * изменился.
+ *
+ * Инвалидация по (mtimeMs, size) — то есть измененный файл перечитывается
+ * сам, без внешнего хука. Вытеснение — LRU по числу записей
+ * ({@link CSS_CACHE_MAX_ENTRIES}); `Map` в JS сохраняет порядок вставки,
+ * поэтому «самый давний» — это первый ключ итерации. Для явного сброса —
  * {@link clearCssCache}.
  */
 const cssCache = new Map<string, CssCacheEntry>()
@@ -76,6 +95,25 @@ const cssCache = new Map<string, CssCacheEntry>()
 /** Сбрасывает mtime-кэш чтения CSS (полностью). */
 export function clearCssCache(): void {
   cssCache.clear()
+}
+
+/** Текущее число записей в кэше — для диагностики и тестов. */
+export function getCssCacheSize(): number {
+  return cssCache.size
+}
+
+/** Кладёт запись, вытесняя самую давно не запрошенную при переполнении. */
+function cacheSet(file: string, entry: CssCacheEntry): void {
+  // Переносим ключ в конец, чтобы порядок итерации отражал «свежесть».
+  cssCache.delete(file)
+  cssCache.set(file, entry)
+
+  while (cssCache.size > CSS_CACHE_MAX_ENTRIES) {
+    const oldest = cssCache.keys().next()
+    if (oldest.done)
+      break
+    cssCache.delete(oldest.value)
+  }
 }
 
 /** Читает CSS либо из data URL, либо из локального файла (с mtime-кэшем). */
@@ -93,11 +131,15 @@ export async function readCss(file: string): Promise<string> {
   }
 
   const cached = cssCache.get(file)
-  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size)
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    // Освежаем позицию в LRU — файл только что запрашивали.
+    cssCache.delete(file)
+    cssCache.set(file, cached)
     return cached.content
+  }
 
   const content = await readFile(file, 'utf8')
-  cssCache.set(file, { mtimeMs: stats.mtimeMs, size: stats.size, content })
+  cacheSet(file, { mtimeMs: stats.mtimeMs, size: stats.size, content })
   return content
 }
 

@@ -45,6 +45,10 @@ which components and themes to pull in; providers declare what they ship.
    build‑time), resolution pipeline, layers, preflights.
 9. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
    arbitrary values, monorepo dev, HMR, `@apply` inside preflight CSS.
+10. [The `granular` CLI](./cli.md) — `granular doctor`: reading the
+    diagnostic report, exit codes, use in CI, programmatic access.
+11. [Migrating `0.4.0` → `0.5.0`](./migration-0.5.md) — breaking changes, new
+    capabilities, a step-by-step plan for apps and providers.
 
 ## What this preset does, in one paragraph
 

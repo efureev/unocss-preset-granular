@@ -4,17 +4,21 @@
 > [Сканирование компонентов](./component-scanning.md),
 > [Темы и токены](./themes-and-tokens.md).
 
-## Две точки входа
+## Пять точек входа
 
 | Импорт                                       | Где использовать                       |
 |----------------------------------------------|----------------------------------------|
 | `@feugene/unocss-preset-granular`            | браузер / runtime / edge / sandboxes   |
 | `@feugene/unocss-preset-granular/node`       | Node build‑time (Vite, CLI, тесты)     |
 | `@feugene/unocss-preset-granular/contract`   | типы + `defineGranularComponent/Provider` для авторов провайдеров |
+| `@feugene/unocss-preset-granular/vite`       | `granularChunkFileNames` / `granularAssetFileNames` для Vite‑сборки **провайдера** |
+| `@feugene/unocss-preset-granular/runtime`    | браузеру — `createThemeController` для переключения тем |
 
 Для приложений на Vite почти всегда нужен `/node` — он читает CSS‑файлы с
-диска, делает `src/ ↔ dist/` fallback и обеспечивает автосканирование
-компонентов.
+диска, делает fallback для `cssFiles` (см.
+[Архитектуру](./architecture.md#файловые-конвенции)) и обеспечивает
+автосканирование компонентов. Entry `/vite` нужен только пакетам‑провайдерам,
+приложению — никогда.
 
 ## Справочник опций (`presetGranular` / `presetGranularNode`)
 
@@ -22,9 +26,10 @@
 |-----------------------------------------|-----------------------------------------------------------------------------------------|
 | `providers`                             | `GranularProvider[]` — обязательно; откуда тянутся классы/темы.                         |
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (см. ниже).                                       |
-| `themes.names`                          | Имена тем. По умолчанию `['light']`. Пустой массив — без тем.                           |
+| `themes.names`                          | Имена тем. Опустить — ключи `themes.define`, иначе `theme.defaultThemes` провайдеров (объединение, фолбэк `['light']`). Пустой массив — без тем. |
+| `themes.define`                         | Темы, объявленные приложением: `extends`, `selector`, `tokens`/`tokensRef`, `label`, `colorScheme`. См. [Собственные темы приложения](./themes-and-tokens.md#собственные-темы-приложения-themesdefine). |
 | `themes.baseFile` / `themes.tokensFile` | Переопределение `base.css` / `tokens.css` глобально или по `providerId`.                |
-| `layer`                                 | UnoCSS‑layer, в который попадают preflights без собственного layer'а.                   |
+| `layer`                                 | UnoCSS‑слой для всего, что эмитит пресет. По умолчанию `'granular'` (порядок слоя тоже объявляется). `null` — без слоя. |
 | `preflights`                            | Дополнительные inline‑preflights, добавляемые приложением.                              |
 | `includeProviderUnocss`                 | `false` — не тянуть `provider.unocss.*`. По умолчанию `true`.                           |
 | `scan`                                  | Опции сканирования для `/node` (см. ниже).                                              |
@@ -39,11 +44,12 @@ components: [
 
   // объектная форма — несколько имён из одного провайдера:
   { provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] },
-
-  // короткая форма для конфига с одним провайдером (без квалификатора):
-  // 'XTest1',
 ]
 ```
+
+Голое `'Name'` — **не** валидный селектор на уровне приложения, пресет
+бросит `Invalid component key`. Короткая форма работает только внутри
+`dependencies` самого компонента, где провайдер подразумевается.
 
 `components: 'all'` — удобно для демо/playground, но нежелательно в
 продакшене: теряется смысл гранулярного выбора.
@@ -55,7 +61,8 @@ presetGranularNode({
   // ...
   scan: {
     enabled: true,                 // по умолчанию true
-    extensions: ['mdx'],           // доп. расширения к дефолтным js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    extensions: ['mdx'],           // ДОБАВЛЯЮТСЯ к дефолтным js/mjs/cjs/ts/mts/cts/jsx/tsx/vue
+    replaceExtensions: false,      // true — `extensions` заменяет дефолтные, а не дополняет
     extraGlobs: [],                // доп. globs, добавляются как есть
     includeNodeModules: true,      // по умолчанию true — разрешить сканирование внутри node_modules
   },

@@ -99,7 +99,7 @@ describe('resolveComponentScanDirs', () => {
       components: [{ provider: 'pkg-a', names: ['XOne'] }],
     })
 
-    const dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
+    const dirs = resolveComponentScanDirs(resolution).dirs.map(d => d.dir)
 
     // realpath может раскрыть /var -> /private/var на macOS, поэтому сверяем по суффиксу
     expect(dirs.some(d => d.endsWith('pkg-a/dist/components/XOne'))).toBe(true)
@@ -116,7 +116,7 @@ describe('resolveComponentScanDirs', () => {
       ],
     })
 
-    const dirs = resolveComponentScanDirs(resolution).map(d => d.dir)
+    const dirs = resolveComponentScanDirs(resolution).dirs.map(d => d.dir)
     const unique = new Set(dirs)
     expect(unique.size).toBe(dirs.length)
   })
@@ -140,7 +140,7 @@ describe('resolveComponentScanDirs', () => {
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
     })
-    expect(resolveComponentScanDirs(resolution)).toEqual([])
+    expect(resolveComponentScanDirs(resolution).dirs).toEqual([])
     expect(warn).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls[0]?.[0]).toMatch(/pkg-ghost:Ghost/)
   })
@@ -189,7 +189,7 @@ describe('resolveComponentScanDirs', () => {
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
     })
-    expect(resolveComponentScanDirs(resolution)).toEqual([])
+    expect(resolveComponentScanDirs(resolution).dirs).toEqual([])
     expect(warn.mock.calls[0]?.[0]).toMatch(/missing 'index\.js'/)
   })
 
@@ -238,7 +238,7 @@ describe('resolveComponentScanDirs', () => {
         providers: [provider],
         components: [{ provider: 'pkg-grp', names: ['G1'] }],
       })
-      const dirs = resolveComponentScanDirs(resolution)
+      const dirs = resolveComponentScanDirs(resolution).dirs
       expect(dirs.some(d => d.kind === 'component' && d.dir.endsWith('components/G1'))).toBe(true)
       expect(dirs.some(d => d.kind === 'group-shared' && d.dir.endsWith('groups/groupX/shared'))).toBe(true)
     }
@@ -249,7 +249,7 @@ describe('resolveComponentScanDirs', () => {
         providers: [provider],
         components: [{ provider: 'pkg-grp', names: ['G1', 'G2'] }],
       })
-      const dirs = resolveComponentScanDirs(resolution)
+      const dirs = resolveComponentScanDirs(resolution).dirs
       const sharedDirs = dirs.filter(d => d.kind === 'group-shared')
       expect(sharedDirs.length).toBe(1)
       expect(sharedDirs[0]!.dir.endsWith('groups/groupX/shared')).toBe(true)
@@ -261,7 +261,7 @@ describe('resolveComponentScanDirs', () => {
         providers: [provider],
         components: [{ provider: 'pkg-grp', names: ['Solo'] }],
       })
-      const dirs = resolveComponentScanDirs(resolution)
+      const dirs = resolveComponentScanDirs(resolution).dirs
       expect(dirs.some(d => d.kind === 'group-shared')).toBe(false)
       expect(dirs.some(d => d.dir.endsWith('groups/groupX/shared'))).toBe(false)
     }
@@ -288,7 +288,7 @@ describe('resolveComponentScanDirs', () => {
       components: 'all',
     })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const dirs = resolveComponentScanDirs(resolution)
+    const dirs = resolveComponentScanDirs(resolution).dirs
     expect(dirs.length).toBe(1)
     expect(dirs[0]!.kind).toBe('component')
     expect(warn).not.toHaveBeenCalled()
@@ -342,8 +342,28 @@ describe('buildFilesystemGlobs', () => {
   })
 
   it('с одним расширением использует его напрямую без {}', () => {
-    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue'] })
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue'], replaceExtensions: true })
     expect(glob).toBe('/x/**/*.vue')
+  })
+
+  it('extensions ДОПОЛНЯЕТ дефолтный список, а не заменяет его', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['mdx'] })
+    expect(glob).toBe('/x/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue,mdx}')
+  })
+
+  it('лидирующая точка в extensions необязательна и не даёт дублей', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['.mdx', 'vue'] })
+    expect(glob).toBe('/x/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue,mdx}')
+  })
+
+  it('replaceExtensions=true задаёт список целиком', () => {
+    const [glob] = buildFilesystemGlobs({ dirs: ['/x'], extensions: ['vue', 'mdx'], replaceExtensions: true })
+    expect(glob).toBe('/x/**/*.{vue,mdx}')
+  })
+
+  it('replaceExtensions=true без extensions оставляет только extraGlobs', () => {
+    expect(buildFilesystemGlobs({ dirs: ['/x'], replaceExtensions: true, extraGlobs: ['/b/**/*.ts'] }))
+      .toEqual(['/b/**/*.ts'])
   })
 })
 
@@ -380,6 +400,20 @@ describe('presetGranularNode content.filesystem', () => {
     })
 
     expect(preset.content?.filesystem ?? []).toEqual([])
+  })
+
+  it('scan.enabled=false сохраняет pipeline.include', () => {
+    const preset = presetGranularNode({
+      providers: [setup.providerA, setup.providerB],
+      components: [{ provider: 'pkg-a', names: ['XOne'] }],
+      scan: { enabled: false },
+    })
+
+    // Пустые globs не повод схлопывать весь `content` в undefined: стандартный
+    // фильтр расширений в pipeline.include от числа globs не зависит (AUDIT A6).
+    const include = (preset.content?.pipeline as { include?: RegExp[] } | undefined)?.include ?? []
+    expect(include.length).toBeGreaterThan(0)
+    expect(include.some(re => re.test('/app/src/App.vue'))).toBe(true)
   })
 
   it('scan.extraGlobs добавляются в итоговый список', () => {

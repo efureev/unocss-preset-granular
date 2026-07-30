@@ -1,6 +1,5 @@
 import type {
   GranularComponentDependency,
-  GranularComponentDescriptor,
   GranularProvider,
 } from '../contract'
 import type { ComponentKey, ComponentRegistry, RegistryEntry } from './registry'
@@ -11,9 +10,10 @@ import { toComponentKey } from './registry'
  * Элемент выбора компонентов приложением.
  *
  * Строковая форма: квалифицированный ключ `'providerId:ComponentName'`.
- *   - Формат валидируется в runtime (`parseQualifiedKey`): требуется ровно
- *     один разделитель `:`, идентификатор провайдера и имя компонента по обе
- *     стороны от него.
+ *   - Формат валидируется в runtime (`parseQualifiedKey`): разделителем
+ *     считается ПОСЛЕДНЕЕ двоеточие, и по обе стороны от него должно быть
+ *     непусто. Двоеточий может быть несколько — id провайдера вправе их
+ *     содержать: `'a:b:C'` — это провайдер `a:b` и компонент `C`.
  *   - Тип намеренно оставлен `string` (а не template-literal
  *     `` `${string}:${string}` ``): это избавляет от проблем расширения
  *     (`widening`) строковых литералов в массивах, объявленных без `as const`
@@ -79,8 +79,11 @@ function parseQualifiedKey(input: string): ComponentKey {
 /**
  * Нормализует запись зависимости в массив квалифицированных ключей.
  * `ownerProviderId` — провайдер компонента-владельца (для короткой формы 'Name').
+ *
+ * Экспортируется ради `granular explain`: тот строит цепочку зависимостей по
+ * тому же графу, и своя копия правил разбора разъехалась бы с резолвером.
  */
-function normalizeDependency(
+export function normalizeDependency(
   dep: GranularComponentDependency,
   ownerProviderId: string,
 ): ComponentKey[] {
@@ -179,16 +182,6 @@ export function collectSafelist(entries: readonly RegistryEntry[]): string[] {
   return [...set]
 }
 
-/** Union абсолютных URL/путей cssFiles всех компонентов (с сохранением порядка post-order). */
-export function collectCssFiles(entries: readonly RegistryEntry[]): string[] {
-  const set = new Set<string>()
-  for (const { descriptor } of entries) {
-    for (const file of descriptor.cssFiles ?? [])
-      set.add(file)
-  }
-  return [...set]
-}
-
 /** Описание компонента по его позиции в `order` — удобно для FS-слоя. */
 export function collectCssFilesDetailed(
   entries: readonly RegistryEntry[],
@@ -213,9 +206,4 @@ export function collectCssFilesDetailed(
   }
 
   return result
-}
-
-/** Утилита для внешнего доступа к списку дескрипторов. */
-export function toDescriptors(entries: readonly RegistryEntry[]): readonly GranularComponentDescriptor[] {
-  return entries.map(e => e.descriptor)
 }

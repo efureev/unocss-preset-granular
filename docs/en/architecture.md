@@ -6,13 +6,20 @@
 This page describes how the preset is put together internally so you can
 reason about its behaviour, trace issues, and extend it.
 
-## Two entry points
+## Five entry points
 
 | Entry                                       | When to use                                 | Side‑effects         |
 |---------------------------------------------|---------------------------------------------|----------------------|
 | `@feugene/unocss-preset-granular`           | Browser / runtime (no `fs`)                 | none                 |
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, tests)               | reads files from disk|
 | `@feugene/unocss-preset-granular/contract`  | Provider authors — types + `define*` helpers| none (types)         |
+| `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames`, `granularAssetFileNames` | none (pure functions) |
+| `@feugene/unocss-preset-granular/runtime`   | Browser — switching themes at runtime        | none (DOM only)      |
+
+The `/vite` entry is part of the scanning contract, not an optional extra:
+without `granularChunkFileNames` in the provider's `build.rollupOptions`, SFC
+chunks land outside the component directory and are never scanned — see
+[Component scanning](./component-scanning.md).
 
 The browser entry (`presetGranular`) produces a pure‑JS preset:
 `rules` / `variants` / `safelist` / `preflights` (inline only). The node
@@ -31,55 +38,102 @@ entry (`presetGranularNode`) composes on top and adds:
 
 For a given `presetGranular*(options)` call the core does, in order:
 
-1. **Expand providers** — `expandProviders(options.providers)` walks
+1. **Materialise `tokenDefinitionsRef`** (node entry only) — references to
+   CSS files declared by providers/components are read and turned into plain
+   `tokenDefinitions`, so nothing downstream knows references exist. The result
+   is a derived options object, memoised by the identity of the original one.
+2. **Expand providers** — `expandProviders(options.providers)` walks
    `provider.dependencies` and flattens the graph into a deduplicated,
    topologically ordered list of `GranularProvider` objects. Duplicate `id`s
    backed by two different instances raise `DuplicateProviderIdError`;
    provider dependency cycles raise `CircularProviderDependencyError`; a
    `contractVersion` other than the supported one (`GRANULAR_CONTRACT_VERSION`)
    raises `UnsupportedContractVersionError`.
-2. **Build the component registry** — a map `providerId:Name → descriptor`
+3. **Build the component registry** — a map `providerId:Name → descriptor`
    across all providers. Cross‑provider `dependencies` are resolved against
    this registry. Two components sharing a name **inside one provider** raise
    `DuplicateComponentNameError` (fail‑fast — a publishing bug).
-3. **Resolve selection** — from `options.components` (which is `'all'` or a
+4. **Resolve selection** — from `options.components` (which is `'all'` or a
    list of selectors) compute the set of selected components.
-4. **Resolve transitive dependencies** — DFS (post‑order) over
+5. **Resolve transitive dependencies** — DFS (post‑order) over
    `descriptor.dependencies` with cycle detection (`CircularDependencyError` /
    `CircularProviderDependencyError`); dependencies are emitted before the
    components that depend on them.
-5. **Resolve themes** — intersect `options.themes.names` with what each
-   provider declares in `theme.themes`; fall back to `defaultThemes`. Token
+6. **Resolve themes** — take the theme names from `options.themes.names`, or,
+   when it is omitted, from the union of every provider's
+   `theme.defaultThemes` (fallback: `['light']`), then intersect them with
+   what each provider declares in `theme.themes`/`tokenDefinitions`. Token
    sets are grouped **per selector** into `tokenRegistry[theme].blocks`, so
    different sources can contribute distinct selector blocks to one theme.
-6. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
+7. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
    component.
-7. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
+8. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
    each selected theme CSS, and each resolved component's `cssFiles` from
    disk; embed the concatenated string into a UnoCSS preflight.
-8. **Emit `rules` / `variants` / custom preflights** — from
-   `provider.unocss.*` of every *used* provider (unless
-   `includeProviderUnocss: false`).
-9. **Emit `content.filesystem`** — only the node entry; consumed via
+9. **Emit `rules` / `variants` / custom preflights** — from
+   `provider.unocss.*` of **every provider in the expanded graph** —
+   `options.providers` plus their transitive `dependencies`, whether or not
+   any of their components ended up selected (unless
+   `includeProviderUnocss: false`). This matches the base/tokens/themes
+   sections, which are inlined from the same full list.
+10. **Emit `content.filesystem`** — only the node entry; consumed via
    `granularContent(options)`.
 
 The whole resolution above (`resolvePresetGranular`) is **memoized by the
 identity of the `options` object**, so calling `presetGranularNode(options)`
 and `granularContent(options)` with the same object computes the graph once.
 
-If any step fails (unknown component, cross‑provider edge to a
-non‑registered provider, missing CSS file in strict mode) a typed error is
-raised — see [`src/core/errors.ts`](../../packages/unocss-preset-granular/src/core/errors.ts).
+If a resolution step fails (unknown component, cross‑provider edge to a
+non‑registered provider, duplicate id, dependency cycle, unsupported
+`contractVersion`, malformed provider) a typed error is raised — see
+[`src/core/errors.ts`](../../packages/unocss-preset-granular/src/core/errors.ts).
+
+Provider shape is validated **at registration** (`expandProviders`), not when
+the file system first trips over it: an empty `id`, a `packageBaseUrl` that is
+not an absolute URL or does not end with `/`, and a length mismatch between
+`cssFiles` and `cssFileAssetNames` all raise `InvalidProviderError`.
+
+Reading CSS raises `GranularCssReadError`, which names the provider, the
+section (base/tokens, theme, component) and the theme/component involved, and
+keeps the original `ENOENT` in `cause`. There is no strict mode for CSS
+reading — `scan.strict` only governs the directory layout contract (see
+below).
 
 ## Layers
 
-Everything the preset emits lives under a single configurable `layer`
-(default: `granular`). The layer is opaque to consumers — it just controls
-ordering relative to other UnoCSS layers:
+Everything the preset emits lives under a single `layer`, named **`granular`
+by default**. It covers the FS and inline preflights and — because UnoCSS
+stamps a preset's layer onto its rules — the providers' `unocss.rules` too.
+
+The preset also **declares that layer's order** (`-50`), which places it
+between UnoCSS's own `preflights` (`-100`) and `shortcuts` (`-10`) / `default`
+(`0`):
+
+```
+imports (-200) → preflights (-100) → granular (-50) → shortcuts (-10) → utilities (0)
+```
+
+That ordering is the point: a utility (`p-5`) must win over a component's base
+style, not the other way round. Declaring the order is **required** for that —
+an unknown layer name falls back to order `0`, i.e. the same bucket as
+`default`, where the tie is broken alphabetically and `granular` would end up
+*after* the utilities, silently overriding them.
+
+Two escape hatches:
+
+- `layer: 'my-name'` — same behaviour under a different name (the order is
+  declared for whatever name you pass);
+- `layer: null` — no layer at all: preflights fall back to UnoCSS's
+  `preflights` layer, provider rules to `default`.
+
+The app always has the last word — `layers` in its own `defineConfig` is
+merged after presets:
 
 ```ts
-// Typical layer order in an app, from top to bottom of the output:
-// preflights > granular > utilities > shortcuts
+defineConfig({
+  presets: [presetGranularNode(opts)],
+  layers: { granular: 50 }, // push granular after the utilities instead
+})
 ```
 
 Per‑component / per‑theme preflights are tagged with the same layer (unless
@@ -102,11 +156,24 @@ but **none of these paths is hard‑coded**: they are just convenient defaults.
 Every path is explicit in the provider's `defineGranularProvider(...)` call
 and can point anywhere inside the package.
 
-The **`src/` ↔ `dist/` fallback** applies to `cssFiles`: when reading a
-file, if the primary path doesn't exist, the node layer probes the
-sibling `src/` / `dist/` location. This lets the same provider code work
-both in monorepo dev (sources available) and in a published package
-(`dist/` only).
+The **`cssFiles` fallback** works like this (`src/fs/readCss.ts`,
+`resolveComponentCssFile`): the node layer first tries the URL from
+`descriptor.cssFiles[i]`. If that file does not exist, it takes the matching
+`descriptor.cssFileAssetNames[i]` and resolves it **relative to the provider's
+`packageBaseUrl`** — i.e. `<packageBaseUrl>/<assetName>`. For components built
+with `defineGranularComponent` that asset name is generated as
+`components/<Name>/<file>`. Neither `src/` nor
+`dist/` appears anywhere in that logic; the mechanism works across the two
+only because a provider points `packageBaseUrl` at its own package root, which
+differs between a source checkout and a published build.
+
+Two consequences worth knowing:
+
+- the two arrays are matched **by position**, so a length mismatch silently
+  disables the fallback for the trailing entries;
+- if the fallback path is missing too, the read fails with
+  `GranularCssReadError` naming the provider and component (the raw `ENOENT`
+  stays in `cause`).
 
 ## Why `content` lives on the user config, not on the preset
 
@@ -143,7 +210,29 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     (also exposed as the `granular doctor` CLI).
   - `tokenDefinitionsFromCss[Sync]`,
     `parseCssCustomPropertyBlocks[Sync]`.
+  - `clearCssCache()` / `getCssCacheSize()` — the CSS read cache is
+    invalidated per file by `(mtime, size)` and bounded by
+    `CSS_CACHE_MAX_ENTRIES` (LRU), so a long‑running dev server cannot grow it
+    without limit; the explicit reset is there for tooling.
+  - `inspectGranularScanDirs(options)` — what actually goes into the scan
+    (`dirs`) and what was skipped by the layout contract (`skipped`); the
+    single, memoized FS walk shared with `granularContent` and the doctor.
 - `@feugene/unocss-preset-granular/contract`
-  - Type‑only re‑export surface for provider authors:
-    `GranularProvider`, `GranularComponentDescriptor`, `defineGranular*`
-    helpers.
+  - Surface for provider authors: `GranularProvider`,
+    `GranularComponentDescriptor`, `defineGranular*` helpers and
+    `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
+  - `getGranularThemeManifest(options, ?)` / `granularThemesPlugin(options, ?)`
+    — the theme manifest for the runtime layer (`virtual:granular-themes`).
+  - `resolveGranularNode(options)` — the resolution every node consumer must
+    use: same as `resolvePresetGranular`, but over options whose
+    `tokenDefinitionsRef` have been materialised.
+- `@feugene/unocss-preset-granular/vite`
+  - `granularChunkFileNames(options?)` — routes SFC chunks into
+    `components/<Name>/chunks/`.
+  - `granularAssetFileNames(options?)` — routes component CSS into
+    `components/<Name>/styles.css`.
+- `@feugene/unocss-preset-granular/runtime`
+  - `createThemeController(manifest, options?)` — runtime theme switching over
+    the token blocks already present in the CSS.
+  - `resolveThemeActivation(selectors)` — the pure selector → DOM‑operation
+    parser behind it.

@@ -2,7 +2,18 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { libInjectCss } from 'vite-plugin-lib-inject-css'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+/** Имена granular-компонентов пакета — источник правды для entry и ассетов. */
+const COMPONENT_NAMES = [
+  'XTest1',
+  'XTestStyled',
+  'XTokenized',
+  'XNested',
+  'XNestedReverse',
+  'XGroupAOne',
+  'XGroupATwo',
+]
+
 export default defineConfig({
   plugins: [vue(), libInjectCss()],
   build: {
@@ -63,9 +74,14 @@ export default defineConfig({
          * Логика вынесена в хелпер `granularChunkFileNames` пакета‑пресета.
          */
         chunkFileNames: granularChunkFileNames(),
-        assetFileNames: (assetInfo) => {
-          return assetInfo.name ?? '[name][extname]'
-        },
+        /**
+         * CSS компонента кладём туда, где его ждёт контракт —
+         * `components/<Name>/styles.css` (это же значение
+         * `defineGranularComponent` пишет в `styleAssetFileName`, и по нему
+         * node-слой пресета ищет CSS, когда пакет опубликован без исходников).
+         * По умолчанию Vite положил бы его плоско — `dist/XTest1.css`.
+         */
+        assetFileNames: granularAssetFileNames({ components: COMPONENT_NAMES }),
       },
     },
   },

@@ -84,11 +84,11 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
   tokenDefinitions: {
     light: {
       selector: ':root',
-      tokens: { '--my-button-bg': '#fff', '--my-button-fg': '#111' },
+      tokens: { 'my-button-bg': '#fff', 'my-button-fg': '#111' }, // no `--` prefix
     },
     dark: {
       selector: '.dark',
-      tokens: { '--my-button-bg': '#111', '--my-button-fg': '#fff' },
+      tokens: { 'my-button-bg': '#111', 'my-button-fg': '#fff' },
     },
   },
 })
@@ -425,11 +425,11 @@ export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
   tokenDefinitions: {
     light: {
       selector: ':root',
-      tokens: { '--x-tokenized': '#2563eb' },
+      tokens: { 'x-tokenized': '#2563eb' }, // --x-tokenized: #2563eb;
     },
     dark: {
       selector: '.dark',
-      tokens: { '--x-tokenized': '#93c5fd' },
+      tokens: { 'x-tokenized': '#93c5fd' },
     },
   },
 })

@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^1",
+    "@feugene/unocss-preset-granular": "^0.5.0",
     "vue": "^3"
   }
 }
@@ -122,7 +122,7 @@ Notes:
 ## Define the provider: `granular-provider/index.ts`
 
 ```ts
-import { defineGranularProvider } from '@feugene/unocss-preset-granular/contract'
+import { defineGranularProvider, resolvePackageBaseUrl } from '@feugene/unocss-preset-granular/contract'
 import { buttonConfig } from '../components/MyButton/config'
 import { iconConfig } from '../components/MyIcon/config'
 
@@ -130,12 +130,16 @@ export default defineGranularProvider({
   id: '@your-scope/your-package',
   contractVersion: 1,
 
-  // URL of the package assets root. Used by the /node layer for
-  // src/ ↔ dist/ fallback and for component scan globs.
+  // URL of the package assets root. The /node layer resolves
+  // `cssFileAssetNames` (the cssFiles fallback) and `components/<Name>/`
+  // scan dirs against it — so it must point at the root of THIS build's
+  // layout, whether that is src/ or dist/.
   //
-  // Caveat: the literal `new URL('..', import.meta.url)` is replaced with
-  // a data: URL by rolldown at build time — we build the URL at runtime:
-  packageBaseUrl: `${import.meta.url.slice(0, import.meta.url.lastIndexOf('/', import.meta.url.lastIndexOf('/') - 1) + 1)}`,
+  // `resolvePackageBaseUrl(importMetaUrl, levelsUp = 1)` goes one directory up
+  // from the calling module. Do NOT write `new URL('..', import.meta.url)`:
+  // rolldown recognises that exact literal and replaces it with a data: URL
+  // at build time, which silently collapses the scan to nothing.
+  packageBaseUrl: resolvePackageBaseUrl(import.meta.url),
 
   components: [buttonConfig, iconConfig],
 
@@ -146,6 +150,8 @@ export default defineGranularProvider({
       light: new URL('../styles/themes/light.css', import.meta.url).href,
       dark:  new URL('../styles/themes/dark.css',  import.meta.url).href,
     },
+    // Activated when the app does not pass `themes.names`. Declare only the
+    // themes this provider actually ships — see themes-and-tokens.md.
     defaultThemes: ['light'],
   },
 
@@ -180,7 +186,7 @@ helper `granularChunkFileNames` under the `./vite` subpath:
 import { defineConfig } from 'vite'
 import Vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
-import { granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
 
 export default defineConfig({
   plugins: [Vue()],
@@ -202,6 +208,14 @@ export default defineConfig({
         // Component SFC chunks → `components/<Name>/chunks/`,
         // everything else stays in flat `chunks/`.
         chunkFileNames: granularChunkFileNames(),
+        // Component CSS → `components/<Name>/styles.css` — the path
+        // `defineGranularComponent` records in `styleAssetFileName` and the
+        // one the node layer falls back to when the package ships `dist/`
+        // only. Requires `build.cssCodeSplit: true` so that each component
+        // gets its own asset instead of one combined library CSS.
+        assetFileNames: granularAssetFileNames({
+          components: ['MyButton', 'MyIcon'],
+        }),
       },
     },
   },
@@ -271,6 +285,139 @@ granularChunkFileNames({
   sharedChunkPattern: 'groups/<group>/shared/[name]-[hash].js',
 })
 ```
+
+## What NOT to do
+
+Six mistakes that build cleanly and break only at runtime — or only in the
+published package:
+
+**1. Importing `/node` from a component's `config.ts`.** That file ends up in
+`granular-provider/index.ts` — your **browser** export — so the import drags
+`node:fs` into the client bundle. Nothing fails at build time.
+
+If a component needs tokens parsed out of CSS, **declare a reference instead of
+reading the file yourself** — `tokenDefinitionsRef` is plain data, and the
+preset's node layer resolves it while the app's config loads:
+
+```ts
+// components/XTokenized/config.ts — no /node import, no second file
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitionsRef: {
+    // A literal `new URL(..., import.meta.url)` is what makes the bundler
+    // emit (or inline) the CSS — see "Two forms of a reference" below.
+    light: new URL('./themes/light.css', import.meta.url).href,
+    dark: { url: new URL('./themes/dark.css', import.meta.url).href, as: '.dark' },
+  },
+})
+```
+
+See [Themes and tokens →
+`tokenDefinitionsRef`](./themes-and-tokens.md#tokendefinitionsref--references-instead-of-fs-access)
+for both forms of a reference and what the node layer does with them.
+
+<details>
+<summary>Before <code>tokenDefinitionsRef</code>: the two-file workaround</summary>
+
+The older way was to split the config in two — still valid if you need
+arbitrary node-side computation, not just parsing a CSS file:
+
+```ts
+// components/XTokenized/config.ts — literals only, browser‑safe
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+})
+```
+
+```ts
+// components/XTokenized/config.node.ts — may touch the file system
+import { tokenDefinitionsFromCssSync } from '@feugene/unocss-preset-granular/node'
+import { xTokenizedConfig } from './config'
+
+const lightUrl = new URL('./themes/light.css', import.meta.url).href
+
+export const xTokenizedNodeConfig = {
+  ...xTokenizedConfig,
+  tokenDefinitions: {
+    light: tokenDefinitionsFromCssSync(lightUrl, { selector: ':root' }),
+  },
+}
+```
+
+Then expose a factory from the browser entry and reuse it in the node entry —
+so the two variants can never drift apart in `id` or `packageBaseUrl`:
+
+```ts
+// granular-provider/index.ts
+export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
+export const browserComponents = [xTokenizedConfig /* , ... */]
+
+export function createMyProvider(components: typeof browserComponents) {
+  return defineGranularProvider({
+    id: '@your-scope/your-package',
+    contractVersion: 1,
+    packageBaseUrl: PACKAGE_BASE_URL,
+    components,
+  })
+}
+
+export default createMyProvider(browserComponents)
+```
+
+```ts
+// granular-provider/node.ts
+import { xTokenizedNodeConfig } from '../components/XTokenized/config.node'
+import { browserComponents, createMyProvider } from './index'
+
+export default createMyProvider(
+  browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
+)
+```
+
+</details>
+
+**2. Importing a donor's `/node` entry from your browser entry.** Same leak,
+one level up: `granular-provider/index.ts` must import
+`@your-donor/pkg/granular-provider`, and only `granular-provider/node.ts` may
+import `@your-donor/pkg/granular-provider/node`.
+
+Verify on the built bundle, not on the sources:
+
+```bash
+grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.js
+# must print nothing
+```
+
+**3. Writing token keys with `--`.** `tokens: { brand: '#fff' }`, never
+`{ '--brand': '#fff' }` — the generator adds the prefix and you would get
+`----brand`.
+
+**4. Listing a theme in `defaultThemes` that you don't actually supply.**
+`defaultThemes` doesn't activate a theme for *your* components — it activates
+it for the **whole build**. Declare `dark` without shipping either
+`themes.dark` or `tokenDefinitions.dark`, and every other provider's components
+render under a theme nobody gave them tokens for. Declare only what you supply
+(`granular doctor` flags the rest as `default-theme-without-source`).
+
+**5. Letting `styleAssetFileName` and `cssFileAssetNames` describe different
+layouts.** The preset reads only `cssFileAssetNames`; your bundler's
+`assetFileNames` follows only `styleAssetFileName`. While you develop in a
+monorepo the CSS is found at its `cssFiles` path and the fallback never runs,
+so the two can disagree indefinitely. It breaks in the **published** package,
+where `src/` is gone and the fallback is the only path left — as an `ENOENT`
+in someone else's build. Emit both from `defineGranularComponent` and don't
+hand-write either.
+
+**6. Putting a dependency's classes in your own `safelist`.** It looks like it
+works: the classes appear in the CSS. But `dependencies` is what pulls in the
+other component's `cssFiles` **and** its scan directory, and a `safelist` entry
+pulls in neither — you get the utility classes and lose the component's own
+stylesheet. Declare the edge in `dependencies`; the preset collects the
+transitive `safelist` and CSS for you.
 
 ## Rules recap
 

@@ -1,6 +1,5 @@
-import { createGenerator } from '@unocss/core'
-import presetMini from '@unocss/preset-mini'
-import { describe, expect, it } from 'vitest'
+import { createGenerator, presetMini } from 'unocss'
+import { describe, expect, it, vi } from 'vitest'
 import { defineGranularProvider } from '../contract'
 import { getGranularNodeCss, presetGranularNode } from '../preset.node'
 
@@ -53,5 +52,46 @@ describe('expandDirectives (G2)', () => {
       expandDirectives: true,
     })
     expect(raw).toContain('@apply p-4')
+  })
+})
+
+describe('expandDirectives: диагностика ошибок (AUDIT C8)', () => {
+  /**
+   * Компонент с ошибкой в CSS. Триггер — `theme()` с несуществующим путём:
+   * `@apply` неизвестного класса трансформер молча оставляет как есть,
+   * а `theme()` бросает.
+   */
+  const broken = defineGranularProvider({
+    id: 'broken',
+    contractVersion: 1,
+    packageBaseUrl: 'file:///broken/',
+    components: [
+      {
+        name: 'C',
+        safelist: [],
+        cssFiles: [`data:text/css,${encodeURIComponent('.x{ color: theme("colors.nope.500") }')}`],
+      },
+    ],
+  })
+
+  it('сообщает об ошибке В CSS, а не о «нет зависимостей», и повторяет её каждый раз', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const options = { providers: [broken], components: 'all' as const, expandDirectives: true }
+    const first = await getNodePreflightCss(options)
+    const second = await getNodePreflightCss({ ...options })
+
+    // CSS не потерян — вернулся как есть.
+    expect(first).toContain('theme("colors.nope.500")')
+    expect(second).toContain('theme("colors.nope.500")')
+
+    const messages = warn.mock.calls.map(c => String(c[0]))
+    // Раньше здесь было бы «нужны разрешимые 'unocss' и 'magic-string'»,
+    // причём ровно один раз за процесс.
+    expect(messages.every(m => !m.includes('не удалось загрузить трансформер'))).toBe(true)
+    expect(messages.filter(m => m.includes('ошибка при раскрытии'))).toHaveLength(2)
+    expect(messages.some(m => m.includes('colors.nope.500'))).toBe(true)
+
+    warn.mockRestore()
   })
 })

@@ -11,7 +11,7 @@ import {
 } from '../core/errors'
 import { buildRegistry } from '../core/registry'
 import {
-  collectCssFiles,
+  collectCssFilesDetailed,
   collectSafelist,
   resolveSelection,
 } from '../core/resolveSelection'
@@ -71,7 +71,7 @@ describe('buildRegistry', () => {
 describe('resolveSelection', () => {
   it('все компоненты всех провайдеров при selection=undefined', () => {
     const r = resolveSelection(buildRegistry([P_DS, P_XG]), undefined)
-    expect(r.order.sort()).toEqual([
+    expect([...r.order].sort()).toEqual([
       'ds:DsButton',
       'ds:DsFormField',
       'ds:DsInput',
@@ -103,7 +103,23 @@ describe('resolveSelection', () => {
 
   it('names=all раскрывается', () => {
     const r = resolveSelection(buildRegistry([P_DS]), [{ provider: 'ds', names: 'all' }])
-    expect(r.order.sort()).toEqual(['ds:DsButton', 'ds:DsFormField', 'ds:DsInput'])
+    expect([...r.order].sort()).toEqual(['ds:DsButton', 'ds:DsFormField', 'ds:DsInput'])
+  })
+
+  it('разделитель — ПОСЛЕДНЕЕ двоеточие: id провайдера может их содержать', () => {
+    const scoped = defineGranularProvider({
+      id: '@scope/pkg:sub',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///scoped/',
+      components: [{ name: 'Btn', safelist: ['btn'] }],
+    })
+    const r = resolveSelection(buildRegistry([scoped]), ['@scope/pkg:sub:Btn'])
+    expect(r.order).toEqual(['@scope/pkg:sub:Btn'])
+  })
+
+  it('короткая форма без провайдера в components — ошибка', () => {
+    expect(() => resolveSelection(buildRegistry([P_DS]), ['DsButton']))
+      .toThrowError(/Invalid component key/)
   })
 
   it('ошибка если провайдер не зарегистрирован (через dep)', () => {
@@ -149,6 +165,7 @@ describe('resolveSelection', () => {
       'ds:DsButton',
       { provider: 'ds', names: ['DsButton'] },
     ])
-    expect(collectCssFiles(r.entries)).toEqual(['file:///ds/DsButton.css'])
+    expect(collectCssFilesDetailed(r.entries).map(f => f.url))
+      .toEqual(['file:///ds/DsButton.css'])
   })
 })

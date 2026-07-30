@@ -20,6 +20,27 @@ export interface ResolvedScanDir {
   kind: 'component' | 'group-shared'
 }
 
+/** Компонент, который в скан НЕ попал, и причина. */
+export interface SkippedScanDir {
+  providerId: string
+  componentName: string
+  /** Путь, который ожидался по layout-контракту (или его шаблон). */
+  expectedDir: string
+  reason: 'missing-dir' | 'missing-entry' | 'invalid-base-url'
+}
+
+/**
+ * Полный результат инспекции: что уйдёт в скан и что отвалилось.
+ *
+ * Один результат на двух потребителей — `granularContent`/`presetGranularNode`
+ * (берут `dirs`) и `granular doctor` (показывает и `dirs`, и `skipped`).
+ * Раньше doctor имел собственную копию обхода и расходился с реальностью.
+ */
+export interface ScanDirsInspection {
+  dirs: ResolvedScanDir[]
+  skipped: SkippedScanDir[]
+}
+
 /** Опции резолва директорий сканирования. */
 export interface ResolveScanDirsOptions {
   /**
@@ -95,9 +116,10 @@ function canonicalize(path: string): string {
 export function resolveComponentScanDirs(
   resolution: PresetGranularResolution,
   options: ResolveScanDirsOptions = {},
-): ResolvedScanDir[] {
+): ScanDirsInspection {
   const strict = options.strict === true
   const result: ResolvedScanDir[] = []
+  const skipped: SkippedScanDir[] = []
   const seen = new Set<string>()
 
   for (const { provider, descriptor } of resolution.resolved.entries) {
@@ -118,6 +140,12 @@ export function resolveComponentScanDirs(
         `[granular] cannot resolve scan dir for '${provider.id}:${descriptor.name}': `
         + `invalid 'packageBaseUrl' (${provider.packageBaseUrl}). Skipping component scan.`,
       )
+      skipped.push({
+        providerId: provider.id,
+        componentName: descriptor.name,
+        expectedDir: `<packageBaseUrl>/components/${descriptor.name}/`,
+        reason: 'invalid-base-url',
+      })
       continue
     }
 
@@ -129,6 +157,7 @@ export function resolveComponentScanDirs(
         + `directory at '${dir}'. Skipping scan. Configure your provider build to emit per-component output `
         + `(see 'granularChunkFileNames()' from '@feugene/unocss-preset-granular/vite').`,
       )
+      skipped.push({ providerId: provider.id, componentName: descriptor.name, expectedDir: dir, reason: 'missing-dir' })
       continue
     }
 
@@ -139,6 +168,7 @@ export function resolveComponentScanDirs(
         `[granular] component '${provider.id}:${descriptor.name}' is missing 'index.js' at '${dir}'. `
         + `Skipping scan — the component bundle was not emitted.`,
       )
+      skipped.push({ providerId: provider.id, componentName: descriptor.name, expectedDir: dir, reason: 'missing-entry' })
       continue
     }
 
@@ -190,7 +220,11 @@ export function resolveComponentScanDirs(
     })
   }
 
-  debugScan(`resolved ${result.length} scan dir(s): ${result.map(r => `${r.componentName}${r.kind === 'group-shared' ? '#shared' : ''}`).join(', ') || '—'}`)
+  debugScan(
+    `resolved ${result.length} scan dir(s): `
+    + `${result.map(r => `${r.componentName}${r.kind === 'group-shared' ? '#shared' : ''}`).join(', ') || '—'}`
+    + `${skipped.length ? ` | skipped ${skipped.length}: ${skipped.map(s => `${s.componentName} (${s.reason})`).join(', ')}` : ''}`,
+  )
 
-  return result
+  return { dirs: result, skipped }
 }

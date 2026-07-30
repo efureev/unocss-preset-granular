@@ -6,7 +6,7 @@ import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
 import { createDebug } from './core/debug'
 import { uniqueRef } from './core/dedupe'
 import { expandProviders } from './core/expandProviders'
-import { applyLayerToAll } from './core/layer'
+import { applyLayerToAll, GRANULAR_DEFAULT_LAYER_ORDER, resolveGranularLayer } from './core/layer'
 import { buildRegistry } from './core/registry'
 import {
   collectCssFilesDetailed,
@@ -16,6 +16,21 @@ import {
 } from './core/resolveSelection'
 import { resolveThemes } from './core/resolveThemes'
 
+/**
+ * Настройки тем приложения.
+ *
+ * Три уровня влияния, от объявления к патчу:
+ *
+ *   1. `names` / `define` — КАКИЕ темы существуют в сборке. `define` позволяет
+ *      приложению объявить собственные темы (в том числе полностью заменив
+ *      `light`/`dark` провайдеров) — см. `GranularAppThemeDefinition`.
+ *   2. `themeFiles` / `baseFile` / `tokensFile` — подмена CSS-ФАЙЛОВ, которые
+ *      объявили провайдеры.
+ *   3. `tokenOverrides` — точечная подмена отдельных ЗНАЧЕНИЙ.
+ *
+ * Итоговый приоритет токенов: провайдеры → компоненты → `define` →
+ * `tokenOverrides`.
+ */
 export interface ThemesOptions extends ResolveThemesInput {
   /**
    * Переопределение CSS-файла темы.
@@ -57,7 +72,16 @@ export interface PresetGranularOptions {
   providers: readonly GranularProvider[]
   components?: ComponentSelection
   themes?: ThemesOptions
-  layer?: string
+  /**
+   * UnoCSS-слой, в который уходит всё, что эмитит пресет: FS- и inline-preflight'ы,
+   * а также `rules`/`shortcuts` провайдеров (их UnoCSS помечает слоем пресета).
+   *
+   * По умолчанию — `'granular'`, и пресет сам объявляет его порядок
+   * (`GRANULAR_DEFAULT_LAYER_ORDER`), чтобы компонентный CSS шёл до утилит.
+   * `null` — не назначать слой вовсе (preflight'ы попадут в `preflights`
+   * UnoCSS, правила — в `default`).
+   */
+  layer?: string | null
   /** Дополнительные preflights приложения (будут после остальных). */
   preflights?: readonly Preflight[]
   /** Подключать ли rules/variants/preflights от провайдеров (default: true). */
@@ -141,15 +165,20 @@ export function resolvePresetGranular(
  * или приложение (через `options.preflights`).
  */
 export function presetGranular(options: PresetGranularOptions): Preset {
-  const { resolved, safelist } = resolvePresetGranular(options)
+  const { providers, safelist } = resolvePresetGranular(options)
   const includeProviderUnocss = options.includeProviderUnocss !== false
+  const layer = resolveGranularLayer(options.layer)
 
   const rules: Rule[] = []
   const variants: Variant[] = []
   const providerPreflights: Preflight[] = []
 
   if (includeProviderUnocss) {
-    for (const provider of resolved.providers) {
+    // Полный развёрнутый список провайдеров (вместе с транзитивными донорами),
+    // а НЕ только те, чьи компоненты попали в селекцию: провайдер может быть
+    // подключён исключительно ради `unocss.rules`/`variants`, а секции
+    // base/tokens/тем node-слой тоже инлайнит от всех провайдеров.
+    for (const provider of providers) {
       const contrib = provider.unocss
       if (!contrib)
         continue
@@ -164,15 +193,43 @@ export function presetGranular(options: PresetGranularOptions): Preset {
 
   const preflights = applyLayerToAll(
     [...providerPreflights, ...(options.preflights ?? [])],
-    options.layer,
+    layer,
   )
 
   return {
     name: 'granular-preset',
-    layer: options.layer,
+    layer,
+    // Порядок слоя объявляем сами: без него UnoCSS даст `?? 0` — как у
+    // `default`, и наш CSS уехал бы ПОСЛЕ утилит (ничья ломается по алфавиту).
+    // Приложение может переопределить это своим `layers` в `defineConfig`.
+    ...(layer ? { layers: { [layer]: GRANULAR_DEFAULT_LAYER_ORDER } } : {}),
     safelist: [...safelist],
     preflights,
-    rules: uniqueRef(rules),
+    // Копии, а не сами кортежи провайдера — см. `cloneRule`.
+    rules: uniqueRef(rules).map(cloneRule),
     variants: uniqueRef(variants),
   }
+}
+
+/**
+ * Возвращает КОПИЮ правила: копируется и сам кортеж, и его `meta`.
+ *
+ * UnoCSS пишет в `meta` прямо на месте — `resolvePreset` проставляет
+ * `meta.layer = preset.layer` (и только если `meta.layer == null`), а
+ * `resolveConfig` — `meta.__index`. Кортежи приходят к нам из
+ * `provider.unocss.rules`, то есть из объекта, который приложение обычно
+ * держит одним инстансом на весь процесс. Без копии слой первого созданного
+ * генератора «прилипал» бы к правилам провайдера навсегда, и второй конфиг с
+ * другим `layer` уже не смог бы его переопределить (проверка на `== null`).
+ *
+ * Проявляется в монорепе с несколькими `uno.config.ts` в одном Vite-процессе
+ * и в тестах: CSS уезжает не в тот слой в зависимости от порядка создания
+ * генераторов.
+ */
+function cloneRule(rule: Rule): Rule {
+  const copy = [...rule] as unknown as unknown[]
+  const meta = copy[2]
+  if (meta && typeof meta === 'object')
+    copy[2] = { ...meta as Record<string, unknown> }
+  return copy as unknown as Rule
 }
