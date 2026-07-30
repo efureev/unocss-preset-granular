@@ -79,8 +79,11 @@ function parseQualifiedKey(input: string): ComponentKey {
 /**
  * Нормализует запись зависимости в массив квалифицированных ключей.
  * `ownerProviderId` — провайдер компонента-владельца (для короткой формы 'Name').
+ *
+ * Экспортируется ради `granular explain`: тот строит цепочку зависимостей по
+ * тому же графу, и своя копия правил разбора разъехалась бы с резолвером.
  */
-function normalizeDependency(
+export function normalizeDependency(
   dep: GranularComponentDependency,
   ownerProviderId: string,
 ): ComponentKey[] {

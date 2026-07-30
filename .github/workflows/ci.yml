@@ -13,6 +13,20 @@ permissions:
   contents: read
 
 jobs:
+  # Зеркальность docs/en ↔ docs/ru (структура заголовков, блоки кода,
+  # ссылки, объём) и корневых README.md ↔ README.ru.md. Скрипт использует
+  # только встроенные модули Node, поэтому установка зависимостей не нужна.
+  docs-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Check en/ru documentation parity
+        run: node scripts/check-docs-parity.mjs
+
   # Тесты универсального пресета @feugene/unocss-preset-granular.
   test-unocss-preset-granular:
     runs-on: ubuntu-latest

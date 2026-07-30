@@ -69,7 +69,8 @@ Full documentation is in the monorepo root, in English and Russian:
 [Component scanning](../../docs/en/component-scanning.md) ·
 [Themes and tokens](../../docs/en/themes-and-tokens.md) ·
 [Architecture](../../docs/en/architecture.md) ·
-[Troubleshooting](../../docs/en/troubleshooting.md))
+[Troubleshooting](../../docs/en/troubleshooting.md) ·
+[CLI](../../docs/en/cli.md))
 
 🇷🇺 **Русский** — [`docs/ru`](../../docs/ru/README.md)
 ([Быстрый старт](../../docs/ru/getting-started.md) ·
@@ -78,17 +79,25 @@ Full documentation is in the monorepo root, in English and Russian:
 [Сканирование компонентов](../../docs/ru/component-scanning.md) ·
 [Темы и токены](../../docs/ru/themes-and-tokens.md) ·
 [Архитектура](../../docs/ru/architecture.md) ·
-[Рецепты и отладка](../../docs/ru/troubleshooting.md))
+[Рецепты и отладка](../../docs/ru/troubleshooting.md) ·
+[CLI](../../docs/ru/cli.md))
 
-## CLI — `granular doctor`
+## CLI — `granular`
 
-Prints the resolved configuration: providers, the transitive component graph,
-theme names and their origin, token conflicts, scan globs, and layout‑contract
-violations (exit code `1` when any are found — usable as a CI check).
+`doctor` prints the resolved configuration: providers, the transitive component
+graph, theme names and their origin, token conflicts, scan globs, and
+layout‑contract violations (exit code `1` when any are found — usable as a CI
+check; `--strict` fails on warnings too). `explain` says why a component is in
+the build, `why-css` says which component pulled a class into the CSS. Every
+command takes `--json`.
 
 ```bash
-npx granular doctor ./granular.options.mjs
+npx granular doctor  ./granular.options.mjs --strict
+npx granular explain ./granular.options.mjs XButton
+npx granular why-css ./granular.options.mjs text-red-500
 ```
+
+Full reference: [The `granular` CLI](../../docs/en/cli.md).
 
 ## License
 

@@ -1,5 +1,9 @@
 export {
+  countDoctorDiagnostics,
   type DoctorComponentInfo,
+  type DoctorDiagnostic,
+  type DoctorDiagnosticCode,
+  type DoctorDiagnosticLevel,
   type DoctorMissingDir,
   type DoctorProviderInfo,
   type DoctorReport,
@@ -10,8 +14,17 @@ export {
   granularDoctor,
 } from './doctor'
 export {
+  type ExplainCssFile,
+  type ExplainReason,
+  type ExplainReport,
+  type ExplainTokenContribution,
+  formatExplainReport,
+  granularExplain,
+} from './explain'
+export {
   type BuildContentFsOptions,
   buildFilesystemGlobs,
+  resolveScanExtensions,
 } from './fs/buildContentFilesystem'
 export {
   clearCssCache,
@@ -74,3 +87,10 @@ export {
   type GranularThemeEntry,
   type GranularThemeManifest,
 } from './runtime/manifest'
+export {
+  formatWhyCssReport,
+  granularWhyCss,
+  type WhyCssHit,
+  type WhyCssReport,
+  type WhyCssVia,
+} from './why-css'

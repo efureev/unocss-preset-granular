@@ -28,6 +28,15 @@ Likely causes, in order of probability:
    Static extraction can't see it. Either refactor to static, or add the
    specific classes to `safelist`.
 
+To tell causes 2–4 apart without guessing, ask the CLI which channel the class
+arrives through — safelist, the component's CSS file, or a scanned source:
+
+```bash
+npx granular why-css ./granular.options.mjs p-5
+```
+
+"No source found" narrows it to a scan problem (2–3) or a dynamic class (4).
+
 ## "Adding `'all'` pulls in way too much CSS"
 
 That's by design — `components: 'all'` explicitly disables granular
@@ -87,35 +96,19 @@ CSS file — the watcher picks it up and the preflight regenerates.
 
 ## `granular doctor` — diagnostics
 
-The preset ships a `granular` CLI whose `doctor` subcommand prints a full
-diagnostic: resolved providers, the transitive selected‑component graph
-(deps → dependents), theme token blocks per selector, **token conflicts**
-across layers (provider → component → app override), the final scan globs,
-and any **missing `components/<Name>/` directories** (layout‑contract
-violations). It exits `1` if any violation is found — handy in CI.
+When a symptom above doesn't match anything, stop guessing and print what the
+preset actually resolved. The `granular doctor` CLI reports the providers, the
+transitive selected‑component graph, theme token blocks per selector, **token
+conflicts** across layers, the final scan globs, and any **missing
+`components/<Name>/` directories** (layout‑contract violations). It exits `1`
+on any violation (and, with `--strict`, on warnings too), so it also works as a
+CI gate. Two narrower questions have their own commands: `granular explain
+<providerId:Name>` — why a component is in the build and what it contributes;
+`granular why-css <class>` — which component pulled a class into the CSS.
 
-Point it at a small module that exports your granular options:
-
-```js
-// granular.options.mjs
-import provider from '@your/pkg/granular-provider/node'
-export default { providers: [provider], components: 'all' }
-```
-
-```bash
-npx granular doctor ./granular.options.mjs
-```
-
-The same report is available programmatically (e.g. from a Vite plugin or a
-one‑off script):
-
-```ts
-import { granularDoctor, formatDoctorReport } from '@feugene/unocss-preset-granular/node'
-
-const report = granularDoctor(options)   // structured DoctorReport
-console.log(formatDoctorReport(report))  // human‑readable text
-if (!report.ok) process.exit(1)
-```
+Full reference — the options file it takes, every section of the report, exit
+codes and the programmatic `granularDoctor()` — is in
+[The `granular` CLI](./cli.md).
 
 ## Getting more insight
 

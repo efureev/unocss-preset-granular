@@ -288,7 +288,8 @@ granularChunkFileNames({
 
 ## What NOT to do
 
-Three mistakes that build cleanly and break only at runtime:
+Six mistakes that build cleanly and break only at runtime — or only in the
+published package:
 
 **1. Importing `/node` from a component's `config.ts`.** That file ends up in
 `granular-provider/index.ts` — your **browser** export — so the import drags
@@ -394,6 +395,29 @@ grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.j
 **3. Writing token keys with `--`.** `tokens: { brand: '#fff' }`, never
 `{ '--brand': '#fff' }` — the generator adds the prefix and you would get
 `----brand`.
+
+**4. Listing a theme in `defaultThemes` that you don't actually supply.**
+`defaultThemes` doesn't activate a theme for *your* components — it activates
+it for the **whole build**. Declare `dark` without shipping either
+`themes.dark` or `tokenDefinitions.dark`, and every other provider's components
+render under a theme nobody gave them tokens for. Declare only what you supply
+(`granular doctor` flags the rest as `default-theme-without-source`).
+
+**5. Letting `styleAssetFileName` and `cssFileAssetNames` describe different
+layouts.** The preset reads only `cssFileAssetNames`; your bundler's
+`assetFileNames` follows only `styleAssetFileName`. While you develop in a
+monorepo the CSS is found at its `cssFiles` path and the fallback never runs,
+so the two can disagree indefinitely. It breaks in the **published** package,
+where `src/` is gone and the fallback is the only path left — as an `ENOENT`
+in someone else's build. Emit both from `defineGranularComponent` and don't
+hand-write either.
+
+**6. Putting a dependency's classes in your own `safelist`.** It looks like it
+works: the classes appear in the CSS. But `dependencies` is what pulls in the
+other component's `cssFiles` **and** its scan directory, and a `safelist` entry
+pulls in neither — you get the utility classes and lose the component's own
+stylesheet. Declare the edge in `dependencies`; the preset collects the
+transitive `safelist` and CSS for you.
 
 ## Rules recap
 

@@ -11,6 +11,8 @@ let root: string
 let okOptionsFile: string
 /** Пакет, у компонента которого нет `index.js` — нарушение layout-контракта. */
 let brokenOptionsFile: string
+/** Конфиг с лишним провайдером — даёт предупреждение, но не ошибку. */
+let warnOptionsFile: string
 
 /** Собирает вывод CLI вместо потоков процесса. */
 function createIo(): { io: { stdout: (t: string) => void, stderr: (t: string) => void }, out: string[], err: string[] } {
@@ -51,6 +53,22 @@ beforeAll(() => {
 
   okOptionsFile = writeOptions('ok.options.mjs', mkPackage('ok-pkg', true), 'default')
   brokenOptionsFile = writeOptions('broken.options.mjs', mkPackage('broken-pkg', false), 'default')
+
+  // Второй провайдер не даёт сборке ничего: ни компонентов, ни темы, ни
+  // unocss-вклада — ровно случай `unused-provider`.
+  warnOptionsFile = join(root, 'warn.options.mjs')
+  writeFileSync(
+    warnOptionsFile,
+    `const main = {
+      id: 'pkg', contractVersion: 1,
+      packageBaseUrl: ${JSON.stringify(mkPackage('warn-pkg', true))},
+      components: [{ name: 'Btn', safelist: ['btn'] }],
+    }
+    const empty = { id: 'empty', contractVersion: 1, packageBaseUrl: 'file:///empty/', components: [] }
+    export default { providers: [main, empty], components: 'all' }
+    `,
+    'utf8',
+  )
 })
 
 afterAll(() => {
@@ -75,8 +93,8 @@ describe('granular CLI: аргументы', () => {
 
   it('неизвестная команда — код 1 и usage в stderr', async () => {
     const { io, out, err } = createIo()
-    expect(await runGranularCli(['explain'], io)).toBe(1)
-    expect(err.join('')).toContain(`Неизвестная команда 'explain'`)
+    expect(await runGranularCli(['diagnose'], io)).toBe(1)
+    expect(err.join('')).toContain(`Неизвестная команда 'diagnose'`)
     expect(err.join('')).toContain('Использование:')
     expect(out).toEqual([])
   })
@@ -85,6 +103,23 @@ describe('granular CLI: аргументы', () => {
     const { io, err } = createIo()
     expect(await runGranularCli(['doctor'], io)).toBe(1)
     expect(err.join('')).toContain('Не указан <options-file>')
+  })
+
+  it('explain и why-css без своего аргумента — код 1', async () => {
+    for (const [command, expected] of [
+      ['explain', '<providerId:Component>'],
+      ['why-css', '<class>'],
+    ]) {
+      const { io, err } = createIo()
+      expect(await runGranularCli([command, okOptionsFile], io)).toBe(1)
+      expect(err.join('')).toContain(`Не указан ${expected}`)
+    }
+  })
+
+  it('флаг перед позиционным аргументом разбирается как флаг', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['doctor', '--json', okOptionsFile], io)).toBe(0)
+    expect(JSON.parse(out.join('')).components).toHaveLength(1)
   })
 })
 
@@ -132,6 +167,95 @@ describe('granular CLI: doctor', () => {
     const { io, err } = createIo()
     expect(await runGranularCli(['doctor', bad], io)).toBe(1)
     expect(err.join('')).toContain(`должен экспортировать granular-опции`)
+  })
+})
+
+describe('granular CLI: doctor --json / --strict', () => {
+  it('--json печатает разбираемый отчёт вместо текста', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['doctor', okOptionsFile, '--json'], io)).toBe(0)
+
+    const report = JSON.parse(out.join(''))
+    expect(report.ok).toBe(true)
+    expect(report.clean).toBe(true)
+    expect(report.diagnostics).toEqual([])
+    expect(report.components[0].key).toBe('pkg:Btn')
+  })
+
+  it('--json на сломанном конфиге отдаёт диагностику уровня error', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['doctor', brokenOptionsFile, '--json'], io)).toBe(1)
+
+    const report = JSON.parse(out.join(''))
+    expect(report.ok).toBe(false)
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({ level: 'error', code: 'layout-contract', subject: 'pkg:Btn' }),
+    ])
+  })
+
+  it('предупреждение без --strict — код 0, с --strict — код 1', async () => {
+    const { io: io1, out } = createIo()
+    expect(await runGranularCli(['doctor', warnOptionsFile], io1)).toBe(0)
+    expect(out.join('')).toContain('unused-provider')
+    expect(out.join('')).toContain('падают только с --strict')
+
+    const { io: io2 } = createIo()
+    expect(await runGranularCli(['doctor', warnOptionsFile, '--strict'], io2)).toBe(1)
+  })
+
+  it('--strict не меняет код выхода, когда предупреждений нет', async () => {
+    const { io } = createIo()
+    expect(await runGranularCli(['doctor', okOptionsFile, '--strict'], io)).toBe(0)
+  })
+})
+
+describe('granular CLI: explain', () => {
+  it('известный компонент — отчёт и код 0', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['explain', okOptionsFile, 'pkg:Btn'], io)).toBe(0)
+
+    const text = out.join('')
+    expect(text).toContain('granular explain pkg:Btn')
+    expect(text).toContain('в сборке')
+    expect(text).toContain('btn')
+  })
+
+  it('короткое имя резолвится, пока оно однозначно', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['explain', okOptionsFile, 'Btn', '--json'], io)).toBe(0)
+    expect(JSON.parse(out.join('')).key).toBe('pkg:Btn')
+  })
+
+  it('неизвестный компонент — код 1 и список известных', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['explain', okOptionsFile, 'pkg:Nope'], io)).toBe(1)
+    expect(out.join('')).toContain('pkg:Btn')
+  })
+})
+
+describe('granular CLI: why-css', () => {
+  it('класс из safelist — источник найден, код 0', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['why-css', okOptionsFile, 'btn'], io)).toBe(0)
+
+    const text = out.join('')
+    expect(text).toContain('safelist компонента')
+    expect(text).toContain('pkg:Btn')
+  })
+
+  it('класс без источника — код 1 и подсказка про rules', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['why-css', okOptionsFile, 'no-such-class'], io)).toBe(1)
+    expect(out.join('')).toContain('Источников не найдено')
+  })
+
+  it('--json отдаёт структурированные hits', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['why-css', okOptionsFile, 'btn', '--json'], io)).toBe(0)
+
+    const report = JSON.parse(out.join(''))
+    expect(report.found).toBe(true)
+    expect(report.hits[0]).toEqual({ via: 'safelist', providerId: 'pkg', componentName: 'Btn' })
   })
 })
 

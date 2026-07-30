@@ -95,6 +95,7 @@ export default defineConfig({
 - [Темы и токены](./docs/ru/themes-and-tokens.md)
 - [Архитектура](./docs/ru/architecture.md)
 - [Рецепты и отладка](./docs/ru/troubleshooting.md)
+- [CLI `granular`](./docs/ru/cli.md)
 
 🇬🇧 **English** — [`./docs/en/README.md`](./docs/en/README.md)
 
@@ -105,21 +106,27 @@ export default defineConfig({
 - [Themes and tokens](./docs/en/themes-and-tokens.md)
 - [Architecture](./docs/en/architecture.md)
 - [Troubleshooting & recipes](./docs/en/troubleshooting.md)
+- [The `granular` CLI](./docs/en/cli.md)
 
-## CLI — `granular doctor`
+## CLI — `granular`
 
-Пакет ставит бинарь `granular`. `doctor` печатает резолвнутую конфигурацию:
-провайдеров, транзитивный граф компонентов, имена тем (и откуда они взялись),
-конфликты токенов между слоями, итоговые скан‑globs и директории компонентов,
-нарушающие layout‑контракт:
+Пакет ставит бинарь `granular` с тремя диагностическими командами. `doctor`
+печатает резолвнутую конфигурацию: провайдеров, транзитивный граф компонентов,
+имена тем (и откуда они взялись), конфликты токенов между слоями, итоговые
+скан‑globs и директории компонентов, нарушающие layout‑контракт; `explain`
+объясняет, почему компонент в сборке; `why-css` — какой компонент притащил
+класс в CSS:
 
 ```bash
 # granular.options.mjs — тот же объект опций, что уходит в пресет
-npx granular doctor ./granular.options.mjs
+npx granular doctor  ./granular.options.mjs --strict
+npx granular explain ./granular.options.mjs XButton
+npx granular why-css ./granular.options.mjs text-red-500
 ```
 
-Код выхода `1` — найдены нарушения layout‑контракта, поэтому команду можно
-ставить в CI. Подробнее: [Рецепты и отладка](./docs/ru/troubleshooting.md).
+Код выхода `1` — найдены нарушения layout‑контракта (с `--strict` — и
+предупреждения), поэтому команду можно ставить в CI; `--json` даёт каждой
+команде структурный отчёт. Полный справочник: [CLI `granular`](./docs/ru/cli.md).
 
 ## Пакеты в этой монорепе
 

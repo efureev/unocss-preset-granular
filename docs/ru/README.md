@@ -46,6 +46,8 @@
    build‑time), пайплайн резолвинга, layers, preflights.
 9. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
    values, dev в монорепо, HMR, `@apply` внутри preflight‑CSS.
+10. [CLI `granular`](./cli.md) — `granular doctor`: как читать отчёт,
+    коды выхода, использование в CI, программный доступ.
 
 ## Что делает пресет, в одном абзаце
 

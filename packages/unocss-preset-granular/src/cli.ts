@@ -1,14 +1,19 @@
 import type { PresetGranularNodeOptions } from './preset.node'
 
 import { resolve } from 'node:path'
+import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
-import { formatDoctorReport, granularDoctor } from './doctor'
+import { countDoctorDiagnostics, formatDoctorReport, granularDoctor } from './doctor'
+import { formatExplainReport, granularExplain } from './explain'
+import { formatWhyCssReport, granularWhyCss } from './why-css'
 
 export const GRANULAR_CLI_USAGE = `granular — диагностика @feugene/unocss-preset-granular
 
 Использование:
-  granular doctor <options-file>
+  granular doctor  <options-file> [--json] [--strict]
+  granular explain <options-file> <providerId:Component> [--json]
+  granular why-css <options-file> <class> [--json]
 
   <options-file> — JS/MJS модуль, экспортирующий granular-опции
   (default / \`granularOptions\` / \`options\`) с массивом \`providers\`.
@@ -20,7 +25,20 @@ export const GRANULAR_CLI_USAGE = `granular — диагностика @feugene/
 
   Затем:  granular doctor ./granular.options.mjs
 
-Коды выхода: 0 — OK, 1 — найдены нарушения layout-контракта или ошибка.
+Команды:
+  doctor   — полный отчёт о конфигурации: провайдеры, граф компонентов, темы,
+             конфликты токенов, скан-globs, нарушения layout-контракта.
+  explain  — почему компонент в сборке: цепочка от корня селекции, обратные
+             зависимости и что он даёт в safelist/CSS/токены. Имя компонента
+             можно указать без провайдера, если оно однозначно.
+  why-css  — какой компонент притащил класс в итоговый CSS: safelist,
+             CSS-файлы компонентов, исходники в content.filesystem.
+
+Флаги:
+  --json    вывести структурированный отчёт вместо текста.
+  --strict  (только doctor) считать предупреждения ошибками.
+
+Коды выхода: 0 — OK, 1 — найдены нарушения или ошибка.
 `
 
 /** Куда CLI пишет вывод. Инъекция нужна тестам, в проде — потоки процесса. */
@@ -49,6 +67,38 @@ export async function loadGranularOptions(file: string): Promise<PresetGranularN
   return options as PresetGranularNodeOptions
 }
 
+interface ParsedArgs {
+  command?: string
+  positionals: string[]
+  flags: Set<string>
+}
+
+/**
+ * Разбирает аргументы на команду, позиционные значения и флаги.
+ *
+ * Флаги допускаются в любом месте строки: `granular doctor --json ./opts.mjs`
+ * — ровно то, что человек напечатает по привычке, и разбор «по позиции»
+ * принял бы `--json` за путь к файлу.
+ */
+function parseArgs(args: readonly string[]): ParsedArgs {
+  const positionals: string[] = []
+  const flags = new Set<string>()
+
+  for (const arg of args) {
+    if (arg.startsWith('--'))
+      flags.add(arg)
+    else
+      positionals.push(arg)
+  }
+
+  return { command: positionals.shift(), positionals, flags }
+}
+
+/** Печатает отчёт как JSON или как текст — общая ветка всех команд. */
+function emit(io: GranularCliIo, json: boolean, report: unknown, text: () => string): void {
+  io.stdout(json ? `${JSON.stringify(report, null, 2)}\n` : `${text()}\n`)
+}
+
 /**
  * Тело CLI: разбирает аргументы (уже без `node` и пути к скрипту), пишет в
  * `io` и возвращает код выхода. Ничего не завершает сам — процессом
@@ -62,15 +112,24 @@ export async function runGranularCli(
   args: readonly string[],
   io: GranularCliIo,
 ): Promise<number> {
-  const [command, file] = args
+  const { command, positionals, flags } = parseArgs(args)
+  const [file, subject] = positionals
+  const json = flags.has('--json')
 
-  if (!command || command === '--help' || command === '-h' || command === 'help') {
+  // `--help` попадает во flags, `-h`/`help` — в позиционные: спрашивают
+  // справку всеми тремя способами, и все три обязаны работать.
+  if (flags.has('--help') || command === '-h' || command === 'help') {
     io.stdout(GRANULAR_CLI_USAGE)
-    // Без аргументов — это ошибка использования, с явным `help` — не ошибка.
-    return command ? 0 : 1
+    return 0
   }
 
-  if (command !== 'doctor') {
+  if (!command) {
+    // Без аргументов — это ошибка использования, с явным `help` — не ошибка.
+    io.stdout(GRANULAR_CLI_USAGE)
+    return 1
+  }
+
+  if (command !== 'doctor' && command !== 'explain' && command !== 'why-css') {
     io.stderr(`Неизвестная команда '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
@@ -80,11 +139,35 @@ export async function runGranularCli(
     return 1
   }
 
+  if (command !== 'doctor' && !subject) {
+    const what = command === 'explain' ? '<providerId:Component>' : '<class>'
+    io.stderr(`Не указан ${what} для '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
+    return 1
+  }
+
   try {
     const options = await loadGranularOptions(file)
+
+    if (command === 'explain') {
+      const report = granularExplain(options, subject)
+      emit(io, json, report, () => formatExplainReport(report))
+      // Неизвестный компонент — ошибка ввода; «не в сборке» это валидный ответ.
+      return report.reason === 'unknown' ? 1 : 0
+    }
+
+    if (command === 'why-css') {
+      const report = await granularWhyCss(options, subject)
+      emit(io, json, report, () => formatWhyCssReport(report, process.cwd()))
+      // Ненайденный источник — ответ «никакой компонент», и он же полезен как
+      // ассерт в CI: «этот класс больше не приходит из пакета».
+      return report.found ? 0 : 1
+    }
+
     const report = granularDoctor(options)
-    io.stdout(`${formatDoctorReport(report)}\n`)
-    return report.ok ? 0 : 1
+    emit(io, json, report, () => formatDoctorReport(report))
+    if (!report.ok)
+      return 1
+    return flags.has('--strict') && countDoctorDiagnostics(report).warnings > 0 ? 1 : 0
   }
   catch (error) {
     io.stderr(`[granular] ${(error as Error)?.message ?? error}\n`)

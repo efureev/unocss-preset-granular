@@ -91,6 +91,7 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 - [Themes and tokens](./docs/en/themes-and-tokens.md)
 - [Architecture](./docs/en/architecture.md)
 - [Troubleshooting & recipes](./docs/en/troubleshooting.md)
+- [The `granular` CLI](./docs/en/cli.md)
 
 🇷🇺 **Русский** — [`./docs/ru/README.md`](./docs/ru/README.md)
 
@@ -101,21 +102,27 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 - [Темы и токены](./docs/ru/themes-and-tokens.md)
 - [Архитектура](./docs/ru/architecture.md)
 - [Рецепты и отладка](./docs/ru/troubleshooting.md)
+- [CLI `granular`](./docs/ru/cli.md)
 
-## CLI — `granular doctor`
+## CLI — `granular`
 
-The package ships a `granular` binary. `doctor` prints the resolved
-configuration — providers, the transitive component graph, theme names (and
-where they came from), token conflicts between layers, the scan globs, and any
-component directory that violates the layout contract:
+The package ships a `granular` binary with three diagnostic commands. `doctor`
+prints the resolved configuration — providers, the transitive component graph,
+theme names (and where they came from), token conflicts between layers, the
+scan globs, and any component directory that violates the layout contract;
+`explain` says why a component is in the build; `why-css` says which component
+pulled a class into the CSS:
 
 ```bash
 # granular.options.mjs — the same options object you pass to the preset
-npx granular doctor ./granular.options.mjs
+npx granular doctor  ./granular.options.mjs --strict
+npx granular explain ./granular.options.mjs XButton
+npx granular why-css ./granular.options.mjs text-red-500
 ```
 
-Exit code `1` means layout‑contract violations were found, so it can be used
-as a CI check. Details: [Troubleshooting](./docs/en/troubleshooting.md).
+Exit code `1` means layout‑contract violations were found (with `--strict`,
+warnings too), so it can be used as a CI check; `--json` gives every command a
+structured report. Full reference: [The `granular` CLI](./docs/en/cli.md).
 
 ## Reference packages in this monorepo
 

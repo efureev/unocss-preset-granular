@@ -27,7 +27,7 @@ export interface BuildContentFsOptions {
   extraGlobs?: readonly string[]
 }
 
-const DEFAULT_EXTENSIONS: readonly string[] = [
+export const DEFAULT_EXTENSIONS: readonly string[] = [
   'js',
   'mjs',
   'cjs',
@@ -59,14 +59,27 @@ function stripTrailingSlash(path: string): string {
  * `dist/components/<Name>/` (включая `chunks/`), что и обеспечивает
  * сбор утилитарных классов из скомпилированных SFC‑чанков провайдера.
  */
-export function buildFilesystemGlobs(opts: BuildContentFsOptions): string[] {
+/**
+ * Итоговый список расширений скана — без точки, дедуплицированный.
+ *
+ * Вынесен отдельно, потому что по нему ходит не только сборщик globs:
+ * `granular why-css` перебирает те же файлы напрямую и обязан видеть ровно
+ * тот набор расширений, который уйдёт в `content.filesystem`.
+ */
+export function resolveScanExtensions(
+  opts: Pick<BuildContentFsOptions, 'extensions' | 'replaceExtensions'>,
+): string[] {
   const requested = (opts.extensions ?? []).map(e => e.replace(/^\./, '')).filter(Boolean)
   // По умолчанию `extensions` ДОПОЛНЯЕТ дефолтный список: пользователь,
   // написавший `extensions: ['mdx']`, ожидает «mdx в дополнение к vue/ts»,
   // а не «только mdx» (последнее полностью выключает скан компонентов).
-  const exts = opts.replaceExtensions
+  return opts.replaceExtensions
     ? requested
     : [...new Set([...DEFAULT_EXTENSIONS, ...requested])]
+}
+
+export function buildFilesystemGlobs(opts: BuildContentFsOptions): string[] {
+  const exts = resolveScanExtensions(opts)
 
   if (exts.length === 0)
     return [...(opts.extraGlobs ?? [])]
