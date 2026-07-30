@@ -10,24 +10,22 @@ import {xTokenizedConfig} from '../components/XTokenized/config'
 
 export const PROVIDER_ID = '@feugene/simple-package'
 
-// const lightCssUrl = new URL('../styles/themes/light.css', import.meta.url).href
-// const darkCssUrl = new URL('../styles/themes/dark.css', import.meta.url).href
-
 /**
- * Granular‑provider пакета `@feugene/extra-granularity`.
+ * Granular‑provider пакета `@feugene/simple-package`.
  *
- * Подключается вместе с `@feugene/granularity` в опцию `providers` пресета:
+ * Подключается в опцию `providers` пресета:
  *
  * ```ts
  * presetGranularNode({
- *   providers: [granularityProvider, extraProvider],
- *   components: ['@feugene/simple-package:xTest1'],
+ *   providers: [simpleProvider],
+ *   components: ['@feugene/simple-package:XTest1'],
  * })
  * ```
  *
- * Композитные компоненты декларируют свои зависимости на примитивы granularity
- * через `dependencies` в `config.ts` — ядро пресета рекурсивно соберёт safelist
- * и CSS всех транзитивных компонентов.
+ * Провайдер НЕ объявляет `theme` — темы этого пакета живут на уровне
+ * компонента (`XTokenized/config.ts`, `tokenDefinitionsRef`). Так и задумано:
+ * набор тем принадлежит приложению, пакет поставляет лишь значения токенов
+ * (см. `apps/app-6` — приложение с собственными темами).
  */
 /**
  * Базовый URL пакета. Вынесен сюда, чтобы node-entry считал его от ТОГО ЖЕ

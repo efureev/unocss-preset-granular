@@ -1,6 +1,6 @@
 {
   "name": "@feugene/extra-simple-package",
-  "description": "Composite Vue 3 components built on top of @feugene/granularity primitives (DsFormField, DsInput, DsButton, …).",
+  "description": "Reference composite GranularProvider for @feugene/unocss-preset-granular: components that depend on @feugene/simple-package and pull it in transitively via provider dependencies.",
   "version": "0.1.0",
   "license": "MIT",
   "author": {
@@ -11,7 +11,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/efureev/unocss-preset-granular.git",
-    "directory": "packages/simple-package"
+    "directory": "packages/extra-simple-package"
   },
   "bugs": {
     "url": "https://github.com/efureev/unocss-preset-granular/issues"
@@ -22,6 +22,9 @@
     "components",
     "ui",
     "granular",
+    "granular-provider",
+    "unocss",
+    "unocss-preset",
     "design-system",
     "composite-components",
     "tree-shakeable"
@@ -32,7 +35,9 @@
   "type": "module",
   "types": "./dist/types/src/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "sideEffects": [
     "**/*.css"

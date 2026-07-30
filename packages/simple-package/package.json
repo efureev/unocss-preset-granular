@@ -1,6 +1,6 @@
 {
   "name": "@feugene/simple-package",
-  "description": "Composite Vue 3 components built on top of @feugene/granularity primitives (DsFormField, DsInput, DsButton, …).",
+  "description": "Reference GranularProvider package for @feugene/unocss-preset-granular: base Vue 3 components that exercise the contract (scanning layout, component CSS, theme token refs, shared-chunk groups).",
   "version": "0.1.0",
   "license": "MIT",
   "author": {
@@ -22,8 +22,10 @@
     "components",
     "ui",
     "granular",
+    "granular-provider",
+    "unocss",
+    "unocss-preset",
     "design-system",
-    "composite-components",
     "tree-shakeable"
   ],
   "engines": {
@@ -32,7 +34,9 @@
   "type": "module",
   "types": "./dist/types/src/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "sideEffects": [
     "**/*.css"
@@ -62,6 +66,14 @@
     "./components/XNestedReverse": {
       "types": "./dist/types/src/components/reverses/XNestedReverse/index.d.ts",
       "import": "./dist/components/XNestedReverse/index.js"
+    },
+    "./components/XGroupAOne": {
+      "types": "./dist/types/src/components/groupA/XGroupAOne/index.d.ts",
+      "import": "./dist/components/XGroupAOne/index.js"
+    },
+    "./components/XGroupATwo": {
+      "types": "./dist/types/src/components/groupA/XGroupATwo/index.d.ts",
+      "import": "./dist/components/XGroupATwo/index.js"
     },
     "./granular-provider": {
       "types": "./dist/types/src/granular-provider/index.d.ts",
