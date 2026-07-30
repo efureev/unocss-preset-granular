@@ -26,6 +26,9 @@ is UI‑agnostic — it works on top of the public `GranularProvider` contract.
   a different provider — the preset resolves the graph.
 - **Built‑in themes & tokens.** Aggregates CSS variables / theme files from
   providers with a single `themes.names` switch.
+- **App‑owned themes.** The app declares its own themes with `themes.define` —
+  inheriting a provider theme via `extends`, or dropping `light`/`dark`
+  entirely in favour of its own palette.
 
 ## Results
 
@@ -121,11 +124,12 @@ as a CI check. Details: [Troubleshooting](./docs/en/troubleshooting.md).
   [`packages/extra-simple-package`](./packages/extra-simple-package) — two
   reference granular providers (the extra one declares cross‑provider
   `dependencies` on the simple one).
-- [`apps/app-1..5`](./apps) — five demo apps, each covering one scenario:
+- [`apps/app-1..6`](./apps) — six demo apps, each covering one scenario:
   minimal auto‑scan (`app-1`), `safelist` + theme token overrides without the
   file scan (`app-2`), a transitive donor provider and cross‑package component
   dependencies (`app-3`), nested SFCs plus a third‑party rule set (`app-4`),
-  runtime theme switching (`app-5`).
+  runtime theme switching (`app-5`), app‑owned themes replacing the provider's
+  `light`/`dark` (`app-6`).
 
 They are the only place where the whole chain — provider build → preset →
 UnoCSS → CSS — runs end to end, so they double as the contract's integration

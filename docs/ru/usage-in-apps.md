@@ -26,7 +26,8 @@
 |-----------------------------------------|-----------------------------------------------------------------------------------------|
 | `providers`                             | `GranularProvider[]` — обязательно; откуда тянутся классы/темы.                         |
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (см. ниже).                                       |
-| `themes.names`                          | Имена тем. Опустить — `theme.defaultThemes` провайдеров (объединение, фолбэк `['light']`). Пустой массив — без тем. |
+| `themes.names`                          | Имена тем. Опустить — ключи `themes.define`, иначе `theme.defaultThemes` провайдеров (объединение, фолбэк `['light']`). Пустой массив — без тем. |
+| `themes.define`                         | Темы, объявленные приложением: `extends`, `selector`, `tokens`/`tokensRef`, `label`, `colorScheme`. См. [Собственные темы приложения](./themes-and-tokens.md#собственные-темы-приложения-themesdefine). |
 | `themes.baseFile` / `themes.tokensFile` | Переопределение `base.css` / `tokens.css` глобально или по `providerId`.                |
 | `layer`                                 | UnoCSS‑слой для всего, что эмитит пресет. По умолчанию `'granular'` (порядок слоя тоже объявляется). `null` — без слоя. |
 | `preflights`                            | Дополнительные inline‑preflights, добавляемые приложением.                              |

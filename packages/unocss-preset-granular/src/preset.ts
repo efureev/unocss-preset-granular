@@ -16,6 +16,21 @@ import {
 } from './core/resolveSelection'
 import { resolveThemes } from './core/resolveThemes'
 
+/**
+ * Настройки тем приложения.
+ *
+ * Три уровня влияния, от объявления к патчу:
+ *
+ *   1. `names` / `define` — КАКИЕ темы существуют в сборке. `define` позволяет
+ *      приложению объявить собственные темы (в том числе полностью заменив
+ *      `light`/`dark` провайдеров) — см. `GranularAppThemeDefinition`.
+ *   2. `themeFiles` / `baseFile` / `tokensFile` — подмена CSS-ФАЙЛОВ, которые
+ *      объявили провайдеры.
+ *   3. `tokenOverrides` — точечная подмена отдельных ЗНАЧЕНИЙ.
+ *
+ * Итоговый приоритет токенов: провайдеры → компоненты → `define` →
+ * `tokenOverrides`.
+ */
 export interface ThemesOptions extends ResolveThemesInput {
   /**
    * Переопределение CSS-файла темы.

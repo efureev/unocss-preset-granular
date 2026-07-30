@@ -20,7 +20,11 @@ export {
   type ComponentSelectionItem,
 } from './core/resolveSelection'
 export {
+  APP_THEME_SOURCE,
+  defaultAppThemeSelector,
   GRANULAR_DEFAULT_THEME_NAMES,
+  type GranularAppThemeDefinition,
+  type GranularThemeMeta,
   type ResolvedThemeItem,
   type ResolvedThemes,
   type ResolvedThemeSelectorBlock,

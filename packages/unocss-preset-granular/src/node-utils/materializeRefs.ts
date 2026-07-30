@@ -4,10 +4,12 @@ import type {
   GranularThemeTokenRef,
   GranularThemeTokenSet,
 } from '../contract'
+import type { GranularAppThemeDefinition } from '../core/resolveThemes'
 import type { PresetGranularOptions } from '../preset'
 
 import { existsSync } from 'node:fs'
 
+import { APP_THEME_SOURCE } from '../core/resolveThemes'
 import { isCssDataUrl, resolveCssFilePath } from '../fs/readCss'
 import { tokenDefinitionsFromCssSync } from './tokenDefinitionsFromCss'
 
@@ -26,15 +28,31 @@ export class GranularTokenRefError extends Error {
     public readonly url: string,
     public readonly cause: unknown,
   ) {
-    const where = componentName ? `component '${componentName}' of provider` : 'provider'
+    // Приложение — такой же источник ссылок, как провайдер, но подсказка про
+    // сборку пакета ему не адресована: файл лежит в самом приложении.
+    const isApp = providerId === APP_THEME_SOURCE
+
+    const field = isApp
+      ? `themes.define['${themeName}'].tokensRef`
+      : `tokenDefinitionsRef['${themeName}']`
+
+    const where = isApp
+      ? 'the application'
+      : `${componentName ? `component '${componentName}' of provider` : 'provider'} '${providerId}'`
+
+    const hint = isApp
+      ? `  hint: относительный путь резолвится от process.cwd() — от корня приложения. `
+      + `Надёжнее указывать литералом: new URL('./themes/${themeName}.css', import.meta.url).href.`
+      : `  hint: если файл не эмитится сборкой провайдера, объявляйте ссылку литералом — `
+        + `new URL('./themes/${themeName}.css', import.meta.url).href: именно на него реагирует бандлер `
+        + `и кладёт CSS в свой выход (обычно как data:-URL). Строковая форма './themes/${themeName}.css' `
+        + `рассчитана на файлы, которые и так лежат в 'components/<Name>/...' собранного пакета.`
+
     super(
-      `Granular: failed to resolve tokenDefinitionsRef['${themeName}'] declared by ${where} '${providerId}'.\n`
+      `Granular: failed to resolve ${field} declared by ${where}.\n`
       + `  url: ${url}\n`
-      + `  cause: ${(cause as Error)?.message ?? cause}\n`
-      + `  hint: если файл не эмитится сборкой провайдера, объявляйте ссылку литералом — `
-      + `new URL('./themes/${themeName}.css', import.meta.url).href: именно на него реагирует бандлер `
-      + `и кладёт CSS в свой выход (обычно как data:-URL). Строковая форма './themes/${themeName}.css' `
-      + `рассчитана на файлы, которые и так лежат в 'components/<Name>/...' собранного пакета.`,
+      + `  cause: ${(cause as Error)?.message ?? cause}\n${
+        hint}`,
     )
     this.name = 'GranularTokenRefError'
   }
@@ -175,6 +193,48 @@ function materializeProvider(
   return result
 }
 
+/**
+ * Разворачивает `themes.define[*].tokensRef` в литеральные `tokens`.
+ *
+ * Приложение — такой же источник токенов, как провайдер, и ему нужен тот же
+ * способ держать палитру в CSS, а не в TS-литерале. Отличия два:
+ * `packageBaseUrl` нет (fallback по `assetName` неприменим — файл лежит в
+ * самом приложении), а `as`-селектор ссылки работает как `selector` темы,
+ * если явный `selector` не задан.
+ *
+ * Литеральные `tokens` имеют приоритет над значениями из файла — как и у
+ * провайдеров.
+ */
+function materializeAppThemes(
+  define: Readonly<Record<string, GranularAppThemeDefinition>>,
+): Record<string, GranularAppThemeDefinition> {
+  const resolved: Record<string, GranularAppThemeDefinition> = {}
+
+  for (const [themeName, definition] of Object.entries(define)) {
+    if (!definition.tokensRef) {
+      resolved[themeName] = definition
+      continue
+    }
+
+    const ref = definition.tokensRef
+    const parsed = readTokenSet(themeName, ref, {
+      providerId: APP_THEME_SOURCE,
+      packageBaseUrl: '',
+    })
+
+    const { tokensRef: _dropped, ...rest } = definition
+    resolved[themeName] = {
+      ...rest,
+      tokens: { ...parsed.tokens, ...definition.tokens },
+      ...(definition.selector === undefined && typeof ref === 'object' && ref.as !== undefined
+        ? { selector: ref.as }
+        : {}),
+    }
+  }
+
+  return resolved
+}
+
 const materializedCache = new WeakMap<PresetGranularOptions, PresetGranularOptions>()
 
 /**
@@ -201,8 +261,16 @@ export function materializeGranularOptions<T extends PresetGranularOptions>(opti
   const seen = new Map<GranularProvider, GranularProvider>()
   const providers = options.providers.map(provider => materializeProvider(provider, seen))
 
-  const changed = providers.some((provider, index) => provider !== options.providers[index])
-  const result = changed ? { ...options, providers } : options
+  const define = options.themes?.define
+  const hasAppRefs = define !== undefined && Object.values(define).some(d => d.tokensRef !== undefined)
+  const themes = hasAppRefs
+    ? { ...options.themes, define: materializeAppThemes(define) }
+    : options.themes
+
+  const changed
+    = providers.some((provider, index) => provider !== options.providers[index])
+      || themes !== options.themes
+  const result = changed ? { ...options, providers, ...(themes ? { themes } : {}) } : options
 
   materializedCache.set(options, result)
   return result as T

@@ -26,7 +26,8 @@ only; an app never needs it.
 |-----------------------------------------|--------------------------------------------------------------------------------------|
 | `providers`                             | `GranularProvider[]` — required; providers the app pulls classes/themes from.        |
 | `components`                            | `'all'` \| `ComponentSelectionItem[]` (see below).                                   |
-| `themes.names`                          | Theme names to emit. Omit — providers' `theme.defaultThemes` (union, fallback `['light']`). Pass `[]` to emit no themes. |
+| `themes.names`                          | Theme names to emit. Omit — the keys of `themes.define`, otherwise providers' `theme.defaultThemes` (union, fallback `['light']`). Pass `[]` to emit no themes. |
+| `themes.define`                         | Themes declared by the app: `extends`, `selector`, `tokens`/`tokensRef`, `label`, `colorScheme`. See [App‑owned themes](./themes-and-tokens.md#app-owned-themes-themesdefine). |
 | `themes.baseFile` / `themes.tokensFile` | Override `base.css` / `tokens.css` globally or per `providerId`.                     |
 | `layer`                                 | UnoCSS layer for everything the preset emits. Default: `'granular'` (its order is declared too). `null` — no layer. |
 | `preflights`                            | Extra inline preflights injected by the app itself.                                  |

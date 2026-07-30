@@ -46,6 +46,20 @@ export interface GranularThemeEntry {
   activation: GranularThemeActivation
   /** Значения токенов — только если манифест собран с `includeTokens`. */
   tokens?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  /**
+   * Человекочитаемое имя из `themes.define[name].label`.
+   *
+   * Нужно затем же, зачем и сам манифест: без него приложение с темами
+   * `emerald`/`ocean`/`crimson` вынуждено держать вторую, рукописную карту
+   * «имя → подпись» и расходиться с конфигом молча.
+   */
+  label?: string
+  /**
+   * К какой системной схеме тяготеет тема (`themes.define[name].colorScheme`).
+   * Используется контроллером при `initial: 'auto'`, когда тем с именами
+   * `light`/`dark` в сборке нет.
+   */
+  colorScheme?: 'light' | 'dark'
 }
 
 export interface GranularThemeManifest {

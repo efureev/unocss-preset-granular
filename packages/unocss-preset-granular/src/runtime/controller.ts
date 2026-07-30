@@ -40,8 +40,8 @@ export interface GranularThemeControllerOptions {
   initial?: string | 'auto'
   /**
    * Сопоставление системной цветовой схемы именам тем — для `initial: 'auto'`.
-   * По умолчанию берутся темы с именами `light`/`dark`, если они есть в
-   * манифесте.
+   * По умолчанию берутся темы с именами `light`/`dark`, а если таких нет —
+   * первые темы, объявившие `colorScheme` в `themes.define`.
    */
   systemThemes?: { light?: string, dark?: string }
   /**
@@ -187,8 +187,14 @@ export function createThemeController(
       return stored
 
     const system = options.systemThemes ?? {}
-    const dark = system.dark ?? (byName.has('dark') ? 'dark' : undefined)
-    const light = system.light ?? (byName.has('light') ? 'light' : undefined)
+    // Порядок источников: явная опция → тема с таким именем → первая тема,
+    // объявившая `colorScheme` в манифесте. Последнее и делает `auto`
+    // работоспособным в приложении, где тем `light`/`dark` нет вовсе, а есть
+    // `emerald`/`ocean`: имя темы больше ничего не обязано означать.
+    const byScheme = (scheme: 'light' | 'dark'): string | undefined =>
+      manifest.themes.find(theme => theme.colorScheme === scheme)?.name
+    const dark = system.dark ?? (byName.has('dark') ? 'dark' : byScheme('dark'))
+    const light = system.light ?? (byName.has('light') ? 'light' : byScheme('light'))
     const prefersDark = options.prefersDark ?? defaultPrefersDark
     const bySystem = prefersDark() ? dark : light
     if (bySystem && byName.has(bySystem))

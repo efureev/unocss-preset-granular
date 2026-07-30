@@ -112,7 +112,9 @@ function computeTokenConflicts(
     if (!item.tokenDefinition)
       continue
     const selector = item.tokenDefinition.selector ?? primaryOf(item.themeName)
-    const source = item.componentName ? `component:${item.componentName}` : `provider:${item.providerId}`
+    const source = item.appDefined
+      ? 'app-theme'
+      : item.componentName ? `component:${item.componentName}` : `provider:${item.providerId}`
     for (const [token, value] of Object.entries(item.tokenDefinition.tokens))
       add(item.themeName, selector, token, value, source)
   }
@@ -199,12 +201,23 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
 
 const NAMES_SOURCE_TEXT: Record<ThemeNamesSource, string> = {
   'explicit': 'themes.names',
+  'app-defined': 'ключи themes.define',
   'provider-defaults': 'defaultThemes провайдеров',
   'fallback': 'фолбэк ядра',
 }
 
+const EXTENDS_REASON_TEXT: Record<'unknown' | 'opaque', string> = {
+  unknown: 'такой темы не поставляет никто',
+  opaque: 'тема приходит готовым CSS-файлом, её значения пресету не видны',
+}
+
 function formatThemeWarning(w: ResolvedThemeWarning): string {
   switch (w.kind) {
+    case 'theme-extends-unresolved':
+      return `тема "${w.theme}" наследует "${w.base}", но унаследовать нечего: `
+        + `${EXTENDS_REASON_TEXT[w.reason]}`
+    case 'theme-extends-cycle':
+      return `цикл в themes.define[].extends: ${w.chain.join(' → ')} — цепочка оборвана`
     case 'default-theme-without-source':
       return `${w.providerId} объявил "${w.theme}" в defaultThemes, но не поставляет её `
         + '(нет ни themes[name], ни tokenDefinitions[name])'

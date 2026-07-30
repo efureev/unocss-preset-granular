@@ -50,7 +50,18 @@ export function getGranularThemeManifest(
     const selectors = registry?.blocks.map(block => block.selector) ?? []
     const activation = overrides[name] ?? resolveThemeActivation(selectors)
 
-    const entry: GranularThemeEntry = { name, selectors, activation }
+    // Метаданные берутся из ТОЙ ЖЕ резолюции, что и селекторы, — не из
+    // `options.themes.define` напрямую: только резолюция знает, какие темы
+    // реально активны после `names`/прунинга базовых.
+    const meta = themes.meta[name]
+
+    const entry: GranularThemeEntry = {
+      name,
+      selectors,
+      activation,
+      ...(meta?.label !== undefined ? { label: meta.label } : {}),
+      ...(meta?.colorScheme !== undefined ? { colorScheme: meta.colorScheme } : {}),
+    }
 
     if (manifestOptions.includeTokens && registry) {
       entry.tokens = Object.fromEntries(

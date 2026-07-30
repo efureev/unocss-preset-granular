@@ -19,7 +19,11 @@ The preset has a simple, layered model for theming:
    — same shape, but scoped to a single component. Merged on top of the
    provider layer in `resolveSelection` order (post‑order DFS); emitted
    only for active themes (intersection with `themes.names`).
-6. **`themes.tokenOverrides`** (app, optional) — final app‑side
+6. **`themes.define`** (app, optional) — themes declared by the **app**: its
+   own palette, inheritance from another theme via `extends`, a custom
+   selector and metadata for the theme switcher. See
+   [App‑owned themes](#app-owned-themes-themesdefine).
+7. **`themes.tokenOverrides`** (app, optional) — final app‑side
    overrides. **Highest priority** — beats anything from
    providers/components and may add brand‑new tokens.
 
@@ -34,11 +38,19 @@ presetGranularNode({
 })
 ```
 
-If `themes` is omitted, the theme names come from the providers: the union of
-every provider's `theme.defaultThemes` (transitive donors included), in
-provider order, deduplicated. If no provider declares the field, the preset
-falls back to a single `light` theme. `themes: { names: [] }` still means
-*no themes at all* — it is not the same as omitting `themes`.
+Theme names are **arbitrary strings**. `light`/`dark` are not baked into the
+core — they are merely the names providers traditionally pick.
+
+Where the final list comes from, highest priority first:
+
+1. `themes.names`, when set explicitly;
+2. the keys of `themes.define`, when the app declares its own themes;
+3. the union of every provider's `theme.defaultThemes` (transitive donors
+   included), in provider order, deduplicated;
+4. the core fallback — a single `light` theme.
+
+`themes: { names: [] }` still means *no themes at all* — it is not the same as
+omitting `themes`.
 
 Run `npx granular doctor` to see which names were selected and where they came
 from; it also flags a theme declared in `defaultThemes` but not actually
@@ -110,6 +122,138 @@ For example one provider ships `dark` under `.dark` and another under
 A token set declared **without** a `selector` merges into the theme's
 **primary** (first‑seen) block instead of spawning a stray `:root` block.
 
+## App‑owned themes: `themes.define`
+
+**The set of themes belongs to the app**, not to the providers. A provider
+ships the values a theme can be built from; which themes exist in the build is
+the app's call. An app may want exactly one theme, or three of its own, or
+three of its own plus the provider's `dark`.
+
+```ts
+presetGranularNode({
+  providers: [dsProvider],          // ships light and dark
+  components: [...],
+  themes: {
+    define: {
+      emerald: {
+        extends: 'light',           // seed from light's effective tokens
+        tokens: { 'app-bg': '#052e1f', 'app-accent': '#10b981' },
+        label: 'Emerald',
+        colorScheme: 'dark',
+      },
+      ocean: {
+        extends: 'light',
+        tokens: { 'app-bg': '#e0f2fe', 'app-accent': '#0284c7' },
+        label: 'Ocean',
+        colorScheme: 'light',
+      },
+    },
+  },
+})
+```
+
+The build contains exactly `emerald` and `ocean`. Neither `light` nor `dark`
+ships: `light` is resolved, but only as a source of values for `extends`.
+
+A working example — [`apps/app-6`](../../apps/app-6/README.md).
+
+### Definition fields
+
+| Field | What it does |
+|---|---|
+| `extends` | name of the theme whose **effective** tokens are used as the seed |
+| `selector` | which selector the theme is emitted under |
+| `tokens` | own tokens, **without** the `--` prefix |
+| `tokensRef` | same, but values are read from a CSS file (like a provider's `tokenDefinitionsRef`) |
+| `label` | switcher caption; travels into the theme manifest |
+| `colorScheme` | `'light' \| 'dark'` — which system scheme the theme leans towards |
+
+### `names` and `define`
+
+As soon as `define` is set and `names` is not, **the build's theme list equals
+the keys of `define`**: an app that declared its own themes owns the list in
+full, and provider `defaultThemes` are not consulted. To get both your own and
+the providers' themes, list everything in `names` explicitly:
+
+```ts
+themes: {
+  names: ['dark', 'emerald'],       // outranks the keys of define
+  define: {
+    emerald: { extends: 'light', tokens: { … } },
+    dark:    { label: 'Dark' },     // a definition without tokens/extends is
+                                     // pure metadata on top of a provider theme
+  },
+}
+```
+
+### Selector
+
+By default an app theme is emitted under `[data-theme="<name>"]`. An attribute
+rather than a class: it holds exactly one value, so switching between three or
+more themes never has to clear the previous theme's class — and the manifest
+derives the activation unambiguously.
+
+An app with a **single** theme usually wants `selector: ':root'` — the theme is
+then active by virtue of existing, and no runtime switcher is needed at all:
+
+```ts
+themes: {
+  define: { brand: { extends: 'light', selector: ':root', tokens: { … } } },
+}
+```
+
+If the theme already has provider contributions and `selector` is omitted, the
+selector they picked is reused.
+
+### What `extends` does
+
+It inherits the **effective** tokens of the base: the provider layer, the
+component layer and the base's own `define`, merged into one map. Then:
+
+- inherited tokens **move under the new theme's selector**. That is not an
+  implementation detail: had they stayed on the base's selector, the theme
+  would only ever activate together with the base;
+- consequently `extends`/`selector` **collapse the theme into a single block**.
+  A theme without them may stay multi‑selector (see above);
+- the base does **not** have to be in `names` — it is resolved for its values
+  and never reaches the CSS;
+- chains are allowed (`ocean-hc extends ocean extends light`); cycles are
+  broken with a warning.
+
+Only a theme with **structural** tokens (`tokenDefinitions` /
+`tokenDefinitionsRef`) can be inherited. A theme the provider ships as a ready
+CSS file (`theme.themes[name]`) is opaque to the preset: it inlines the file
+as‑is and does not know the values. `granular doctor` reports this as
+`theme-extends-unresolved` with reason `opaque` — the cure is
+[`tokenDefinitionsFromCss*`](#tokendefinitionsfromcss--upgrading-themes-to-structural-tokens).
+
+### `tokensRef` — the palette in CSS, not in TS
+
+```ts
+themes: {
+  define: {
+    crimson: {
+      extends: 'light',
+      tokensRef: new URL('./src/themes/crimson.css', import.meta.url).href,
+    },
+  },
+}
+```
+
+The preset's node layer reads the file while `uno.config.ts` is loading; it
+never reaches the client bundle. Literal `tokens` take priority over the values
+from the file. If the ref declares `as`, it becomes the theme's selector (when
+no explicit `selector` is given). A relative string path resolves against
+`process.cwd()`, so `new URL(..., import.meta.url).href` is the safer form.
+
+### Diagnostics
+
+`npx granular doctor` reports that the theme list came from `themes.define`,
+and warns about an `extends` pointing nowhere (`theme-extends-unresolved`) and
+about cycles (`theme-extends-cycle`). The “not every provider covers this
+theme” check (`partial-theme`) does not fire for themes the app ships itself —
+a provider is not expected to know about them.
+
 ## Priority chain
 
 When merging tokens for a concrete `(theme, selector, token)` triple, the
@@ -118,7 +262,8 @@ highest layer wins:
 ```
 provider.theme.tokenDefinitions        (lowest)
   → component.tokenDefinitions         (in resolveSelection order)
-    → themes.tokenOverrides (app)      (highest)
+    → themes.define (app)              (in extends order: bases first)
+      → themes.tokenOverrides (app)    (highest)
 ```
 
 - Components can override providers.
@@ -366,7 +511,13 @@ themes.get()         // 'light'
 themes.set('dark')   // <html data-theme="dark">
 themes.cycle()       // next one, for a single button
 themes.subscribe(name => …)   // returns an unsubscribe function
+themes.entry('dark')          // the whole entry: selectors, activation, label
 ```
+
+`entry(name).label` and `entry(name).colorScheme` come from
+[`themes.define`](#app-owned-themes-themesdefine). Take switcher captions from
+there: a second, hand‑written “name → caption” map drifts from the config
+silently.
 
 `/runtime` is a separate entry point on purpose: it carries types, a selector
 parser and the controller — no FS, no UnoCSS, no dependencies at all, so the
@@ -410,8 +561,12 @@ granularThemesPlugin(granularOptions, {
 
 By default the controller remembers the choice in `localStorage`
 (`granular-theme`) and, when there is nothing stored, follows
-`prefers-color-scheme` — mapping it to themes named `light` / `dark` if the
-manifest has them. Everything is overridable:
+`prefers-color-scheme`. The system scheme maps to a theme in three steps: the
+explicit `systemThemes` option → a theme literally named `light`/`dark` → the
+first theme that declared `colorScheme` in `themes.define`. That last step is
+what makes `auto` work in an app with no `light`/`dark` themes at all (see
+`apps/app-6`): a theme's name no longer has to mean anything. Everything is
+overridable:
 
 ```ts
 createThemeController(manifest, {
