@@ -24,9 +24,11 @@ Playground сценария «динамические классы + токен
   стандартным include UnoCSS — файловый скан провайдера здесь намеренно не
   подключён.
 
-> ⚠️ Ключи `tokenOverrides.light` — это **плоская** карта `имя-токена → значение`
-> (без префикса `--` и без уровня селектора). См. раздел про несоответствие
-> документации в `ANALYSIS.md`.
+> ℹ️ Ключи `tokenOverrides.light` — это **плоская** карта `имя-токена → значение`:
+> без префикса `--` (его дописывает генератор) и без уровня селектора — токены
+> уходят в первичный блок темы. Есть и вложенная форма
+> `{ селектор: { токен: значение } }` — обе описаны в
+> [themes-and-tokens.md](../../docs/ru/themes-and-tokens.md#tokenoverrides--две-формы).
 
 ## Запуск
 
@@ -34,3 +36,14 @@ Playground сценария «динамические классы + токен
 yarn workspace @feugene/simple-package build
 yarn workspace @feugene/granular-app-2 dev
 ```
+
+## Проверка
+
+```bash
+yarn workspace @feugene/granular-app-2 build
+yarn workspace @feugene/granular-app-2 verify
+```
+
+Ожидания — в [`expected-css.mjs`](./expected-css.mjs). Ключевая проверка здесь
+«от обратного»: CSS компонента `XTest1` в выводе быть НЕ должно — в этом
+приложении файловый скан не подключён намеренно.

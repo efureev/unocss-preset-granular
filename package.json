@@ -6,9 +6,6 @@
     "packages/*",
     "apps/*"
   ],
-  "resolutions": {
-    "typescript": "^6.0.3"
-  },
   "scripts": {
     "build:granular": "yarn workspace @feugene/unocss-preset-granular build",
     "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run",
@@ -16,6 +13,8 @@
     "build:packages": "yarn build:granular && yarn build:unocss-mini-extra-rules && yarn workspace @feugene/simple-package build && yarn workspace @feugene/extra-simple-package build",
     "build:apps": "yarn workspace @feugene/granular-app-1 build && yarn workspace @feugene/granular-app-2 build && yarn workspace @feugene/granular-app-3 build && yarn workspace @feugene/granular-app-4 build",
     "build:all": "yarn build:packages && yarn build:apps",
-    "test": "yarn test:granular"
+    "verify:apps": "node scripts/verify-apps.mjs",
+    "test": "yarn test:granular",
+    "test:all": "yarn test:granular && yarn build:all && yarn verify:apps"
   }
 }

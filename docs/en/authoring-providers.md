@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^1",
+    "@feugene/unocss-preset-granular": "^0.5.0",
     "vue": "^3"
   }
 }

@@ -119,8 +119,23 @@ as a CI check. Details: [Troubleshooting](./docs/en/troubleshooting.md).
   [`packages/extra-simple-package`](./packages/extra-simple-package) — two
   reference granular providers (the extra one declares cross‑provider
   `dependencies` on the simple one).
-- [`apps/app-3`](./apps/app-3) — a demo app that consumes both providers
-  through the preset.
+- [`apps/app-1..4`](./apps) — four demo apps, each covering one scenario:
+  minimal auto‑scan (`app-1`), `safelist` + theme token overrides without the
+  file scan (`app-2`), a transitive donor provider and cross‑package component
+  dependencies (`app-3`), nested SFCs plus a third‑party rule set (`app-4`).
+
+They are the only place where the whole chain — provider build → preset →
+UnoCSS → CSS — runs end to end, so they double as the contract's integration
+test:
+
+```bash
+yarn build:all && yarn verify:apps
+```
+
+`verify:apps` compares each app's built CSS against `apps/<app>/expected-css.mjs`
+— the list of things that must (and must not) be in the output. A green build
+alone proves nothing: it stays green when component classes silently vanish
+from the CSS.
 
 ## License
 
