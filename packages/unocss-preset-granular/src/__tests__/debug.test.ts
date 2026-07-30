@@ -42,3 +42,28 @@ describe('createDebug', () => {
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('granular:resolve shown'))
   })
 })
+
+describe('createDebug: разбор DEBUG один раз (AUDIT D4)', () => {
+  it('выключенный логгер — no-op, состояние берётся из DEBUG на момент создания', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    delete process.env.DEBUG
+    const frozen = createDebug('granular:scan')
+
+    // Логгер создан при выключенном DEBUG — включение постфактум его не оживит.
+    process.env.DEBUG = 'granular:*'
+    frozen('ignored')
+    expect(spy).not.toHaveBeenCalled()
+
+    // А новый логгер видит актуальное значение.
+    createDebug('granular:scan')('shown')
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('granular:scan shown'))
+  })
+
+  it('isDebugEnabled остаётся «живым» — читает DEBUG на каждый вызов', () => {
+    delete process.env.DEBUG
+    expect(isDebugEnabled('granular:scan')).toBe(false)
+    process.env.DEBUG = 'granular:scan'
+    expect(isDebugEnabled('granular:scan')).toBe(true)
+  })
+})

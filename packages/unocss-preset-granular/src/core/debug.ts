@@ -29,10 +29,24 @@ export function isDebugEnabled(namespace: string): boolean {
   return debugPatterns().some(pattern => matches(pattern, namespace))
 }
 
-/** Создаёт логгер для namespace; пишет в `stderr` только если он включён в `DEBUG`. */
+/**
+ * Создаёт логгер для namespace; пишет в `stderr` только если он включён в `DEBUG`.
+ *
+ * `DEBUG` разбирается ОДИН раз — при создании логгера, а не на каждый вызов.
+ * Выключенный логгер после этого стоит ровно ничего: возвращается no-op, и
+ * `debugScan(...)`/`debugResolve(...)` в горячих путях не делают ни разбора
+ * строки, ни аллокаций.
+ *
+ * Цена: смена `process.env.DEBUG` в рантайме уже созданными логгерами не
+ * подхватывается. Для переменной окружения, которую выставляют перед запуском
+ * процесса, это ожидаемо; если нужно проверить состояние на лету — есть
+ * {@link isDebugEnabled}, он читает `DEBUG` каждый раз.
+ */
 export function createDebug(namespace: string): (message: string) => void {
+  if (!isDebugEnabled(namespace))
+    return () => {}
+
   return (message: string): void => {
-    if (isDebugEnabled(namespace))
-      console.error(`  ${namespace} ${message}`)
+    console.error(`  ${namespace} ${message}`)
   }
 }

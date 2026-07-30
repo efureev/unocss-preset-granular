@@ -76,6 +76,22 @@ describe('мемоизация инспекции скан-директорий 
   })
 })
 
+describe('мемоизация granularContent (AUDIT D5)', () => {
+  it('повторный вызов отдаёт тот же объект — глобы и регексы не пересобираются', () => {
+    const opts: PresetGranularNodeOptions = { ...options }
+    const first = granularContent(opts)
+    const second = granularContent(opts)
+
+    expect(second).toBe(first)
+    expect(second.pipeline.include).toBe(first.pipeline.include)
+    expect(second.filesystem).toBe(first.filesystem)
+  })
+
+  it('другой объект опций считается заново', () => {
+    expect(granularContent({ ...options })).not.toBe(granularContent({ ...options }))
+  })
+})
+
 describe('doctor и content.filesystem считают одно и то же (AUDIT C5)', () => {
   it('doctor показывает ровно те директории, что уходят в скан', () => {
     const opts: PresetGranularNodeOptions = { ...options }

@@ -116,7 +116,44 @@ async function readCssFrom(file: string, source: CssSource): Promise<string> {
   }
 }
 
-async function resolveComponentCssFiles(
+/**
+ * Кэш резолва путей к CSS компонентов по идентичности РЕЗОЛЮЦИИ (а не опций):
+ * резолюция сама мемоизирована по `options`, так что ключ эквивалентен, зато
+ * функция остаётся вызываемой напрямую.
+ *
+ * Резолв делает `access` на каждый URL из `cssFiles` (проверка «есть ли
+ * исходник, или брать fallback по `cssFileAssetNames`»), а вызывается из трёх
+ * мест — `collectNodeCssSections`, `getGranularComponentCssFiles`,
+ * `getGranularComponentCss` — и заново на КАЖДУЮ регенерацию UnoCSS при HMR.
+ * `readCss` кэширован по mtime, а `access`-проверки не были.
+ *
+ * Кэшируется промис, а не результат: параллельные вызовы (а они и идут
+ * параллельно — секции собираются через `Promise.all`) не должны множить
+ * обход FS.
+ *
+ * Инвалидация: новый объект опций → новая резолюция → новая запись. Появление
+ * или исчезновение файла на диске в пределах ОДНОЙ резолюции не подхватится —
+ * пересборка провайдера в dev-режиме путей не меняет, а перезагрузка конфига
+ * создаёт новый объект опций.
+ */
+const componentCssFilesCache = new WeakMap<
+  ReturnType<typeof resolvePresetGranular>,
+  Promise<ResolvedFile[]>
+>()
+
+function resolveComponentCssFiles(
+  resolution: ReturnType<typeof resolvePresetGranular>,
+): Promise<ResolvedFile[]> {
+  const cached = componentCssFilesCache.get(resolution)
+  if (cached)
+    return cached
+
+  const promise = computeComponentCssFiles(resolution)
+  componentCssFilesCache.set(resolution, promise)
+  return promise
+}
+
+async function computeComponentCssFiles(
   resolution: ReturnType<typeof resolvePresetGranular>,
 ): Promise<ResolvedFile[]> {
   const byKey = new Map<string, GranularProvider>()
@@ -226,11 +263,11 @@ function generateThemeBlocks(
     return tokens
   }
 
-  for (const block of blocks)
-    Object.assign(ensure(block.selector), block.tokens)
-
+  // Один проход: и раскладываем токены по селекторам, и собираем множество
+  // известных имён для `strictTokens` (раньше по `blocks` шли дважды подряд).
   const known = new Set<string>()
   for (const block of blocks) {
+    Object.assign(ensure(block.selector), block.tokens)
     for (const key of Object.keys(block.tokens))
       known.add(key)
   }
@@ -344,13 +381,14 @@ async function collectNodeCssSections(
       }
     }
   }
-  const themeFiles: string[] = []
-  for (const { url, providerId, themeName } of themeFileUrls) {
-    themeFiles.push(await readCssFrom(
+  // Параллельно, как и соседние секции: список URL уже дедуплицирован выше,
+  // порядок сохраняет `Promise.all`.
+  const themeFiles = await Promise.all(
+    themeFileUrls.map(({ url, providerId, themeName }) => readCssFrom(
       resolveCssFilePath(url),
       { origin: `provider '${providerId}'`, section: 'theme', subject: themeName },
-    ))
-  }
+    )),
+  )
 
   // 4. Component CSS.
   const componentFiles = await resolveComponentCssFiles(resolution)
@@ -648,9 +686,27 @@ function buildComponentPipelineIncludes(dirs: readonly string[]): RegExp[] {
  * })
  * ```
  */
+/**
+ * Кэш готового `content` по идентичности `options`.
+ *
+ * `granularContent` вызывает приложение в `uno.config`, а следом — сам
+ * `presetGranularNode`. Обход FS уже мемоизирован, но глобы и `new RegExp` на
+ * каждую компонентную директорию собирались заново на каждый вызов.
+ *
+ * Возвращается ОДИН и тот же объект: UnoCSS его только читает.
+ */
+const contentCache = new WeakMap<
+  PresetGranularNodeOptions,
+  { filesystem: string[], pipeline: { include: RegExp[] } }
+>()
+
 export function granularContent(
   options: PresetGranularNodeOptions,
 ): { filesystem: string[], pipeline: { include: RegExp[] } } {
+  const cached = contentCache.get(options)
+  if (cached)
+    return cached
+
   const scan = options.scan ?? {}
 
   // Один расчёт директорий скана — из него строятся и filesystem-globs,
@@ -666,7 +722,7 @@ export function granularContent(
         extraGlobs: scan.extraGlobs,
       })
 
-  return {
+  const content = {
     filesystem,
     pipeline: {
       include: [
@@ -675,6 +731,9 @@ export function granularContent(
       ],
     },
   }
+
+  contentCache.set(options, content)
+  return content
 }
 
 /**
