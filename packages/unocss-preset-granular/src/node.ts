@@ -33,6 +33,13 @@ export {
 } from './fs/resolveScanDirs'
 export * from './index'
 export {
+  getGranularThemeManifest,
+  GRANULAR_THEMES_MODULE_ID,
+  type GranularThemeManifestOptions,
+  granularThemesPlugin,
+  type GranularVitePlugin,
+} from './node-utils/themeManifest'
+export {
   parseCssCustomPropertyBlocks,
   parseCssCustomPropertyBlocksSync,
   type ParsedTokenBlock,
@@ -57,3 +64,8 @@ export {
   resolveGranularFilesystemGlobs,
   resolvePresetGranularNodePreflights,
 } from './preset.node'
+export {
+  type GranularThemeActivation,
+  type GranularThemeEntry,
+  type GranularThemeManifest,
+} from './runtime/manifest'

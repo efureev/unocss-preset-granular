@@ -5,9 +5,10 @@ any number of **granular providers** (component packages). The preset itself
 is UI‑agnostic — it works on top of the public `GranularProvider` contract.
 
 - **ESM only**, Node ≥ 22, TypeScript strict.
-- Four entries: `.` (browser), `./node` (build‑time FS),
+- Five entries: `.` (browser), `./node` (build‑time FS),
   `./contract` (types + helpers for provider authors),
-  `./vite` (`granularChunkFileNames` for a provider's own build).
+  `./vite` (build helpers for a provider's own bundle),
+  `./runtime` (runtime theme switching, zero deps).
 - Transitive `dependencies` (including cross‑provider) are resolved from a
   single component registry.
 - Static classes from provider components are picked up by UnoCSS via
@@ -41,7 +42,8 @@ is UI‑agnostic — it works on top of the public `GranularProvider` contract.
 - **Monorepo with multiple UI packages** — one app consumes several
   component libraries, dependencies across them resolved automatically.
 - **White‑label / multi‑tenant apps** — swap themes per tenant without
-  re‑authoring components.
+  re‑authoring components, including
+  [at runtime](./docs/en/themes-and-tokens.md#switching-themes-at-runtime).
 - **Micro‑frontends** — each MFE picks its own component subset from
   shared providers; no cross‑team `safelist` coordination.
 - **Incremental migration to UnoCSS** — adopt granular packages one at a
@@ -119,10 +121,11 @@ as a CI check. Details: [Troubleshooting](./docs/en/troubleshooting.md).
   [`packages/extra-simple-package`](./packages/extra-simple-package) — two
   reference granular providers (the extra one declares cross‑provider
   `dependencies` on the simple one).
-- [`apps/app-1..4`](./apps) — four demo apps, each covering one scenario:
+- [`apps/app-1..5`](./apps) — five demo apps, each covering one scenario:
   minimal auto‑scan (`app-1`), `safelist` + theme token overrides without the
   file scan (`app-2`), a transitive donor provider and cross‑package component
-  dependencies (`app-3`), nested SFCs plus a third‑party rule set (`app-4`).
+  dependencies (`app-3`), nested SFCs plus a third‑party rule set (`app-4`),
+  runtime theme switching (`app-5`).
 
 They are the only place where the whole chain — provider build → preset →
 UnoCSS → CSS — runs end to end, so they double as the contract's integration

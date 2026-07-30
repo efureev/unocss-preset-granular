@@ -61,6 +61,11 @@
       "types": "./dist/types/src/vite.d.ts",
       "import": "./dist/vite.js",
       "default": "./dist/vite.js"
+    },
+    "./runtime": {
+      "types": "./dist/types/src/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "default": "./dist/runtime.js"
     }
   },
   "peerDependencies": {

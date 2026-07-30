@@ -6,7 +6,7 @@
 Описание устройства пресета — чтобы можно было предсказывать поведение,
 отлаживать и расширять.
 
-## Четыре точки входа
+## Пять точек входа
 
 | Entry                                       | Когда использовать                          | Побочные эффекты |
 |---------------------------------------------|---------------------------------------------|------------------|
@@ -14,6 +14,7 @@
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, тесты)               | читает файлы     |
 | `@feugene/unocss-preset-granular/contract`  | Авторам провайдеров — типы + `define*`      | нет (типы)       |
 | `@feugene/unocss-preset-granular/vite`      | Vite‑сборке **провайдера** — `granularChunkFileNames`, `granularAssetFileNames` | нет (чистые функции) |
+| `@feugene/unocss-preset-granular/runtime`   | Браузеру — переключение тем в рантайме       | нет (только DOM)     |
 
 Entry `/vite` — часть контракта сканирования, а не опциональное удобство: без
 `granularChunkFileNames` в `build.rollupOptions` провайдера SFC‑чанки лягут
@@ -213,8 +214,15 @@ Node entry ожидает такую раскладку (относительн�
   - Поверхность для авторов провайдеров: `GranularProvider`,
     `GranularComponentDescriptor`, `defineGranular*` и
     `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
+  - `getGranularThemeManifest(options, ?)` / `granularThemesPlugin(options, ?)`
+    — манифест тем для рантайм‑слоя (`virtual:granular-themes`).
 - `@feugene/unocss-preset-granular/vite`
   - `granularChunkFileNames(options?)` — SFC‑чанки в
     `components/<Name>/chunks/`.
   - `granularAssetFileNames(options?)` — CSS компонента в
     `components/<Name>/styles.css`.
+- `@feugene/unocss-preset-granular/runtime`
+  - `createThemeController(manifest, options?)` — переключение тем в рантайме
+    поверх блоков токенов, уже лежащих в CSS.
+  - `resolveThemeActivation(selectors)` — чистый парсер «селектор → операция
+    над DOM», на котором он построен.

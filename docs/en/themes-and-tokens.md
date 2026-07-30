@@ -243,6 +243,140 @@ Absolute path, `file://` URL, or `data:text/css,...`.
 - The trailing `;` of the last declaration in a block is optional, as in CSS:
   `:root { --a: 1px; --b: 2px }` yields both tokens.
 
+## Switching themes at runtime
+
+Every selected theme is already in the CSS — one token block per selector. So
+switching a theme at runtime is **not** a re‑generation: it is a single DOM
+operation that makes another block match.
+
+The catch is that the *selectors* are chosen by the provider while the
+*switching* happens in the browser. Hard‑coding them in the app is how the two
+drift apart silently: a selector that no longer matches produces no error and
+no warning — nothing simply changes. The bridge is a **theme manifest**, built
+by the node layer from the same resolution that emits the CSS.
+
+### 1. Expose the manifest (build side)
+
+```ts
+// vite.config.ts
+import { granularThemesPlugin } from '@feugene/unocss-preset-granular/node'
+import { granularOptions } from './uno.config'
+
+export default defineConfig({
+  plugins: [vue(), UnoCSS(), granularThemesPlugin(granularOptions)],
+})
+```
+
+The plugin serves a virtual module `virtual:granular-themes`. Pass it **the
+same options object** you pass to the preset — that is what guarantees the
+manifest describes the CSS that was actually emitted.
+
+Declare the module for TypeScript:
+
+```ts
+// vite-env.d.ts
+declare module 'virtual:granular-themes' {
+  import type { GranularThemeManifest } from '@feugene/unocss-preset-granular/runtime'
+
+  const manifest: GranularThemeManifest
+  export default manifest
+}
+```
+
+Not on Vite? Build the manifest yourself with
+`getGranularThemeManifest(options)` from `/node` and hand it to the client the
+way you prefer (`define`, an emitted JSON file, SSR payload).
+
+### 2. Switch (runtime side)
+
+```ts
+// theme.ts
+import manifest from 'virtual:granular-themes'
+import { createThemeController } from '@feugene/unocss-preset-granular/runtime'
+
+export const themes = createThemeController(manifest)
+```
+
+```ts
+themes.list()        // ['light', 'dark']
+themes.get()         // 'light'
+themes.set('dark')   // <html data-theme="dark">
+themes.cycle()       // next one, for a single button
+themes.subscribe(name => …)   // returns an unsubscribe function
+```
+
+`/runtime` is a separate entry point on purpose: it carries types, a selector
+parser and the controller — no FS, no UnoCSS, no dependencies at all, so the
+client bundle stays free of preset internals.
+
+Create the controller **before mounting** your framework: applying a theme is
+synchronous, so the first frame is painted in the right theme instead of
+flashing another one.
+
+### How activation is derived
+
+The manifest turns the provider's selector into a DOM operation:
+
+| Provider selector          | Activation                                        |
+|----------------------------|---------------------------------------------------|
+| `:root`, `html`            | `{ type: 'root' }` — always on, nothing to toggle  |
+| `.dark`                    | `{ type: 'class', value: 'dark' }`                 |
+| `[data-theme="dark"]`      | `{ type: 'attribute', name: 'data-theme', value: 'dark' }` |
+| `.theme-dark, .dark, [data-theme="dark"]` | the attribute one — see below       |
+| anything else              | `{ type: 'unknown' }`                              |
+
+When a theme lists several alternatives, the **attribute** wins: it is
+mutually exclusive by nature (`data-theme` holds one value), so switching
+between three or more themes needs no clean‑up of the previous theme's class.
+Switching always removes the other themes' activations first — a leftover
+class would keep overriding the new theme through the cascade.
+
+`unknown` means the build could not tell: it happens when a provider ships a
+theme as a ready‑made CSS file (`theme.themes[name]`) — the preset inlines the
+file as is and does not know what is inside. `set()` on such a theme throws
+with that explanation. Two ways out: move the provider to `tokenDefinitions`
+(then the selector is known), or state the activation explicitly:
+
+```ts
+granularThemesPlugin(granularOptions, {
+  activations: { dark: { type: 'class', value: 'dark' } },
+})
+```
+
+### Persistence and system preference
+
+By default the controller remembers the choice in `localStorage`
+(`granular-theme`) and, when there is nothing stored, follows
+`prefers-color-scheme` — mapping it to themes named `light` / `dark` if the
+manifest has them. Everything is overridable:
+
+```ts
+createThemeController(manifest, {
+  storage: null,                  // do not persist
+  storageKey: 'my-app:theme',
+  initial: 'dark',                // instead of stored/system detection
+  systemThemes: { dark: 'midnight', light: 'daylight' },
+  target: document.body,          // instead of <html>
+})
+```
+
+The controller does **not** subscribe to system scheme changes: a user who
+picked a theme by hand usually does not want the system to override it. If you
+want that behaviour, add a `matchMedia` listener that calls `set()`.
+
+### Token values in the manifest
+
+By default the manifest carries only names, selectors and activations — the
+values are already in the CSS and shipping them again in JS would bloat the
+bundle. If the app itself needs them (palette preview, canvas, inline styles):
+
+```ts
+granularThemesPlugin(granularOptions, { includeTokens: true })
+// manifest.themes[0].tokens → { ':root': { brd: '#e2e8f0', … } }
+```
+
+A working example of all of the above: [`apps/app-5`](../../apps/app-5).
+
 ## `@apply` inside per‑component `styles.css`
 
 `cssFiles` are loaded as **preflights**. UnoCSS's `transformer-directives`

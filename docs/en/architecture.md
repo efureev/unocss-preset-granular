@@ -6,7 +6,7 @@
 This page describes how the preset is put together internally so you can
 reason about its behaviour, trace issues, and extend it.
 
-## Four entry points
+## Five entry points
 
 | Entry                                       | When to use                                 | Side‑effects         |
 |---------------------------------------------|---------------------------------------------|----------------------|
@@ -14,6 +14,7 @@ reason about its behaviour, trace issues, and extend it.
 | `@feugene/unocss-preset-granular/node`      | Build‑time (Vite, CLI, tests)               | reads files from disk|
 | `@feugene/unocss-preset-granular/contract`  | Provider authors — types + `define*` helpers| none (types)         |
 | `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames`, `granularAssetFileNames` | none (pure functions) |
+| `@feugene/unocss-preset-granular/runtime`   | Browser — switching themes at runtime        | none (DOM only)      |
 
 The `/vite` entry is part of the scanning contract, not an optional extra:
 without `granularChunkFileNames` in the provider's `build.rollupOptions`, SFC
@@ -216,8 +217,15 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
   - Surface for provider authors: `GranularProvider`,
     `GranularComponentDescriptor`, `defineGranular*` helpers and
     `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
+  - `getGranularThemeManifest(options, ?)` / `granularThemesPlugin(options, ?)`
+    — the theme manifest for the runtime layer (`virtual:granular-themes`).
 - `@feugene/unocss-preset-granular/vite`
   - `granularChunkFileNames(options?)` — routes SFC chunks into
     `components/<Name>/chunks/`.
   - `granularAssetFileNames(options?)` — routes component CSS into
     `components/<Name>/styles.css`.
+- `@feugene/unocss-preset-granular/runtime`
+  - `createThemeController(manifest, options?)` — runtime theme switching over
+    the token blocks already present in the CSS.
+  - `resolveThemeActivation(selectors)` — the pure selector → DOM‑operation
+    parser behind it.

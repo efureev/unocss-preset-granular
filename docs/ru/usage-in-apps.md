@@ -4,7 +4,7 @@
 > [Сканирование компонентов](./component-scanning.md),
 > [Темы и токены](./themes-and-tokens.md).
 
-## Четыре точки входа
+## Пять точек входа
 
 | Импорт                                       | Где использовать                       |
 |----------------------------------------------|----------------------------------------|
@@ -12,6 +12,7 @@
 | `@feugene/unocss-preset-granular/node`       | Node build‑time (Vite, CLI, тесты)     |
 | `@feugene/unocss-preset-granular/contract`   | типы + `defineGranularComponent/Provider` для авторов провайдеров |
 | `@feugene/unocss-preset-granular/vite`       | `granularChunkFileNames` / `granularAssetFileNames` для Vite‑сборки **провайдера** |
+| `@feugene/unocss-preset-granular/runtime`    | браузеру — `createThemeController` для переключения тем |
 
 Для приложений на Vite почти всегда нужен `/node` — он читает CSS‑файлы с
 диска, делает fallback для `cssFiles` (см.

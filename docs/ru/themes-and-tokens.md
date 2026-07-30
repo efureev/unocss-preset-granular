@@ -241,6 +241,138 @@ export default defineGranularProvider({
 - Точка с запятой у последнего объявления в блоке необязательна, как и в CSS:
   `:root { --a: 1px; --b: 2px }` даёт оба токена.
 
+## Переключение тем в рантайме
+
+Все выбранные темы уже лежат в CSS — по блоку токенов на селектор. Поэтому
+переключение темы в рантайме — это **не** перегенерация, а одна операция над
+DOM, после которой начинает совпадать другой блок.
+
+Загвоздка в том, что *селекторы* выбирает провайдер, а *переключение*
+происходит в браузере. Прописать их в приложении руками — верный способ
+разъехаться молча: несовпавший селектор не даёт ни ошибки, ни предупреждения,
+просто ничего не меняется. Мостом служит **манифест тем**, который node-слой
+строит из той же резолюции, из которой эмитится CSS.
+
+### 1. Отдать манифест (сторона сборки)
+
+```ts
+// vite.config.ts
+import { granularThemesPlugin } from '@feugene/unocss-preset-granular/node'
+import { granularOptions } from './uno.config'
+
+export default defineConfig({
+  plugins: [vue(), UnoCSS(), granularThemesPlugin(granularOptions)],
+})
+```
+
+Плагин отдаёт виртуальный модуль `virtual:granular-themes`. Передавайте в него
+**тот же объект опций**, что и в пресет, — именно это гарантирует, что манифест
+описывает реально эмитнутый CSS.
+
+Объявление модуля для TypeScript:
+
+```ts
+// vite-env.d.ts
+declare module 'virtual:granular-themes' {
+  import type { GranularThemeManifest } from '@feugene/unocss-preset-granular/runtime'
+
+  const manifest: GranularThemeManifest
+  export default manifest
+}
+```
+
+Не на Vite? Соберите манифест сами через `getGranularThemeManifest(options)` из
+`/node` и доставьте в клиент как удобно (`define`, отдельный JSON, SSR-payload).
+
+### 2. Переключать (сторона рантайма)
+
+```ts
+// theme.ts
+import manifest from 'virtual:granular-themes'
+import { createThemeController } from '@feugene/unocss-preset-granular/runtime'
+
+export const themes = createThemeController(manifest)
+```
+
+```ts
+themes.list()        // ['light', 'dark']
+themes.get()         // 'light'
+themes.set('dark')   // <html data-theme="dark">
+themes.cycle()       // следующая по кругу — для одной кнопки
+themes.subscribe(name => …)   // возвращает функцию отписки
+```
+
+`/runtime` — отдельная точка входа намеренно: там только типы, парсер
+селекторов и контроллер. Ни FS, ни UnoCSS, ни зависимостей вообще — клиентский
+бандл не тянет внутренности пресета.
+
+Создавайте контроллер **до монтирования** фреймворка: применение синхронно,
+поэтому первый кадр рисуется сразу в нужной теме, без вспышки чужой.
+
+### Как выводится активация
+
+Манифест превращает селектор провайдера в операцию над DOM:
+
+| Селектор провайдера        | Активация                                          |
+|----------------------------|----------------------------------------------------|
+| `:root`, `html`            | `{ type: 'root' }` — активна всегда, включать нечего |
+| `.dark`                    | `{ type: 'class', value: 'dark' }`                  |
+| `[data-theme="dark"]`      | `{ type: 'attribute', name: 'data-theme', value: 'dark' }` |
+| `.theme-dark, .dark, [data-theme="dark"]` | атрибутная — см. ниже                |
+| всё остальное              | `{ type: 'unknown' }`                               |
+
+Если тема перечисляет несколько альтернатив, побеждает **атрибут**: он
+взаимоисключающий по природе (`data-theme` держит одно значение), поэтому
+переключение между тремя и более темами не требует вычищать класс предыдущей.
+При переключении контроллер сначала снимает активации всех остальных тем —
+оставшийся класс продолжил бы перебивать новую тему по каскаду.
+
+`unknown` означает, что сборка не смогла определить селектор: так бывает, когда
+провайдер отдаёт тему готовым CSS-файлом (`theme.themes[name]`) — пресет
+инлайнит его как есть и не знает, что внутри. `set()` на такой теме бросает
+ошибку с этим объяснением. Выхода два: перевести провайдера на
+`tokenDefinitions` (тогда селектор известен) или задать активацию явно:
+
+```ts
+granularThemesPlugin(granularOptions, {
+  activations: { dark: { type: 'class', value: 'dark' } },
+})
+```
+
+### Сохранение выбора и системная схема
+
+По умолчанию контроллер запоминает выбор в `localStorage` (`granular-theme`), а
+при отсутствии сохранённого — ориентируется на `prefers-color-scheme`,
+сопоставляя её темам с именами `light` / `dark`, если они есть в манифесте.
+Всё переопределяется:
+
+```ts
+createThemeController(manifest, {
+  storage: null,                  // не запоминать
+  storageKey: 'my-app:theme',
+  initial: 'dark',                // вместо хранилища/системы
+  systemThemes: { dark: 'midnight', light: 'daylight' },
+  target: document.body,          // вместо <html>
+})
+```
+
+Контроллер **не** подписывается на изменение системной схемы: пользователь,
+выбравший тему руками, обычно не хочет, чтобы её перебила система. Нужно такое
+поведение — добавьте слушатель `matchMedia`, вызывающий `set()`.
+
+### Значения токенов в манифесте
+
+По умолчанию манифест несёт только имена, селекторы и активации: значения уже в
+CSS, и тащить их второй раз в JS незачем. Если они нужны самому приложению
+(превью палитры, canvas, инлайн-стили):
+
+```ts
+granularThemesPlugin(granularOptions, { includeTokens: true })
+// manifest.themes[0].tokens → { ':root': { brd: '#e2e8f0', … } }
+```
+
+Рабочий пример всего перечисленного — [`apps/app-5`](../../apps/app-5).
+
 ## `@apply` внутри per‑component `styles.css`
 
 `cssFiles` подключаются как UnoCSS **preflights**. Трансформер UnoCSS

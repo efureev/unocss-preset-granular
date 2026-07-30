@@ -4,9 +4,10 @@ Universal UnoCSS preset that aggregates styles, themes and `safelist` from
 any number of **granular providers** (component packages).
 
 - ESM only, Node ≥ 22, TypeScript strict.
-- Four entries: `.` (browser), `./node` (build‑time FS),
+- Five entries: `.` (browser), `./node` (build‑time FS),
   `./contract` (types + `defineGranular*` helpers),
-  `./vite` (`granularChunkFileNames` for a provider's own build).
+  `./vite` (build helpers for a provider's own bundle),
+  `./runtime` (runtime theme switching, zero deps).
 - Transitive `dependencies` (including cross‑provider) are resolved from a
   single component registry.
 - Static classes from provider components are picked up by UnoCSS via

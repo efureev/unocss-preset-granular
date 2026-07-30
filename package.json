@@ -11,7 +11,7 @@
     "test:granular": "yarn workspace @feugene/unocss-preset-granular test:run",
     "build:unocss-mini-extra-rules": "yarn workspace @feugene/unocss-mini-extra-rules build",
     "build:packages": "yarn build:granular && yarn build:unocss-mini-extra-rules && yarn workspace @feugene/simple-package build && yarn workspace @feugene/extra-simple-package build",
-    "build:apps": "yarn workspace @feugene/granular-app-1 build && yarn workspace @feugene/granular-app-2 build && yarn workspace @feugene/granular-app-3 build && yarn workspace @feugene/granular-app-4 build",
+    "build:apps": "yarn workspace @feugene/granular-app-1 build && yarn workspace @feugene/granular-app-2 build && yarn workspace @feugene/granular-app-3 build && yarn workspace @feugene/granular-app-4 build && yarn workspace @feugene/granular-app-5 build",
     "build:all": "yarn build:packages && yarn build:apps",
     "verify:apps": "node scripts/verify-apps.mjs",
     "test": "yarn test:granular",
