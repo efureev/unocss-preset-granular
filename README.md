@@ -55,25 +55,28 @@ is UI‑agnostic — it works on top of the public `GranularProvider` contract.
 ## Quick start
 
 ```bash
-yarn add -D @feugene/unocss-preset-granular unocss @unocss/preset-wind4
+yarn add -D @feugene/unocss-preset-granular unocss   # unocss ^66.7.5 is a peer dep
 ```
 
 ```ts
 // uno.config.ts
-import { defineConfig } from 'unocss'
-import presetWind4 from '@unocss/preset-wind4'
-import { presetGranularNode, granularContent } from '@feugene/unocss-preset-granular/node'
+import { defineConfig, presetMini } from 'unocss'
+import { granularContent, presetGranularNode, type PresetGranularNodeOptions } from '@feugene/unocss-preset-granular/node'
 import simpleProvider from '@feugene/simple-package/granular-provider/node'
 
-const granularOptions = {
+// One and the same object goes into both calls below: the component graph, the
+// FS scan and the emitted CSS are memoised by its identity, so a second object
+// literal means a second full resolution.
+const granularOptions: PresetGranularNodeOptions = {
   providers: [simpleProvider],
   components: [{ provider: '@feugene/simple-package', names: ['XTest1', 'XTestStyled'] }],
   themes: { names: ['light', 'dark'] },
-  layer: 'granular' as const,
+  // `layer` defaults to 'granular' with a declared order of -50 (after
+  // preflights, before utilities); `layer: null` opts out of layers entirely.
 }
 
 export default defineConfig({
-  presets: [presetWind4(), presetGranularNode(granularOptions)],
+  presets: [presetMini(), presetGranularNode(granularOptions)],
   content: granularContent(granularOptions), // required — see docs
 })
 ```
@@ -85,24 +88,30 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 🇬🇧 **English** — [`./docs/en/README.md`](./docs/en/README.md)
 
 - [Getting started](./docs/en/getting-started.md)
+- [Installation](./docs/en/installation.md)
 - [Usage in applications](./docs/en/usage-in-apps.md)
 - [Authoring provider packages](./docs/en/authoring-providers.md)
+- [Component authoring rules](./docs/en/component-authoring.md)
 - [Component scanning (`content.filesystem`)](./docs/en/component-scanning.md)
 - [Themes and tokens](./docs/en/themes-and-tokens.md)
 - [Architecture](./docs/en/architecture.md)
 - [Troubleshooting & recipes](./docs/en/troubleshooting.md)
 - [The `granular` CLI](./docs/en/cli.md)
+- [Migrating `0.4.0` → `0.5.0`](./docs/en/migration-0.5.md)
 
 🇷🇺 **Русский** — [`./docs/ru/README.md`](./docs/ru/README.md)
 
 - [Быстрый старт](./docs/ru/getting-started.md)
+- [Установка и подключение](./docs/ru/installation.md)
 - [Использование в приложениях](./docs/ru/usage-in-apps.md)
 - [Написание пакетов‑провайдеров](./docs/ru/authoring-providers.md)
+- [Правила создания компонента](./docs/ru/component-authoring.md)
 - [Сканирование компонентов (`content.filesystem`)](./docs/ru/component-scanning.md)
 - [Темы и токены](./docs/ru/themes-and-tokens.md)
 - [Архитектура](./docs/ru/architecture.md)
 - [Рецепты и отладка](./docs/ru/troubleshooting.md)
 - [CLI `granular`](./docs/ru/cli.md)
+- [Миграция `0.4.0` → `0.5.0`](./docs/ru/migration-0.5.md)
 
 ## CLI — `granular`
 
@@ -116,8 +125,8 @@ pulled a class into the CSS:
 ```bash
 # granular.options.mjs — the same options object you pass to the preset
 npx granular doctor  ./granular.options.mjs --strict
-npx granular explain ./granular.options.mjs XButton
-npx granular why-css ./granular.options.mjs text-red-500
+npx granular explain ./granular.options.mjs '@feugene/simple-package:XTokenized'
+npx granular why-css ./granular.options.mjs 'rounded-3xl'
 ```
 
 Exit code `1` means layout‑contract violations were found (with `--strict`,
@@ -153,4 +162,4 @@ from the CSS.
 
 ## License
 
-See [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE).

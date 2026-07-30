@@ -33,27 +33,28 @@ any number of **granular providers** (component packages).
 ## Install
 
 ```bash
-yarn add -D @feugene/unocss-preset-granular unocss @unocss/preset-wind4
+yarn add -D @feugene/unocss-preset-granular unocss   # unocss ^66.7.5 is a peer dep
 ```
 
 ## Quick start
 
 ```ts
 // uno.config.ts
-import { defineConfig } from 'unocss'
-import presetWind4 from '@unocss/preset-wind4'
-import { presetGranularNode, granularContent } from '@feugene/unocss-preset-granular/node'
+import { defineConfig, presetMini } from 'unocss'
+import { granularContent, presetGranularNode, type PresetGranularNodeOptions } from '@feugene/unocss-preset-granular/node'
 import simpleProvider from '@feugene/simple-package/granular-provider/node'
 
-const granularOptions = {
+// Pass the SAME object to both calls: resolution, FS scan and emitted CSS are
+// memoised by its identity.
+const granularOptions: PresetGranularNodeOptions = {
   providers: [simpleProvider],
   components: [{ provider: '@feugene/simple-package', names: ['XTest1'] }],
   themes: { names: ['light', 'dark'] },
-  layer: 'granular' as const,
+  // `layer` defaults to 'granular', order -50; `layer: null` disables layering.
 }
 
 export default defineConfig({
-  presets: [presetWind4(), presetGranularNode(granularOptions)],
+  presets: [presetMini(), presetGranularNode(granularOptions)],
   content: granularContent(granularOptions),   // required
 })
 ```
@@ -70,7 +71,8 @@ Full documentation is in the monorepo root, in English and Russian:
 [Themes and tokens](../../docs/en/themes-and-tokens.md) ·
 [Architecture](../../docs/en/architecture.md) ·
 [Troubleshooting](../../docs/en/troubleshooting.md) ·
-[CLI](../../docs/en/cli.md))
+[CLI](../../docs/en/cli.md) ·
+[Migration 0.4 → 0.5](../../docs/en/migration-0.5.md))
 
 🇷🇺 **Русский** — [`docs/ru`](../../docs/ru/README.md)
 ([Быстрый старт](../../docs/ru/getting-started.md) ·
@@ -80,7 +82,8 @@ Full documentation is in the monorepo root, in English and Russian:
 [Темы и токены](../../docs/ru/themes-and-tokens.md) ·
 [Архитектура](../../docs/ru/architecture.md) ·
 [Рецепты и отладка](../../docs/ru/troubleshooting.md) ·
-[CLI](../../docs/ru/cli.md))
+[CLI](../../docs/ru/cli.md) ·
+[Миграция 0.4 → 0.5](../../docs/ru/migration-0.5.md))
 
 ## CLI — `granular`
 
@@ -93,12 +96,12 @@ command takes `--json`.
 
 ```bash
 npx granular doctor  ./granular.options.mjs --strict
-npx granular explain ./granular.options.mjs XButton
-npx granular why-css ./granular.options.mjs text-red-500
+npx granular explain ./granular.options.mjs '@feugene/simple-package:XTokenized'
+npx granular why-css ./granular.options.mjs 'rounded-3xl'
 ```
 
 Full reference: [The `granular` CLI](../../docs/en/cli.md).
 
 ## License
 
-See [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE).
