@@ -1,7 +1,7 @@
 import type { PresetGranularNodeOptions } from '../preset.node'
 import type { GranularThemeActivation, GranularThemeEntry, GranularThemeManifest } from '../runtime/manifest'
 
-import { resolvePresetGranular } from '../preset'
+import { resolveGranularNode } from '../preset.node'
 import { resolveThemeActivation } from '../runtime/manifest'
 
 export interface GranularThemeManifestOptions {
@@ -27,7 +27,8 @@ export interface GranularThemeManifestOptions {
  * Строит манифест тем — то, что рантайму нужно знать о темах сборки.
  *
  * Источник — ТА ЖЕ резолюция, из которой node-слой эмитит CSS
- * (`resolvePresetGranular`, мемоизирована по идентичности `options`), поэтому
+ * (`resolveGranularNode` — мемоизирована по идентичности `options` и разворачивает
+ * `tokenDefinitionsRef`), поэтому
  * манифест не может разъехаться с содержимым стилей: имена тем и селекторы
  * берутся из одного места.
  *
@@ -41,7 +42,7 @@ export function getGranularThemeManifest(
   options: PresetGranularNodeOptions,
   manifestOptions: GranularThemeManifestOptions = {},
 ): GranularThemeManifest {
-  const { themes } = resolvePresetGranular(options)
+  const { themes } = resolveGranularNode(options)
   const overrides = manifestOptions.activations ?? {}
 
   const entries: GranularThemeEntry[] = themes.names.map((name) => {

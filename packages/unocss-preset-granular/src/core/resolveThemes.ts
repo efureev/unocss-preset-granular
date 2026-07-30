@@ -239,8 +239,16 @@ function suppliedThemeNames(provider: GranularProvider): Set<string> {
     names.add(name)
   for (const name of Object.keys(provider.theme?.tokenDefinitions ?? {}))
     names.add(name)
+  // Ссылки считаются источником наравне с литералами: node-слой развернёт их
+  // до того, как дело дойдёт до эмита CSS. Иначе провайдер, отдающий тему
+  // только через `tokenDefinitionsRef`, ложно попадал бы в
+  // `default-theme-without-source`.
+  for (const name of Object.keys(provider.theme?.tokenDefinitionsRef ?? {}))
+    names.add(name)
   for (const component of provider.components) {
     for (const name of Object.keys(component.tokenDefinitions ?? {}))
+      names.add(name)
+    for (const name of Object.keys(component.tokenDefinitionsRef ?? {}))
       names.add(name)
   }
   return names

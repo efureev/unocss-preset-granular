@@ -68,6 +68,15 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
   /**
+   * То же, что {@link tokenDefinitions}, но значения не перечислены, а взяты
+   * из CSS-файла: `{ light: './themes/light.css' }`.
+   *
+   * Читает файл node-слой пресета на этапе загрузки конфига, поэтому
+   * браузерный `config.ts` остаётся без FS-импортов. Литеральные
+   * `tokenDefinitions` для той же темы имеют приоритет над ссылкой.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  /**
    * Идентификатор группы компонентов, шарящих общие SFC-чанки.
    *
    * Если задан, дополнительно к `dist/components/<Name>/` пресет
@@ -79,6 +88,43 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * Без `group` shared-папка не сканируется — компонент изолирован.
    */
   group?: string
+}
+
+/**
+ * ДЕКЛАРАТИВНАЯ ссылка на CSS-файл, из которого node-слой пресета сам вычитает
+ * токены темы.
+ *
+ * Зачем: без неё провайдер, желающий отдать структурные токены, обязан позвать
+ * `tokenDefinitionsFromCssSync` из `/node` — а этот импорт, попав в браузерный
+ * `config.ts`, утаскивает `node:fs` в клиентский бандл (сборка при этом не
+ * падает, ломается рантайм у потребителя). Обходить приходилось вторым файлом
+ * `config.node.ts`. Ссылка — это просто данные, её можно объявлять в
+ * браузерном конфиге, а читает файл пресет.
+ *
+ * Строковая форма — сокращение для `{ url }` с настройками по умолчанию.
+ */
+export interface GranularThemeTokenRef {
+  /**
+   * Путь к CSS. В `defineGranularComponent`/`defineGranularProvider`
+   * относительный путь резолвится от `import.meta.url` вызывающего модуля,
+   * как и `cssFiles`.
+   */
+  url: string
+  /** Какой селектор извлечь из файла. По умолчанию `:root`. */
+  selector?: string
+  /** Под каким селектором эмитить (например, забрать `:root`, выдать `.dark`). */
+  as?: string
+  /**
+   * Строгий режим парсера. По умолчанию `true`: отсутствие запрошенного
+   * селектора или неподдерживаемая вложенность — ошибка, а не тихо пустая тема.
+   */
+  strict?: boolean
+  /**
+   * Имя ассета для fallback'а — как `cssFileAssetNames` у `cssFiles`.
+   * Проставляется `define*`-хелперами; нужно, когда пакет опубликован без
+   * исходников и `url` указывает в несуществующий `src/`.
+   */
+  assetName?: string
 }
 
 export interface GranularThemeTokenSet {
@@ -109,6 +155,11 @@ export interface GranularThemeContribution {
    * Позволяет приложению делать точечные overrides.
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
+  /**
+   * Package-wide аналог {@link GranularComponentDescriptor.tokenDefinitionsRef}:
+   * токены темы вычитываются node-слоем из указанного CSS.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
   /**
    * Имена тем, которые подключить, если приложение не указало
    * `themes.names` явно.
@@ -194,6 +245,12 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
    */
   tokenDefinitions?: Readonly<Record<string, GranularThemeTokenSet>>
   /**
+   * Ссылки на CSS с токенами тем: `{ light: './themes/light.css' }`.
+   * Относительные пути резолвятся от `importMetaUrl`, как и `cssFiles`.
+   * См. `GranularComponentDescriptor.tokenDefinitionsRef`.
+   */
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  /**
    * Идентификатор группы компонентов, шарящих общие SFC.
    * См. `GranularComponentDescriptor.group`.
    */
@@ -223,8 +280,36 @@ export function defineGranularComponent<Name extends string>(
       ? null
       : `components/${options.name}/styles.css`,
     ...(options.tokenDefinitions ? { tokenDefinitions: options.tokenDefinitions } : {}),
+    ...(options.tokenDefinitionsRef
+      ? { tokenDefinitionsRef: resolveTokenRefs(options.tokenDefinitionsRef, importMetaUrl, options.name) }
+      : {}),
     ...(options.group ? { group: options.group } : {}),
   }
+}
+
+/**
+ * Приводит ссылки к абсолютным URL и проставляет `assetName` — имя, по
+ * которому node-слой найдёт файл в опубликованном пакете (там `src/` нет).
+ * Ровно та же схема, что у пары `cssFiles` / `cssFileAssetNames`.
+ */
+function resolveTokenRefs(
+  refs: Readonly<Record<string, GranularThemeTokenRef | string>>,
+  importMetaUrl: string,
+  componentName?: string,
+): Record<string, GranularThemeTokenRef> {
+  return Object.fromEntries(
+    Object.entries(refs).map(([theme, ref]) => {
+      const normalized: GranularThemeTokenRef = typeof ref === 'string' ? { url: ref } : { ...ref }
+      const relative = normalized.url.replace(/^\.\//, '')
+
+      return [theme, {
+        ...normalized,
+        url: new URL(normalized.url, importMetaUrl).href,
+        assetName: normalized.assetName
+          ?? (componentName ? `components/${componentName}/${relative}` : relative),
+      }]
+    }),
+  )
 }
 
 /**

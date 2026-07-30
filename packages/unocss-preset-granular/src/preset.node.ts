@@ -8,6 +8,7 @@ import { resolveGranularLayer } from './core/layer'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
+import { materializeGranularOptions } from './node-utils/materializeRefs'
 import {
   presetGranular,
 
@@ -65,6 +66,21 @@ export interface PresetGranularNodeOptions extends PresetGranularOptions {
    * Если их нет — CSS возвращается без изменений с одним `console.warn`.
    */
   expandDirectives?: boolean
+}
+
+/**
+ * Резолюция для node-слоя: то же, что `resolvePresetGranular`, но поверх
+ * опций с РАЗВЁРНУТЫМИ `tokenDefinitionsRef`.
+ *
+ * Все node-потребители обязаны ходить через неё: материализация возвращает
+ * стабильный по ссылке объект, и только так резолюция, скан и `content`
+ * попадают в одни и те же кэши. Прямой `resolvePresetGranular(options)` в
+ * node-слое дал бы вторую резолюцию — с нераскрытыми ссылками.
+ */
+export function resolveGranularNode(
+  options: PresetGranularNodeOptions,
+): ReturnType<typeof resolvePresetGranular> {
+  return resolvePresetGranular(materializeGranularOptions(options))
 }
 
 interface ResolvedFile {
@@ -334,7 +350,7 @@ interface NodeCssSections {
 async function collectNodeCssSections(
   options: PresetGranularNodeOptions,
 ): Promise<NodeCssSections> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
 
   // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
   const baseTokenUrls = resolveBaseTokenUrls(resolution.providers, options.themes)
@@ -517,7 +533,7 @@ export function resolvePresetGranularNodePreflights(
 export async function getGranularComponentCssFiles(
   options: PresetGranularNodeOptions,
 ): Promise<string[]> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
   const files = await resolveComponentCssFiles(resolution)
   return files.map(f => f.filePath)
 }
@@ -526,7 +542,7 @@ export async function getGranularComponentCssFiles(
 export async function getGranularComponentCss(
   options: PresetGranularNodeOptions,
 ): Promise<string> {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
   const files = await resolveComponentCssFiles(resolution)
   const parts = await Promise.all(files.map(f => readCss(f.filePath)))
   return parts.join('\n')
@@ -588,7 +604,7 @@ export function inspectGranularScanDirs(options: PresetGranularNodeOptions): Sca
   const scan = options.scan ?? {}
   let result: ScanDirsInspection = scan.enabled === false
     ? { dirs: [], skipped: [] }
-    : resolveComponentScanDirs(resolvePresetGranular(options), { strict: scan.strict === true })
+    : resolveComponentScanDirs(resolveGranularNode(options), { strict: scan.strict === true })
 
   if (scan.includeNodeModules === false) {
     result = {
@@ -744,7 +760,9 @@ export function granularContent(
  * используйте хелпер {@link granularContent} в своём `defineConfig`.
  */
 export function presetGranularNode(options: PresetGranularNodeOptions): Preset {
-  const base = presetGranular(options)
+  // Материализованные опции и здесь: иначе браузерный пресет посчитал бы
+  // ВТОРУЮ резолюцию — по исходному объекту.
+  const base = presetGranular(materializeGranularOptions(options))
   // Слой уже проставлен внутри (см. `resolvePresetGranularNodePreflights`),
   // второй проход был бы безоперационным.
   const nodePreflights = resolvePresetGranularNodePreflights(options)
@@ -804,7 +822,7 @@ export function defineGranular(options: PresetGranularNodeOptions): GranularBuil
     options,
     preset: () => presetGranularNode(options),
     content: () => granularContent(options),
-    resolution: () => resolvePresetGranular(options),
+    resolution: () => resolveGranularNode(options),
     nodeCss: () => getGranularNodeCss(options),
   }
 }

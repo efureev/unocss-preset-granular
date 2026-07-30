@@ -50,9 +50,8 @@ export const browserComponents = [
 ]
 
 /**
- * Фабрика провайдера. Node-entry (`./node.ts`) вызывает её с теми же
- * компонентами, подменив те, у которых есть `config.node.ts` — так browser- и
- * node-варианты не разъезжаются по id/базовому URL.
+ * Фабрика провайдера. Оставлена на случай, если понадобится собрать провайдера
+ * с другим набором компонентов (в т.ч. из node-entry).
  */
 export function createSimpleProvider(components: typeof browserComponents): GranularProvider {
     return defineGranularProvider({

@@ -1,17 +1,11 @@
-import {xTokenizedNodeConfig} from '../components/XTokenized/config.node'
-import {browserComponents, createSimpleProvider} from './index'
-
-export {PACKAGE_BASE_URL, PROVIDER_ID, createSimpleProvider} from './index'
-
 /**
- * NODE-вариант провайдера: те же компоненты, но `XTokenized` берётся из
- * `config.node.ts` — с токенами темы, вычитанными из CSS.
+ * NODE-entry провайдера.
  *
- * Именно этот entry подключают `uno.config.ts` приложений. Браузерный
- * `./granular-provider` остаётся свободным от `node:`-импортов.
+ * С появлением `tokenDefinitionsRef` он не отличается от браузерного:
+ * компоненты объявляют токены тем ссылками на CSS, а читает их node-слой
+ * пресета. Entry сохранён как часть публичного API пакета — приложения
+ * подключают именно его, и он остаётся точкой, куда можно добавить
+ * node-специфику, если она понадобится.
  */
-export const simpleProviderNode = createSimpleProvider(
-    browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
-)
-
-export default simpleProviderNode
+export * from './index'
+export {default} from './index'

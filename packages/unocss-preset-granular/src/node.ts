@@ -33,6 +33,10 @@ export {
 } from './fs/resolveScanDirs'
 export * from './index'
 export {
+  GranularTokenRefError,
+  materializeGranularOptions,
+} from './node-utils/materializeRefs'
+export {
   getGranularThemeManifest,
   GRANULAR_THEMES_MODULE_ID,
   type GranularThemeManifestOptions,
@@ -62,6 +66,7 @@ export {
   presetGranularNode,
   type PresetGranularNodeOptions,
   resolveGranularFilesystemGlobs,
+  resolveGranularNode,
   resolvePresetGranularNodePreflights,
 } from './preset.node'
 export {

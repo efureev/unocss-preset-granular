@@ -294,7 +294,34 @@ Three mistakes that build cleanly and break only at runtime:
 `granular-provider/index.ts` — your **browser** export — so the import drags
 `node:fs` into the client bundle. Nothing fails at build time.
 
-If a component needs tokens parsed out of CSS, split the config in two:
+If a component needs tokens parsed out of CSS, **declare a reference instead of
+reading the file yourself** — `tokenDefinitionsRef` is plain data, and the
+preset's node layer resolves it while the app's config loads:
+
+```ts
+// components/XTokenized/config.ts — no /node import, no second file
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitionsRef: {
+    // A literal `new URL(..., import.meta.url)` is what makes the bundler
+    // emit (or inline) the CSS — see "Two forms of a reference" below.
+    light: new URL('./themes/light.css', import.meta.url).href,
+    dark: { url: new URL('./themes/dark.css', import.meta.url).href, as: '.dark' },
+  },
+})
+```
+
+See [Themes and tokens →
+`tokenDefinitionsRef`](./themes-and-tokens.md#tokendefinitionsref--references-instead-of-fs-access)
+for both forms of a reference and what the node layer does with them.
+
+<details>
+<summary>Before <code>tokenDefinitionsRef</code>: the two-file workaround</summary>
+
+The older way was to split the config in two — still valid if you need
+arbitrary node-side computation, not just parsing a CSS file:
 
 ```ts
 // components/XTokenized/config.ts — literals only, browser‑safe
@@ -349,6 +376,8 @@ export default createMyProvider(
   browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
 )
 ```
+
+</details>
 
 **2. Importing a donor's `/node` entry from your browser entry.** Same leak,
 one level up: `granular-provider/index.ts` must import

@@ -291,7 +291,34 @@ granularChunkFileNames({
 `granular-provider/index.ts` — то есть в **браузерный** экспорт, — и тянет
 `node:fs` в клиентский бандл. Сборка при этом не падает.
 
-Если компоненту нужны токены, вычитанные из CSS, разделите конфиг надвое:
+Если компоненту нужны токены, вычитанные из CSS, **объявляйте ссылку вместо
+чтения файла**: `tokenDefinitionsRef` — это данные, а разворачивает их node‑слой
+пресета при загрузке конфига приложения:
+
+```ts
+// components/XTokenized/config.ts — ни импорта /node, ни второго файла
+import { defineGranularComponent } from '@feugene/unocss-preset-granular/contract'
+
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitionsRef: {
+    // Литеральный `new URL(..., import.meta.url)` — то, на что реагирует
+    // бандлер, эмитя (или инлайня) CSS. См. «Две формы ссылки» ниже.
+    light: new URL('./themes/light.css', import.meta.url).href,
+    dark: { url: new URL('./themes/dark.css', import.meta.url).href, as: '.dark' },
+  },
+})
+```
+
+Обе формы ссылки и что с ними делает node‑слой — в
+[Темы и токены →
+`tokenDefinitionsRef`](./themes-and-tokens.md#tokendefinitionsref--ссылки-вместо-обращения-к-fs).
+
+<details>
+<summary>До <code>tokenDefinitionsRef</code>: обходной путь с двумя файлами</summary>
+
+Раньше конфиг приходилось делить надвое — способ остаётся рабочим, если нужны
+произвольные вычисления на стороне node, а не просто разбор CSS:
 
 ```ts
 // components/XTokenized/config.ts — только литералы, browser‑safe
@@ -346,6 +373,8 @@ export default createMyProvider(
   browserComponents.map(c => (c.name === 'XTokenized' ? xTokenizedNodeConfig : c)),
 )
 ```
+
+</details>
 
 **2. Импорт `/node`‑entry донора из своего браузерного entry.** Та же утечка
 уровнем выше: `granular-provider/index.ts` должен импортировать

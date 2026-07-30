@@ -39,41 +39,46 @@ entry (`presetGranularNode`) надстраивает и добавляет:
 
 При вызове `presetGranular*(options)` ядро делает (по порядку):
 
-1. **Expand providers** — `expandProviders(options.providers)` обходит
+1. **Материализация `tokenDefinitionsRef`** (только node entry) — ссылки на
+   CSS-файлы, объявленные провайдерами и компонентами, читаются и превращаются
+   в обычные `tokenDefinitions`; ниже по течению ссылок уже не существует.
+   Результат — производный объект опций, мемоизированный по идентичности
+   исходного.
+2. **Expand providers** — `expandProviders(options.providers)` обходит
    `provider.dependencies` и разворачивает граф в дедуплицированный,
    топологически упорядоченный список провайдеров. Дубликат `id` от двух
    РАЗНЫХ инстансов → `DuplicateProviderIdError`; цикл в зависимостях
    провайдеров → `CircularProviderDependencyError`; `contractVersion`, отличная
    от поддерживаемой (`GRANULAR_CONTRACT_VERSION`), →
    `UnsupportedContractVersionError`.
-2. **Реестр компонентов** — карта `providerId:Name → descriptor` по всем
+3. **Реестр компонентов** — карта `providerId:Name → descriptor` по всем
    провайдерам. Cross‑provider `dependencies` резолвятся против этого
    реестра. Два компонента с одинаковым именем **внутри одного провайдера** →
    `DuplicateComponentNameError` (fail-fast, это баг публикации).
-3. **Selection** — из `options.components` (`'all'` или список селекторов)
+4. **Selection** — из `options.components` (`'all'` или список селекторов)
    вычисляется набор выбранных компонентов.
-4. **Транзитивные зависимости** — DFS (post‑order) по
+5. **Транзитивные зависимости** — DFS (post‑order) по
    `descriptor.dependencies` с детекцией циклов (`CircularDependencyError` /
    `CircularProviderDependencyError`); зависимости идут раньше зависящих.
-5. **Resolution тем** — имена берутся из `options.themes.names`, а если он
+6. **Resolution тем** — имена берутся из `options.themes.names`, а если он
    опущен — из объединения `theme.defaultThemes` всех провайдеров (фолбэк
    `['light']`); затем пересекаются с тем, что каждый провайдер объявил в
    `theme.themes`/`tokenDefinitions`.
    Наборы токенов группируются **по селектору** в
    `tokenRegistry[theme].blocks`, поэтому разные источники могут добавлять в
    одну тему отдельные блоки селекторов.
-6. **Emit `safelist`** — объединение `descriptor.safelist` всех
+7. **Emit `safelist`** — объединение `descriptor.safelist` всех
    резолвнутых компонентов.
-7. **Emit preflights** — для node entry: читать `base.css`, `tokens.css`,
+8. **Emit preflights** — для node entry: читать `base.css`, `tokens.css`,
    все выбранные темы и `cssFiles` каждого резолвнутого компонента;
    конкатенированный результат — один UnoCSS preflight.
-8. **Emit `rules` / `variants` / кастомные preflights** — из
+9. **Emit `rules` / `variants` / кастомные preflights** — из
    `provider.unocss.*` **всех провайдеров развёрнутого графа** —
    `options.providers` плюс их транзитивные `dependencies`, независимо от
    того, попал ли хоть один их компонент в селекцию (если не
    `includeProviderUnocss: false`). Так же ведут себя секции base/tokens/тем:
    они инлайнятся от того же полного списка.
-9. **Emit `content.filesystem`** — только node entry; потребляется через
+10. **Emit `content.filesystem`** — только node entry; потребляется через
    `granularContent(options)`.
 
 Вся резолюция выше (`resolvePresetGranular`) **мемоизируется по идентичности
@@ -216,6 +221,9 @@ Node entry ожидает такую раскладку (относительн�
     `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
   - `getGranularThemeManifest(options, ?)` / `granularThemesPlugin(options, ?)`
     — манифест тем для рантайм‑слоя (`virtual:granular-themes`).
+  - `resolveGranularNode(options)` — резолюция, которой обязаны пользоваться
+    все node‑потребители: то же, что `resolvePresetGranular`, но поверх опций
+    с развёрнутыми `tokenDefinitionsRef`.
 - `@feugene/unocss-preset-granular/vite`
   - `granularChunkFileNames(options?)` — SFC‑чанки в
     `components/<Name>/chunks/`.

@@ -38,41 +38,45 @@ entry (`presetGranularNode`) composes on top and adds:
 
 For a given `presetGranular*(options)` call the core does, in order:
 
-1. **Expand providers** — `expandProviders(options.providers)` walks
+1. **Materialise `tokenDefinitionsRef`** (node entry only) — references to
+   CSS files declared by providers/components are read and turned into plain
+   `tokenDefinitions`, so nothing downstream knows references exist. The result
+   is a derived options object, memoised by the identity of the original one.
+2. **Expand providers** — `expandProviders(options.providers)` walks
    `provider.dependencies` and flattens the graph into a deduplicated,
    topologically ordered list of `GranularProvider` objects. Duplicate `id`s
    backed by two different instances raise `DuplicateProviderIdError`;
    provider dependency cycles raise `CircularProviderDependencyError`; a
    `contractVersion` other than the supported one (`GRANULAR_CONTRACT_VERSION`)
    raises `UnsupportedContractVersionError`.
-2. **Build the component registry** — a map `providerId:Name → descriptor`
+3. **Build the component registry** — a map `providerId:Name → descriptor`
    across all providers. Cross‑provider `dependencies` are resolved against
    this registry. Two components sharing a name **inside one provider** raise
    `DuplicateComponentNameError` (fail‑fast — a publishing bug).
-3. **Resolve selection** — from `options.components` (which is `'all'` or a
+4. **Resolve selection** — from `options.components` (which is `'all'` or a
    list of selectors) compute the set of selected components.
-4. **Resolve transitive dependencies** — DFS (post‑order) over
+5. **Resolve transitive dependencies** — DFS (post‑order) over
    `descriptor.dependencies` with cycle detection (`CircularDependencyError` /
    `CircularProviderDependencyError`); dependencies are emitted before the
    components that depend on them.
-5. **Resolve themes** — take the theme names from `options.themes.names`, or,
+6. **Resolve themes** — take the theme names from `options.themes.names`, or,
    when it is omitted, from the union of every provider's
    `theme.defaultThemes` (fallback: `['light']`), then intersect them with
    what each provider declares in `theme.themes`/`tokenDefinitions`. Token
    sets are grouped **per selector** into `tokenRegistry[theme].blocks`, so
    different sources can contribute distinct selector blocks to one theme.
-6. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
+7. **Emit `safelist`** — union of `descriptor.safelist` of every resolved
    component.
-7. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
+8. **Emit preflights** — for the node entry: read `base.css`, `tokens.css`,
    each selected theme CSS, and each resolved component's `cssFiles` from
    disk; embed the concatenated string into a UnoCSS preflight.
-8. **Emit `rules` / `variants` / custom preflights** — from
+9. **Emit `rules` / `variants` / custom preflights** — from
    `provider.unocss.*` of **every provider in the expanded graph** —
    `options.providers` plus their transitive `dependencies`, whether or not
    any of their components ended up selected (unless
    `includeProviderUnocss: false`). This matches the base/tokens/themes
    sections, which are inlined from the same full list.
-9. **Emit `content.filesystem`** — only the node entry; consumed via
+10. **Emit `content.filesystem`** — only the node entry; consumed via
    `granularContent(options)`.
 
 The whole resolution above (`resolvePresetGranular`) is **memoized by the
@@ -219,6 +223,9 @@ that the app calls once in its `uno.config.ts`. Inputs are the same as for
     `resolvePackageBaseUrl(importMetaUrl, levelsUp?)`.
   - `getGranularThemeManifest(options, ?)` / `granularThemesPlugin(options, ?)`
     — the theme manifest for the runtime layer (`virtual:granular-themes`).
+  - `resolveGranularNode(options)` — the resolution every node consumer must
+    use: same as `resolvePresetGranular`, but over options whose
+    `tokenDefinitionsRef` have been materialised.
 - `@feugene/unocss-preset-granular/vite`
   - `granularChunkFileNames(options?)` — routes SFC chunks into
     `components/<Name>/chunks/`.

@@ -243,6 +243,69 @@ Absolute path, `file://` URL, or `data:text/css,...`.
 - The trailing `;` of the last declaration in a block is optional, as in CSS:
   `:root { --a: 1px; --b: 2px }` yields both tokens.
 
+## `tokenDefinitionsRef` — references instead of FS access
+
+`tokenDefinitions` requires the provider to *have* the values at declaration
+time. Reading them out of a CSS file means calling
+`tokenDefinitionsFromCssSync` from `/node` — and that import, sitting in a
+browser‑side `config.ts`, drags `node:fs` into the client bundle. Nothing fails
+at build time; the consumer's runtime does.
+
+`tokenDefinitionsRef` inverts it: the provider declares **where** the tokens
+live, and the preset's node layer reads the file while the app's config loads.
+A reference is plain data, so it is safe in any config.
+
+```ts
+// components/XTokenized/config.ts — browser‑safe
+export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
+  name: 'XTokenized',
+  tokenDefinitionsRef: {
+    light: new URL('./themes/light.css', import.meta.url).href,
+    dark: {
+      url: new URL('./themes/dark.css', import.meta.url).href,
+      as: '.dark, [data-theme="dark"]',   // take the block, emit it under this
+    },
+  },
+})
+```
+
+The same field exists on `provider.theme` for package‑wide themes. Options
+mirror `tokenDefinitionsFromCss`: `selector` (which block to take, default
+`:root`), `as` (which selector to emit it under), `strict` (default `true`).
+
+If a theme has **both** a literal `tokenDefinitions` entry and a reference, the
+literal wins — a concrete value is more specific, and it lets a provider
+override its own reference without removing it.
+
+### Two forms of a reference
+
+| Form | When |
+|---|---|
+| `new URL('./themes/light.css', import.meta.url).href` | **Default choice.** The bundler recognises this literal and either emits the file as an asset or inlines it as a `data:` URL — so the CSS is guaranteed to exist in the published package. |
+| `'./themes/light.css'` (plain string) | Only when the file is already emitted under the contract path `components/<Name>/…` in `dist` — e.g. a component's `styles.css` routed there by `granularAssetFileNames()`. |
+
+The difference is not cosmetic. A bundler only reacts to the **literal**
+`new URL(..., import.meta.url)`; a plain string is just data it knows nothing
+about, so the file is never copied into `dist` and the reference dangles in the
+published package. The string form has an `assetName` fallback
+(`components/<Name>/<file>` relative to `packageBaseUrl`, exactly like
+`cssFiles` → `cssFileAssetNames`), which is why it works for files that the
+build does emit at the contract path.
+
+A broken reference raises `GranularTokenRefError` naming the provider, the
+component and the theme — and pointing at the form above.
+
+### What it buys you
+
+- No `config.node.ts` twin, no `/node` import in browser configs — the
+  browser/node boundary of the provider holds by construction.
+- The node layer knows the **selector** of every theme, so
+  [runtime switching](#switching-themes-at-runtime) can derive its activation
+  instead of the app hard‑coding it.
+- `granular doctor` and `strictTokens` see these tokens like any other: by the
+  time anything downstream runs, references no longer exist — they have been
+  materialised into `tokenDefinitions`.
+
 ## Switching themes at runtime
 
 Every selected theme is already in the CSS — one token block per selector. So

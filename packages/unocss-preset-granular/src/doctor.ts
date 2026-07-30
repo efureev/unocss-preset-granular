@@ -1,10 +1,10 @@
 import type { GranularComponentDependency } from './contract'
 import type { ResolvedThemeWarning, ThemeNamesSource } from './core/resolveThemes'
 import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
-import type { PresetGranularNodeOptions } from './preset.node'
+import type { resolvePresetGranular } from './preset'
 
-import { resolvePresetGranular } from './preset'
-import { inspectGranularScanDirs, resolveGranularFilesystemGlobs } from './preset.node'
+import type { PresetGranularNodeOptions } from './preset.node'
+import { inspectGranularScanDirs, resolveGranularFilesystemGlobs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
 // Report shape
@@ -149,7 +149,7 @@ function computeTokenConflicts(
  * Чистая относительно опций (только читает FS для проверки директорий).
  */
 export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport {
-  const resolution = resolvePresetGranular(options)
+  const resolution = resolveGranularNode(options)
 
   const providers: DoctorProviderInfo[] = resolution.providers.map(p => ({
     id: p.id,
