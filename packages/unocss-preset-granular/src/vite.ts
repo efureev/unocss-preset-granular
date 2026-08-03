@@ -6,10 +6,27 @@
  * to configure `chunkFileNames`/`assetFileNames` — they consume the
  * already‑built `dist/`.
  *
- * The helpers are pure functions: they do not import Vite, rolldown, node
- * or UnoCSS, so it is safe to import them from a provider's `vite.config.ts`
- * without pulling extra runtime deps.
+ * The naming helpers (`granularChunkFileNames`, `granularAssetFileNames`) are
+ * pure functions. `granularCssAssetsPlugin` is a build-stage plugin and does
+ * touch the filesystem (`node:fs/promises`, `node:path`, `node:url`) — that is
+ * fine here, this entry only ever runs inside `vite.config.ts`, i.e. in Node.
+ *
+ * What the module deliberately does NOT import is Vite, rolldown or UnoCSS:
+ * plugin and config shapes are typed structurally, so importing this from a
+ * provider's `vite.config.ts` pulls no extra runtime deps.
  */
+
+export {
+  type GranularBuildVitePlugin,
+  type GranularCopyPlan,
+  GranularCssAssetError,
+  type GranularCssAssetsOptions,
+  granularCssAssetsPlugin,
+  type GranularPlannedCopy,
+  type GranularResolvedConfigLike,
+  type GranularSkippedCopy,
+  planGranularCssAssets,
+} from './vite-utils/cssAssets'
 
 /**
  * Shape of the `chunkInfo` argument Vite/rolldown passes to

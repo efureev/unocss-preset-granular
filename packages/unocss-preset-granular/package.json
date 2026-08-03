@@ -1,7 +1,7 @@
 {
   "name": "@feugene/unocss-preset-granular",
   "description": "Universal UnoCSS preset that aggregates component styles, themes and safelist from any number of GranularProvider packages. Framework-agnostic, tree-shake friendly.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "author": {
     "name": "Evgeniy Fureev",
@@ -88,7 +88,9 @@
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint --fix src",
+    "lint:check": "eslint src",
     "test": "vitest --config vitest.config.ts",
     "test:run": "vitest run --config vitest.config.ts",
     "test:coverage": "vitest run --config vitest.config.ts --coverage"

@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.5.0",
+    "@feugene/unocss-preset-granular": "^0.6.0",
     "vue": "^3"
   }
 }
@@ -226,6 +226,42 @@ Why it matters: without this, `dist/components/MyButton/index.js` is only a
 re‑export; the real template markup (with `class="p-5"` literals) lives in
 `dist/chunks/*.js`. Moving SFC chunks into `components/<Name>/chunks/` keeps
 them inside the scan directory of the selected component.
+
+### Placing declared CSS in `dist`
+
+`assetFileNames` covers the CSS the **bundler emits** (a component's compiled
+SFC styles). It does nothing for CSS your config merely *declares* — a
+`tokenDefinitionsRef` written as a plain string, or `cssFiles`. Those have an
+`assetName` in the descriptor, and the node layer falls back to it when the
+package ships `dist/` only — but nothing puts a file there, so the consumer
+gets `ENOENT`.
+
+`granularCssAssetsPlugin` closes that gap. It builds its plan from the
+descriptors themselves — for every reference it copies the source to exactly the
+`assetName` the `define*` helper recorded — so it cannot drift from the contract:
+
+```ts
+import { granularCssAssetsPlugin } from '@feugene/unocss-preset-granular/vite'
+import { myButtonConfig } from './src/components/MyButton/config'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    granularCssAssetsPlugin({ components: [myButtonConfig] }),
+    // or, to sweep a whole provider (its theme refs + every component):
+    // granularCssAssetsPlugin({ providers: [myProvider] }),
+  ],
+})
+```
+
+A reference whose source is missing fails the build (`GranularCssAssetError`);
+pass `onMissing: 'warn'` to downgrade that. References already inlined by the
+bundler as `data:` URLs are skipped — there is nothing to copy.
+
+One asymmetry to know: `defineGranularProvider` is an identity function, so
+package‑wide `theme.tokenDefinitionsRef` entries get **no** `assetName`. The
+plugin reports them rather than skipping them quietly — declare those in the
+`new URL(..., import.meta.url)` form.
 
 ### `granularChunkFileNames` options
 
@@ -437,6 +473,8 @@ transitive `safelist` and CSS for you.
 - [ ] `dist/` contains `granular-provider/index.js` (+ `node.js` if used).
 - [ ] `dist/components/<Name>/index.js` exists for every component and
       `dist/components/<Name>/chunks/*.js` contain the real SFC code.
+- [ ] Every string-form `tokenDefinitionsRef` / `cssFiles` entry has a real
+      file at its `assetName` in `dist` (that is what `granularCssAssetsPlugin` is for).
 - [ ] `package.json.exports` maps all those subpaths.
 - [ ] `peerDependencies` lists `@feugene/unocss-preset-granular`, `vue`, and
       every donor provider you declare as `dependencies`.

@@ -2,7 +2,8 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { libInjectCss } from 'vite-plugin-lib-inject-css'
-import { granularAssetFileNames, granularChunkFileNames } from '@feugene/unocss-preset-granular/vite'
+import { granularAssetFileNames, granularChunkFileNames, granularCssAssetsPlugin } from '@feugene/unocss-preset-granular/vite'
+import { xTokenizedConfig } from './src/components/XTokenized/config'
 /** Имена granular-компонентов пакета — источник правды для entry и ассетов. */
 const COMPONENT_NAMES = [
   'XTest1',
@@ -15,7 +16,14 @@ const COMPONENT_NAMES = [
 ]
 
 export default defineConfig({
-  plugins: [vue(), libInjectCss()],
+  plugins: [
+    vue(),
+    libInjectCss(),
+    // XTokenized объявляет тему `dark` СТРОКОЙ — бандлер про такую ссылку
+    // ничего не знает и файл в `dist` не положит. Плагин кладёт его по
+    // `assetName`, то есть ровно туда, куда смотрит фолбэк node-слоя.
+    granularCssAssetsPlugin({ components: [xTokenizedConfig] }),
+  ],
   build: {
     target: 'esnext',
     minify: 'oxc',

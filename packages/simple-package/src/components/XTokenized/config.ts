@@ -10,15 +10,21 @@ import {defineGranularComponent} from '@feugene/unocss-preset-granular/contract'
  */
 export const xTokenizedConfig = defineGranularComponent(import.meta.url, {
     name: 'XTokenized',
+    // Компонент намеренно держит ОБЕ формы ссылки — они не равнозначны, и обе
+    // должны проверяться сборкой приложений (`verify:apps`).
     tokenDefinitionsRef: {
-        // Литеральный `new URL(..., import.meta.url)` — не украшательство:
-        // именно на этот литерал реагирует бандлер и кладёт CSS темы в свой
-        // выход. Строковая форма ('./themes/light.css') подошла бы, только
-        // если файл и так эмитится по контрактному пути
-        // `components/<Name>/...`, как это делает styles.css компонента.
+        // Форма 1 — литерал `new URL(..., import.meta.url)`. Бандлер узнаёт
+        // именно его и инлайнит содержимое файла как `data:text/css;base64`
+        // прямо в чанк. Ничего доносить в `dist` не нужно, но CSS уезжает в
+        // бандл — и, поскольку конфиг общий для browser- и node-entry, платит
+        // за это и клиентский бандл потребителя.
         light: new URL('./themes/light.css', import.meta.url).href,
+        // Форма 2 — строка. В бандл не попадает ничего, файл кладёт в `dist`
+        // по `assetName` плагин `granularCssAssetsPlugin` (см. vite.config.ts).
+        // Выбор в пользу неё — про размер клиентского бандла.
+        //
         // В файле один блок с составным селектором — забираем его и
         // переозначиваем под тот селектор, под которым эмитим.
-        dark: {url: new URL('./themes/dark.css', import.meta.url).href, as: '.dark, [data-theme="dark"]'},
+        dark: {url: './themes/dark.css', as: '.dark, [data-theme="dark"]'},
     },
 })

@@ -43,6 +43,22 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      # Линт и typecheck от версии Node не зависят — гоняем один раз, на
+      # старшей из матрицы, а не по разу на каждую.
+      #
+      # `lint:check`, а не `lint`: последний идёт с `--fix` — в CI он молча
+      # починил бы нарушения и вышел с нулём.
+      - name: Lint package
+        if: matrix.node == 24
+        run: yarn workspace @feugene/unocss-preset-granular lint:check
+
+      # Шире, чем `tsc` внутри `build`: тот собирает d.ts по
+      # `tsconfig.build.json`, где тесты исключены. Здесь — `tsconfig.json`,
+      # то есть вместе с `src/**/__tests__` и конфигами Vite/Vitest.
+      - name: Typecheck package
+        if: matrix.node == 24
+        run: yarn workspace @feugene/unocss-preset-granular typecheck
+
       - name: Test package
         run: yarn test:granular
 
@@ -75,10 +91,47 @@ jobs:
           name: unocss-preset-granular-dist
           path: packages/unocss-preset-granular/dist/
 
+  # Сквозная проверка контракта: сборка пресета → доп-правил → провайдеров →
+  # приложений, затем сверка собранного CSS с `expected-css.mjs` каждого
+  # приложения.
+  #
+  # Юнит-тесты пресета этого не заменяют: успешная сборка сама по себе ничего
+  # не доказывает — она остаётся зелёной и тогда, когда классы компонента молча
+  # пропали из CSS (не та scan-директория, не доехавший в `dist` CSS темы,
+  # разъехавшийся `packageBaseUrl`). Ровно это и ловит `verify:apps`.
+  #
+  # Порядок сборки — часть контракта: провайдеры на своей сборке импортируют
+  # `@feugene/unocss-preset-granular/{vite,contract}` из `dist`. Поэтому здесь
+  # `build:all` целиком, а не переиспользование артефакта: сборка приложения
+  # поверх устаревшего `dist` пресета проходит успешно и даёт неверный CSS.
+  verify-contract:
+    needs:
+      - test-unocss-preset-granular
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build packages and apps
+        run: yarn build:all
+
+      - name: Verify built CSS against app expectations
+        run: yarn verify:apps
+
   # Публикация @feugene/unocss-preset-granular в npm по тегу `v<semver>`.
+  #
+  # Зависит и от `verify-contract`: пресет, который ломает провайдеров или
+  # приложения, публиковать нельзя, даже если его собственные тесты зелёные.
   publish-npm-unocss-preset-granular:
     needs:
       - build-unocss-preset-granular
+      - verify-contract
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -189,9 +242,14 @@ jobs:
   # Публикация @feugene/unocss-mini-extra-rules в npm по тегу
   # `unocss-mini-extra-rules-v<semver>`. Независимый префикс тега позволяет
   # релизить пакет отдельно от остальных.
+  #
+  # `verify-contract` в зависимостях не ради контракта granular (пакет с ним не
+  # связан), а потому что его правила реально потребляет app-4: сломанное
+  # правило проявится там как пропавший CSS, а не как красный тест.
   publish-npm-unocss-mini-extra-rules:
     needs:
       - build-unocss-mini-extra-rules
+      - verify-contract
     if: startsWith(github.ref, 'refs/tags/unocss-mini-extra-rules-v')
     runs-on: ubuntu-latest
     permissions:

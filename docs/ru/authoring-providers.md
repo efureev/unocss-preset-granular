@@ -62,7 +62,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.5.0",
+    "@feugene/unocss-preset-granular": "^0.6.0",
     "vue": "^3"
   }
 }
@@ -221,6 +221,41 @@ export default defineConfig({
 
 Без этого `dist/components/MyButton/index.js` — лишь re‑export, а реальный
 шаблон (с `class="p-5"`) — в `dist/chunks/*.js` за пределами scan‑директории.
+
+### Размещение задекларированного CSS в `dist`
+
+`assetFileNames` закрывает тот CSS, который **эмитит бандлер** (скомпилированные
+стили SFC компонента). До CSS, который конфиг лишь *декларирует*, ему дела нет —
+это `tokenDefinitionsRef`, записанный строкой, и `cssFiles`. У них в дескрипторе
+есть `assetName`, и node‑слой падает на него, когда пакет опубликован только с
+`dist/`, — но положить туда файл некому, и потребитель получает `ENOENT`.
+
+`granularCssAssetsPlugin` закрывает этот разрыв. План он строит из самих
+дескрипторов — для каждой ссылки копирует исходник ровно в тот `assetName`,
+который проставил `define*`‑хелпер, — поэтому разъехаться с контрактом не может:
+
+```ts
+import { granularCssAssetsPlugin } from '@feugene/unocss-preset-granular/vite'
+import { myButtonConfig } from './src/components/MyButton/config'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    granularCssAssetsPlugin({ components: [myButtonConfig] }),
+    // либо разом по всему провайдеру (его темы + все компоненты):
+    // granularCssAssetsPlugin({ providers: [myProvider] }),
+  ],
+})
+```
+
+Ссылка с отсутствующим исходником роняет сборку (`GranularCssAssetError`);
+смягчается через `onMissing: 'warn'`. Ссылки, которые бандлер уже вшил
+`data:`‑URL, пропускаются — копировать там нечего.
+
+Про одну асимметрию стоит знать: `defineGranularProvider` — identity‑функция,
+поэтому у package‑wide записей `theme.tokenDefinitionsRef` `assetName` **нет**.
+Плагин про них сообщает, а не пропускает молча, — такие ссылки объявляйте
+в форме `new URL(..., import.meta.url)`.
 
 ### Опции `granularChunkFileNames`
 
@@ -431,6 +466,8 @@ grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.j
 - [ ] В `dist/` есть `granular-provider/index.js` (+ `node.js`, если есть).
 - [ ] `dist/components/<Name>/index.js` существует для каждого компонента,
       а `dist/components/<Name>/chunks/*.js` содержат реальный SFC‑код.
+- [ ] У каждой строковой записи `tokenDefinitionsRef` / `cssFiles` есть реальный
+      файл по её `assetName` в `dist` (для этого и нужен `granularCssAssetsPlugin`).
 - [ ] `package.json.exports` публикует все эти subpaths.
 - [ ] `peerDependencies` содержит `@feugene/unocss-preset-granular`, `vue`
       и всех доноров из cross‑provider `dependencies`.

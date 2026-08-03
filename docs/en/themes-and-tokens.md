@@ -424,18 +424,24 @@ override its own reference without removing it.
 
 ### Two forms of a reference
 
-| Form | When |
-|---|---|
-| `new URL('./themes/light.css', import.meta.url).href` | **Default choice.** The bundler recognises this literal and either emits the file as an asset or inlines it as a `data:` URL — so the CSS is guaranteed to exist in the published package. |
-| `'./themes/light.css'` (plain string) | Only when the file is already emitted under the contract path `components/<Name>/…` in `dist` — e.g. a component's `styles.css` routed there by `granularAssetFileNames()`. |
+| Form | Cost | When |
+|---|---|---|
+| `new URL('./themes/light.css', import.meta.url).href` | CSS is inlined into the JS chunk | **No build step needed.** The bundler recognises this literal and puts the file content into its output, so the CSS is guaranteed to exist in the published package. |
+| `'./themes/light.css'` (plain string) | needs `granularCssAssetsPlugin` | **Smaller bundles.** Nothing is inlined; the file is placed in `dist` under its `assetName`. |
 
 The difference is not cosmetic. A bundler only reacts to the **literal**
-`new URL(..., import.meta.url)`; a plain string is just data it knows nothing
-about, so the file is never copied into `dist` and the reference dangles in the
-published package. The string form has an `assetName` fallback
-(`components/<Name>/<file>` relative to `packageBaseUrl`, exactly like
-`cssFiles` → `cssFileAssetNames`), which is why it works for files that the
-build does emit at the contract path.
+`new URL(..., import.meta.url)` — and in practice it does not copy the file next
+to the chunk, it inlines the whole thing as a `data:text/css;base64` string. That
+is invisible and free on the node side, but a component `config.ts` is shared by
+the browser and node entries, so the base64 travels into the **consumer's client
+bundle** as well. For a package with many themed components that adds up.
+
+A plain string is just data the bundler knows nothing about, so on its own the
+file never reaches `dist` and the reference dangles in the published package.
+What makes the form whole is the `assetName` fallback (`components/<Name>/<file>`
+relative to `packageBaseUrl`, exactly like `cssFiles` → `cssFileAssetNames`) plus
+a build step that puts the file there — see
+[`granularCssAssetsPlugin`](./authoring-providers.md#placing-declared-css-in-dist).
 
 A broken reference raises `GranularTokenRefError` naming the provider, the
 component and the theme — and pointing at the form above.

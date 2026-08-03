@@ -74,8 +74,19 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * Читает файл node-слой пресета на этапе загрузки конфига, поэтому
    * браузерный `config.ts` остаётся без FS-импортов. Литеральные
    * `tokenDefinitions` для той же темы имеют приоритет над ссылкой.
+   *
+   * ЗДЕСЬ УЖЕ НЕТ строковой формы, в отличие от
+   * {@link DefineGranularComponentOptions.tokenDefinitionsRef}: строку принимает
+   * `defineGranularComponent`, а на выходе она нормализована в объект с
+   * абсолютным `url` и проставленным `assetName`. Дескриптор — это результат,
+   * а не ввод, и потребителю (node-слой, `granularCssAssetsPlugin`) незачем
+   * разбирать вариант, которого на этом этапе не бывает.
+   *
+   * У {@link GranularThemeContribution.tokenDefinitionsRef} объединение
+   * остаётся: `defineGranularProvider` — identity-функция, она ничего не
+   * нормализует.
    */
-  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
+  tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef>>
   /**
    * Идентификатор группы компонентов, шарящих общие SFC-чанки.
    *
@@ -158,6 +169,13 @@ export interface GranularThemeContribution {
   /**
    * Package-wide аналог {@link GranularComponentDescriptor.tokenDefinitionsRef}:
    * токены темы вычитываются node-слоем из указанного CSS.
+   *
+   * Строковая форма ЗДЕСЬ ОСТАЁТСЯ намеренно — не приводить к дескрипторному
+   * варианту. `defineGranularProvider` — identity-функция: она не резолвит
+   * относительный путь и не проставляет `assetName`. Практическое следствие —
+   * разместить такую ссылку в `dist` нечем, поэтому package-wide ссылки
+   * объявляют литералом `new URL(..., import.meta.url)`;
+   * `granularCssAssetsPlugin` сообщает о прочих (`reason: 'no-asset-name'`).
    */
   tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
   /**
@@ -247,7 +265,10 @@ export interface DefineGranularComponentOptions<Name extends string = string> {
   /**
    * Ссылки на CSS с токенами тем: `{ light: './themes/light.css' }`.
    * Относительные пути резолвятся от `importMetaUrl`, как и `cssFiles`.
-   * См. `GranularComponentDescriptor.tokenDefinitionsRef`.
+   *
+   * Это ВВОД, поэтому строковая форма разрешена: `defineGranularComponent`
+   * нормализует её в объект. В самом дескрипторе объединения уже нет —
+   * см. `GranularComponentDescriptor.tokenDefinitionsRef`.
    */
   tokenDefinitionsRef?: Readonly<Record<string, GranularThemeTokenRef | string>>
   /**
