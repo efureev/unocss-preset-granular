@@ -132,8 +132,10 @@ describe('presetGranular', () => {
     it.each([
       'animate-spin',
       'divide-y',
+      'divide-[var(--gr-brd)]',
       'space-y-1',
       'backdrop-blur-sm',
+      'uppercase',
     ])('%s генерирует CSS из коробки', async (token) => {
       expect(await generate(token)).not.toBe('')
     })
@@ -145,6 +147,35 @@ describe('presetGranular', () => {
       const { css } = await uno.generate('animate-spin')
 
       expect(css).toContain('@keyframes granularity-spin')
+    })
+
+    it.each([
+      ['uppercase', 'text-transform:uppercase'],
+      ['lowercase', 'text-transform:lowercase'],
+      ['capitalize', 'text-transform:capitalize'],
+      ['normal-case', 'text-transform:none'],
+    ])('%s задаёт text-transform', async (token, declaration) => {
+      // Семейство `text-transform` живёт в presetWind*, а не в presetMini,
+      // поэтому `uppercase` молча не давал CSS: класс в разметке есть,
+      // текст не преобразован.
+      expect(await generate(token)).toContain(declaration)
+    })
+
+    it('`divide-<цвет>` красит именно разделители, а не контейнер', async () => {
+      const css = await generate('divide-[var(--gr-brd)]')
+
+      expect(css).toContain('border-color:var(--gr-brd)')
+      // Без sibling-селектора правило покрасило бы рамку самого контейнера.
+      expect(css).toContain('>:not([hidden])~:not([hidden])')
+    })
+
+    it('цветовое правило не перехватывает осевые формы `divide-*`', async () => {
+      // Жадное `divide-(.+)` объявлено последним, а UnoCSS отдаёт совпадение
+      // последнему подходящему правилу — без negative lookahead ширина
+      // превратилась бы в цвет.
+      expect(await generate('divide-y-2')).toContain('border-top-width')
+      expect(await generate('divide-x')).toContain('border-left-width')
+      expect(await generate('divide-y-reverse')).toContain('--un-divide-y-reverse:1')
     })
 
     it('includeExtraRules=false возвращает поведение presetMini', async () => {

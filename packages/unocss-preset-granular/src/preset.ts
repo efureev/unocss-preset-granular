@@ -11,6 +11,7 @@ import {
   filterRules,
   spacingRules,
   spacingVariants,
+  typographyRules,
 } from '@feugene/unocss-mini-extra-rules'
 import { createDebug } from './core/debug'
 import { uniqueRef } from './core/dedupe'
@@ -100,10 +101,11 @@ export interface PresetGranularOptions {
    * `@feugene/unocss-mini-extra-rules` (default: `true`).
    *
    * Это не удобство, а условие работоспособности провайдеров. `presetMini` не
-   * знает `animate-*`, `space-*`, `divide-*` и `backdrop-*`, а компоненты их
-   * используют. Без этих правил класс остаётся в разметке, CSS не появляется, и
-   * сборка молча проходит: спиннер не крутится, разделители исчезают. Ловится
-   * такое только глазами на живом приложении.
+   * знает `animate-*`, `space-*`, `divide-*`, `backdrop-*` и всё семейство
+   * `text-transform`, а компоненты их используют. Без этих правил класс
+   * остаётся в разметке, CSS не появляется, и сборка молча проходит: спиннер не
+   * крутится, разделители не красятся, заголовок не переходит в капитель.
+   * Ловится такое только глазами на живом приложении.
    *
    * Правила добавляются ПЕРЕД правилами провайдеров, чтобы провайдер мог
    * перекрыть любое из них своим.
@@ -208,6 +210,7 @@ export function presetGranular(options: PresetGranularOptions): Preset {
       ...colorOpacityRules,
       ...filterRules,
       ...spacingRules,
+      ...typographyRules,
     )
     variants.push(...spacingVariants)
     // `animate-spin` ссылается на `@keyframes granularity-spin`; без preflight
