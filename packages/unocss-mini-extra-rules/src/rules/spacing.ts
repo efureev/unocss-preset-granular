@@ -1,5 +1,5 @@
 import type { Rule } from '@unocss/core'
-import { h } from '@unocss/preset-mini/utils'
+import { colorResolver, h } from '@unocss/preset-mini/utils'
 
 const CALC_PLUS_OPERATOR_RE = /(?<=[0-9a-zA-Z%)\x5D])\s*\+\s*(?=[0-9a-zA-Z%(])/g
 const CSS_LENGTH_RE = /^-?\d+(?:\.\d+)?(?:px|r?em|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc)$/
@@ -90,10 +90,12 @@ function variantSpaceAndDivide(matcher: string) {
   if (matcher.startsWith('_'))
     return
 
-  // Applies the sibling selector to both `space-x/y-*` and `divide-x/y*`
-  // utilities (incl. the bare `divide-x` / `divide-y` and their
-  // `*-reverse` forms).
-  if (!/^(?:space|divide)-[xy](?:-.+)?$/.test(matcher))
+  // Applies the sibling selector to `space-x/y-*` and to every `divide-*`
+  // utility: the axis forms (incl. the bare `divide-x` / `divide-y` and their
+  // `*-reverse` variants) and the colour form (`divide-[var(--x)]`,
+  // `divide-red-500`). The colour must land on the very same siblings the
+  // width does — without it the rule would paint the container instead.
+  if (!/^(?:space-[xy](?:-.+)?|divide-.+)$/.test(matcher))
     return
 
   return {
@@ -239,4 +241,17 @@ export const spacingRules: Rule[] = [
   [/^space-([xy])-(.+)$/, handlerSpace],
   [/^divide-([xy])-reverse$/, handlerDivideReverse],
   [/^divide-([xy])(?:-(.+))?$/, handlerDivide],
+  // Divider colour. The negative lookahead keeps the axis forms out: without
+  // it this greedy rule would also match `divide-y-2` and, being declared
+  // last, would win over the width handler (UnoCSS resolves to the last
+  // matching rule) — turning a width into a colour.
+  //
+  // `colorResolver` is presetMini's own machinery, so the accepted syntax is
+  // exactly that of `border-*`: theme colours, bracket values and the
+  // `/<opacity>` suffix all behave identically.
+  [
+    /^divide-(?![xy](?:$|-))(.+)$/,
+    colorResolver('border-color', 'divide'),
+    { autocomplete: 'divide-$colors' },
+  ],
 ]

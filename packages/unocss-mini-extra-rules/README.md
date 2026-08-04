@@ -3,12 +3,15 @@
 Extra [UnoCSS](https://unocss.dev/) rules that extend
 [`@unocss/preset-mini`](https://unocss.dev/presets/mini) with a few missing
 pieces: spinner animation, bracketed color + opacity helpers, advanced
-filter / backdrop‑filter utilities and Tailwind‑like `space-*` / `divide-*`
-spacing.
+filter / backdrop‑filter utilities, Tailwind‑like `space-*` / `divide-*`
+spacing and the `text-transform` family.
 
 - ESM only, Node ≥ 22, TypeScript strict.
-- Zero runtime dependencies — everything is declared as `peerDependencies`
-  on `@unocss/core`, `@unocss/preset-mini` and `@unocss/rule-utils`.
+- `@unocss/core` stays a `peerDependency` (its `symbols` must be the very
+  same instance the generator uses); `@unocss/preset-mini` and
+  `@unocss/rule-utils` are plain dependencies — only pure helpers are
+  imported from them, and as peers they would fail to resolve under strict
+  `node_modules` layouts.
 - Tree‑shakeable: each group of rules is exported separately so you can
   import only what you need.
 - No coupling to `@feugene/unocss-preset-granular` — usable in any UnoCSS
@@ -131,9 +134,28 @@ Tailwind‑style sibling spacing and divide utilities backed by the
 
 - `space-x-4`, `space-y-2`, `space-x-[1rem]`
 - `space-x-reverse`, `space-y-reverse`
+- `divide-x`, `divide-y`, `divide-y-2`, `divide-x-reverse` — border widths
+- `divide-[var(--brd)]`, `divide-red-500` — divider **colour**, resolved by
+  `presetMini`'s own `colorResolver`, so theme colours, bracket values and the
+  `/<opacity>` suffix behave exactly as they do for `border-*`
+
+Both the width and the colour forms are scoped to the same
+`>:not([hidden])~:not([hidden])` siblings — a colour rule without that
+selector would paint the container's own border instead of the dividers.
 
 Expressions inside `[]` support `calc()`‑friendly arithmetic (including
 mixed units and CSS variables).
+
+### `typographyRules`
+
+The `text-transform` family, which lives in `presetWind*` and is absent from
+`presetMini`:
+
+- `uppercase`, `lowercase`, `capitalize`, `normal-case`
+
+Without them a component that writes `uppercase` keeps the class in the
+markup while no CSS is emitted — the build succeeds and the text is simply
+not transformed.
 
 ## API
 
@@ -146,6 +168,8 @@ export const animationPreflights: Preflight[]
 export const colorOpacityRules: Rule[]
 
 export const filterRules: Rule[]
+
+export const typographyRules: Rule[]
 
 export const spacingRules: Rule[]
 export const spacingVariants: Variant[]
