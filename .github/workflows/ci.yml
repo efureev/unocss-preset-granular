@@ -43,6 +43,14 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      # `src/preset.ts` импортирует `@feugene/unocss-mini-extra-rules`, а тот
+      # экспортируется только из `dist`, которого в чистом чекауте нет
+      # (`/dist` в `.gitignore`). Без этого шага падают и typecheck
+      # (TS2307), и тесты (16 файлов из 25) — локально они зелёные лишь
+      # потому, что `dist` уже лежит от прошлой сборки.
+      - name: Build preset dependency (@feugene/unocss-mini-extra-rules)
+        run: yarn build:unocss-mini-extra-rules
+
       # Линт и typecheck от версии Node не зависят — гоняем один раз, на
       # старшей из матрицы, а не по разу на каждую.
       #
@@ -77,6 +85,12 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+
+      # Порядок обязателен: правила из `@feugene/unocss-mini-extra-rules`
+      # попадают в бандл пресета, а `tsc` берёт оттуда типы для d.ts.
+      # Тот же порядок зафиксирован в корневом `build:packages`.
+      - name: Build preset dependency (@feugene/unocss-mini-extra-rules)
+        run: yarn build:unocss-mini-extra-rules
 
       - name: Build package
         run: yarn build:granular
