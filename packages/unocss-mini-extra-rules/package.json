@@ -45,16 +45,16 @@
       "default": "./dist/index.js"
     }
   },
-  "peerDependencies": {
-    "@unocss/core": "^66.7.5",
+  "dependencies": {
     "@unocss/preset-mini": "^66.7.5",
     "@unocss/rule-utils": "^66.7.5"
+  },
+  "peerDependencies": {
+    "@unocss/core": "^66.7.5"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@unocss/core": "^66.7.5",
-    "@unocss/preset-mini": "^66.7.5",
-    "@unocss/rule-utils": "^66.7.5",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "vue-tsc": "^3.3.7"

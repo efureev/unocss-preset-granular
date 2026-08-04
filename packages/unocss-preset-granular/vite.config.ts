@@ -49,6 +49,12 @@ export default defineConfig({
         'unocss',
         'magic-string',
         '@unocss/core',
+        // Рантайм-зависимость, а не вендоринг. Без этой строки rolldown инлайнит
+        // сам пакет и вместе с ним куски его peer'ов (`@unocss/preset-mini`,
+        // `@unocss/rule-utils`): чанк пресета раздувается с ~40 до ~92 КБ ради
+        // ~10 КБ правил, а потребитель всё равно ставит npm-копию из
+        // `dependencies` — и она остаётся неиспользованной.
+        '@feugene/unocss-mini-extra-rules',
       ],
     },
   },
