@@ -1,8 +1,17 @@
 import type { Preflight, Preset, Rule, Variant } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
+
 import type { ComponentSelection, ResolvedComponents } from './core/resolveSelection'
 import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
+import {
+  animationPreflights,
+  animationRules,
+  colorOpacityRules,
+  filterRules,
+  spacingRules,
+  spacingVariants,
+} from '@feugene/unocss-mini-extra-rules'
 import { createDebug } from './core/debug'
 import { uniqueRef } from './core/dedupe'
 import { expandProviders } from './core/expandProviders'
@@ -86,6 +95,23 @@ export interface PresetGranularOptions {
   preflights?: readonly Preflight[]
   /** Подключать ли rules/variants/preflights от провайдеров (default: true). */
   includeProviderUnocss?: boolean
+  /**
+   * Добирать ли утилиты, которых нет в `presetMini`, из
+   * `@feugene/unocss-mini-extra-rules` (default: `true`).
+   *
+   * Это не удобство, а условие работоспособности провайдеров. `presetMini` не
+   * знает `animate-*`, `space-*`, `divide-*` и `backdrop-*`, а компоненты их
+   * используют. Без этих правил класс остаётся в разметке, CSS не появляется, и
+   * сборка молча проходит: спиннер не крутится, разделители исчезают. Ловится
+   * такое только глазами на живом приложении.
+   *
+   * Правила добавляются ПЕРЕД правилами провайдеров, чтобы провайдер мог
+   * перекрыть любое из них своим.
+   *
+   * `false` — если приложение подмешивает эти же правила само (иначе они просто
+   * продублируются, что безвредно) или сознательно обходится без них.
+   */
+  includeExtraRules?: boolean
 }
 
 /**
@@ -172,6 +198,22 @@ export function presetGranular(options: PresetGranularOptions): Preset {
   const rules: Rule[] = []
   const variants: Variant[] = []
   const providerPreflights: Preflight[] = []
+  const extraPreflights: Preflight[] = []
+
+  // Идут первыми: UnoCSS отдаёт совпадение ПОСЛЕДНЕМУ подходящему правилу,
+  // поэтому одноимённое правило провайдера перекроет базовое, а не наоборот.
+  if (options.includeExtraRules !== false) {
+    rules.push(
+      ...animationRules,
+      ...colorOpacityRules,
+      ...filterRules,
+      ...spacingRules,
+    )
+    variants.push(...spacingVariants)
+    // `animate-spin` ссылается на `@keyframes granularity-spin`; без preflight
+    // правило сгенерируется, а анимации не будет.
+    extraPreflights.push(...animationPreflights)
+  }
 
   if (includeProviderUnocss) {
     // Полный развёрнутый список провайдеров (вместе с транзитивными донорами),
@@ -192,7 +234,7 @@ export function presetGranular(options: PresetGranularOptions): Preset {
   }
 
   const preflights = applyLayerToAll(
-    [...providerPreflights, ...(options.preflights ?? [])],
+    [...extraPreflights, ...providerPreflights, ...(options.preflights ?? [])],
     layer,
   )
 

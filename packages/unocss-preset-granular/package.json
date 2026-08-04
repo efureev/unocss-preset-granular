@@ -68,6 +68,9 @@
       "default": "./dist/runtime.js"
     }
   },
+  "dependencies": {
+    "@feugene/unocss-mini-extra-rules": "^0.3.0"
+  },
   "peerDependencies": {
     "unocss": "^66.7.5"
   },

@@ -1,3 +1,5 @@
+import presetMini from '@unocss/preset-mini'
+import { createGenerator } from 'unocss'
 import { describe, expect, it } from 'vitest'
 
 import { defineGranularProvider } from '../contract'
@@ -62,6 +64,9 @@ describe('presetGranular', () => {
       providers: [provider],
       components: ['ds:DsButton'],
       layer: 'granular',
+      // Тест про вклад ПРОВАЙДЕРА, поэтому базовые доп-правила отключаем:
+      // иначе точные счётчики ниже считали бы ещё и их.
+      includeExtraRules: false,
     })
     expect(p.rules?.length).toBe(1)
     expect(p.preflights?.length).toBe(1)
@@ -84,12 +89,12 @@ describe('presetGranular', () => {
       components: [{ name: 'M', safelist: ['m'] }],
     })
 
-    const p = presetGranular({ providers: [main], components: ['main:M'] })
+    const p = presetGranular({ providers: [main], components: ['main:M'], includeExtraRules: false })
     expect(p.rules?.length).toBe(1)
   })
 
   it('unocss провайдера подключается и при пустой селекции компонентов', () => {
-    const p = presetGranular({ providers: [provider], components: [] })
+    const p = presetGranular({ providers: [provider], components: [], includeExtraRules: false })
     expect(p.rules?.length).toBe(1)
     expect(p.preflights?.length).toBe(1)
   })
@@ -99,8 +104,68 @@ describe('presetGranular', () => {
       providers: [provider],
       components: ['ds:DsButton'],
       includeProviderUnocss: false,
+      includeExtraRules: false,
     })
     expect(p.rules?.length).toBe(0)
     expect(p.preflights?.length).toBe(0)
+  })
+
+  /**
+   * Пресет добирает утилиты, которых нет в `presetMini`.
+   *
+   * Дефект, ради которого это появилось: `presetMini` не знает `animate-*`,
+   * `space-*`, `divide-*` и `backdrop-*`, а компоненты провайдеров их
+   * используют. Приложение, собранное по документации (`presetMini` + этот
+   * пресет), получало разметку с классом и НИ СТРОЧКИ CSS к нему: спиннеры не
+   * крутились, разделители списков не рисовались. Сборка при этом проходила
+   * успешно — поймать можно было только глазами.
+   */
+  describe('базовые доп-правила', () => {
+    async function generate(token: string, options?: { includeExtraRules?: boolean }) {
+      const uno = await createGenerator({
+        presets: [presetMini(), presetGranular({ providers: [provider], components: [], ...options })],
+      })
+      const { css } = await uno.generate(token, { preflights: false })
+      return css.replace(/\/\*[\s\S]*?\*\//g, '').trim()
+    }
+
+    it.each([
+      'animate-spin',
+      'divide-y',
+      'space-y-1',
+      'backdrop-blur-sm',
+    ])('%s генерирует CSS из коробки', async (token) => {
+      expect(await generate(token)).not.toBe('')
+    })
+
+    it('`animate-spin` получает свои @keyframes', async () => {
+      const uno = await createGenerator({
+        presets: [presetMini(), presetGranular({ providers: [provider], components: [] })],
+      })
+      const { css } = await uno.generate('animate-spin')
+
+      expect(css).toContain('@keyframes granularity-spin')
+    })
+
+    it('includeExtraRules=false возвращает поведение presetMini', async () => {
+      expect(await generate('animate-spin', { includeExtraRules: false })).toBe('')
+    })
+
+    it('правило провайдера перекрывает одноимённое базовое', async () => {
+      const overriding = defineGranularProvider({
+        id: 'ovr',
+        contractVersion: 1,
+        packageBaseUrl: 'file:///ovr/',
+        components: [{ name: 'O', safelist: ['o'] }],
+        unocss: { rules: [[/^animate-spin$/, () => ({ animation: 'none' })]] },
+      })
+
+      const uno = await createGenerator({
+        presets: [presetMini(), presetGranular({ providers: [overriding], components: [] })],
+      })
+      const { css } = await uno.generate('animate-spin', { preflights: false })
+
+      expect(css).toContain('animation:none')
+    })
   })
 })
