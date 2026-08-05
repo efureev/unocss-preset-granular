@@ -136,6 +136,7 @@ describe('presetGranular', () => {
       'space-y-1',
       'backdrop-blur-sm',
       'uppercase',
+      'sr-only',
     ])('%s генерирует CSS из коробки', async (token) => {
       expect(await generate(token)).not.toBe('')
     })
@@ -159,6 +160,27 @@ describe('presetGranular', () => {
       // поэтому `uppercase` молча не давал CSS: класс в разметке есть,
       // текст не преобразован.
       expect(await generate(token)).toContain(declaration)
+    })
+
+    it('`sr-only` прячет элемент, оставляя его скринридеру', async () => {
+      // Семейство живёт в presetWind*, а не в presetMini: без правила
+      // «скрытая» подпись остаётся видимой в вёрстке, и ошибки при этом нет.
+      const css = await generate('sr-only')
+
+      expect(css).toContain('position:absolute')
+      expect(css).toContain('width:1px')
+      expect(css).toContain('height:1px')
+      expect(css).toContain('clip:rect(0,0,0,0)')
+      expect(css).toContain('white-space:nowrap')
+    })
+
+    it('`focus:not-sr-only` возвращает элемент в поток', async () => {
+      // Стандартный приём «ссылка на содержимое, видимая только с клавиатуры».
+      const css = await generate('focus:not-sr-only')
+
+      expect(css).toContain(':focus')
+      expect(css).toContain('position:static')
+      expect(css).toContain('clip:auto')
     })
 
     it('`divide-<цвет>` красит именно разделители, а не контейнер', async () => {

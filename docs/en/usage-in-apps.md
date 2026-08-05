@@ -32,7 +32,7 @@ only; an app never needs it.
 | `layer`                                 | UnoCSS layer for everything the preset emits. Default: `'granular'` (its order is declared too). `null` — no layer. |
 | `preflights`                            | Extra inline preflights injected by the app itself.                                  |
 | `includeProviderUnocss`                 | If `false`, skip `provider.unocss.*`. Default: `true`.                               |
-| `includeExtraRules`                     | If `false`, skip the `presetMini` gap‑fill utilities (`animate-*`, `space-*`, `divide-*`, `backdrop-*`, `uppercase` & friends) from `@feugene/unocss-mini-extra-rules`. Default: `true` — components reach for these utilities, and without them the class stays in the markup while no CSS is emitted. |
+| `includeExtraRules`                     | If `false`, skip the `presetMini` gap‑fill utilities (`animate-*`, `space-*`, `divide-*`, `backdrop-*`, `sr-only`, `uppercase` & friends) from `@feugene/unocss-mini-extra-rules`. Default: `true` — components reach for these utilities, and without them the class stays in the markup while no CSS is emitted. |
 | `scan`                                  | Scan options for the `/node` entry (see below).                                      |
 | `expandDirectives`                      | `/node` only. If `true`, expand `@apply`/`@screen`/`theme()` in the injected preflight CSS. Default: `false`. |
 

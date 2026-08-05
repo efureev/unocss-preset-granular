@@ -1,3 +1,4 @@
+export * from './accessibility'
 export * from './animation'
 export * from './colorOpacity'
 export * from './filters'

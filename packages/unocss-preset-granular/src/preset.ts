@@ -5,6 +5,7 @@ import type { GranularProvider } from './contract'
 import type { ComponentSelection, ResolvedComponents } from './core/resolveSelection'
 import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
 import {
+  accessibilityRules,
   animationPreflights,
   animationRules,
   colorOpacityRules,
@@ -206,6 +207,7 @@ export function presetGranular(options: PresetGranularOptions): Preset {
   // поэтому одноимённое правило провайдера перекроет базовое, а не наоборот.
   if (options.includeExtraRules !== false) {
     rules.push(
+      ...accessibilityRules,
       ...animationRules,
       ...colorOpacityRules,
       ...filterRules,

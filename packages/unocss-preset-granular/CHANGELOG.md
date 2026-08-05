@@ -19,6 +19,21 @@ What "breaking" means here, in decreasing order of blast radius:
 Entries before `0.7.0` were reconstructed from git history and release tags —
 they summarise what shipped, not what was written down at the time.
 
+## [Unreleased]
+
+### Added
+
+- **`sr-only` / `not-sr-only` are now part of the `includeExtraRules` set**
+  (`accessibilityRules` in `@feugene/unocss-mini-extra-rules`). Like the
+  `text-transform` family, the pair lives in `presetWind*` and is absent from
+  `presetMini`, so a component writing `sr-only` kept the class in the markup
+  with no CSS behind it — the "visually hidden" label was simply visible, and
+  nothing in the build said so.
+
+  Declarations mirror `presetWind*` one for one: with both loaded, UnoCSS
+  resolves to the last matching rule, so a divergence here would make the
+  emitted CSS depend on preset order.
+
 ## [0.7.0] — 2026-08-05
 
 ### Added

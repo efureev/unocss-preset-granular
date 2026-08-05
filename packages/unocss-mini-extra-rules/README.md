@@ -4,7 +4,7 @@ Extra [UnoCSS](https://unocss.dev/) rules that extend
 [`@unocss/preset-mini`](https://unocss.dev/presets/mini) with a few missing
 pieces: spinner animation, bracketed color + opacity helpers, advanced
 filter / backdrop‑filter utilities, Tailwind‑like `space-*` / `divide-*`
-spacing and the `text-transform` family.
+spacing, the `text-transform` family and the `sr-only` screen‑reader pair.
 
 - ESM only, Node ≥ 22, TypeScript strict.
 - `@unocss/core` stays a `peerDependency` (its `symbols` must be the very
@@ -32,6 +32,8 @@ shapes that are convenient to have in real‑world apps:
   colorisation.
 - Tailwind‑compatible `space-x-*`, `space-y-*`, `space-*-reverse`,
   `divide-*` variant behaviour.
+- `sr-only` / `not-sr-only`, without which visually hidden labels stay
+  visible.
 
 This package bundles all of the above as small, composable `Rule[]` /
 `Preflight[]` / `Variant[]` arrays.
@@ -157,10 +159,25 @@ Without them a component that writes `uppercase` keeps the class in the
 markup while no CSS is emitted — the build succeeds and the text is simply
 not transformed.
 
+### `accessibilityRules`
+
+The screen‑reader pair, also a `presetWind*`‑only family:
+
+- `sr-only` — takes the element out of the visual flow while keeping it in
+  the accessibility tree
+- `not-sr-only` — undoes it, for the standard
+  `class="sr-only focus:not-sr-only"` skip‑link pattern
+
+Declarations match `presetWind*` one for one — with both loaded, UnoCSS
+resolves to the last matching rule, so any divergence would make the CSS
+depend on preset order.
+
 ## API
 
 ```ts
 import type { Preflight, Rule, Variant } from '@unocss/core'
+
+export const accessibilityRules: Rule[]
 
 export const animationRules: Rule[]
 export const animationPreflights: Preflight[]
