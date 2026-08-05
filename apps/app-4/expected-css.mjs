@@ -37,6 +37,14 @@ export default {
       what: 'spacingRules + spacingVariants',
       css: 'space-x-4',
     },
+    {
+      what: 'accessibilityRules: sr-only',
+      css: 'clip:rect(0,0,0,0)',
+    },
+    {
+      what: 'accessibilityRules: not-sr-only под вариантом focus',
+      css: 'not-sr-only:focus',
+    },
   ],
 
   absent: [

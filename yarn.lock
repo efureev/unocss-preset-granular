@@ -316,11 +316,6 @@
     "@eslint/core" "^1.2.1"
     levn "^0.4.1"
 
-"@feugene/unocss-mini-extra-rules@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@feugene/unocss-mini-extra-rules/-/unocss-mini-extra-rules-0.3.0.tgz#91e1920fe0765860115dc7a8136907235f0ce989"
-  integrity sha512-t0/jBvhSkwgmizCY8S021Zto7AqONAP0XWnjbg6cO9WCiC398Im9EOH4JWrxzPO2LTnkF0sv7dFRhNWUHlKeVg==
-
 "@humanfs/core@^0.19.2":
   version "0.19.2"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.2.tgz#a8272ca03b2acf492670222b2320b6c421bfde60"

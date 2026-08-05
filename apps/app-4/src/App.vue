@@ -30,6 +30,13 @@ import {XNestedReverse} from "@feugene/simple-package/components/XNestedReverse"
       <div class="p-4 blur-1 saturate-150 backdrop-blur-md">
         композиция blur / saturate / backdrop → filterRules
       </div>
+
+      <!-- accessibilityRules: пара sr-only / not-sr-only в её обычном виде —
+           ссылка, видимая только при навигации с клавиатуры. -->
+      <div class="p-4">
+        <a href="#main" class="sr-only focus:not-sr-only">перейти к содержимому</a>
+        <span>скрытая от глаз ссылка → accessibilityRules</span>
+      </div>
     </section>
 
     <!-- spacingRules + spacingVariants -->
