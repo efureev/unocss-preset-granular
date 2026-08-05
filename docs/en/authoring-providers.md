@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.6.0",
+    "@feugene/unocss-preset-granular": "^0.7.0",
     "vue": "^3"
   }
 }
@@ -455,11 +455,21 @@ pulls in neither — you get the utility classes and lose the component's own
 stylesheet. Declare the edge in `dependencies`; the preset collects the
 transitive `safelist` and CSS for you.
 
+**7. Letting `dependencies` drift from what you ship.** Your bundler never reads
+`dependencies`, so forgetting an edge costs you nothing at build time and costs
+your consumer a colourless nested component. Run `granular doctor` — it compares
+the declared graph against the imports actually present in your build output and
+reports every gap as `undeclared-dependency`. Always **with
+`components: 'all'`**: only selected components serve as sources, so on an app's
+configuration you would be checking that selection's closure rather than your
+package. In CI, `--strict`. The limits of the check are listed in
+[cli.md](./cli.md).
+
 ## Rules recap
 
 - `safelist` → **only** component's own dynamic classes.
-- `dependencies` → declare transitive components (same‑provider short name,
-  `providerId:Name`, or object form).
+- `dependencies` → components your built code **actually imports**
+  (same‑provider short name, `providerId:Name`, or object form).
 - `cssFiles` → component‑local CSS that must always ship as preflight.
 - `packageBaseUrl` → must point to the **package directory**, not a module.
 - Always use runtime‑built `packageBaseUrl` if you bundle with

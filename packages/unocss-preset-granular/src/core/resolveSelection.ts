@@ -96,6 +96,41 @@ export function normalizeDependency(
   return dep.components.map(name => toComponentKey(dep.provider, name))
 }
 
+/**
+ * Транзитивное замыкание `dependencies` одного компонента, включая его самого.
+ *
+ * В отличие от {@link resolveSelection} ничего не требует: ссылка на
+ * незарегистрированный компонент просто обрывает ветку. Замыкание нужно
+ * потребителям, которые СРАВНИВАЮТ граф с чем-то ещё (`granular doctor`
+ * сверяет его с фактическими импортами в `dist`), — им нельзя падать на том,
+ * на чём резолв селекции обязан упасть.
+ */
+export function collectDependencyClosure(
+  registry: ComponentRegistry,
+  root: ComponentKey,
+): Set<ComponentKey> {
+  const closure = new Set<ComponentKey>()
+  const queue: ComponentKey[] = [root]
+
+  while (queue.length > 0) {
+    const key = queue.pop()!
+    if (closure.has(key))
+      continue
+    closure.add(key)
+
+    const entry = registry.components.get(key)
+    if (!entry)
+      continue
+
+    for (const dep of entry.descriptor.dependencies ?? []) {
+      for (const depKey of normalizeDependency(dep, entry.provider.id))
+        queue.push(depKey)
+    }
+  }
+
+  return closure
+}
+
 export interface ResolvedComponents {
   /** Ключи компонентов в порядке post-order DFS (deps раньше зависящих). */
   readonly order: readonly ComponentKey[]

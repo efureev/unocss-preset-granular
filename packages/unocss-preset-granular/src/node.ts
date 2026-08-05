@@ -10,6 +10,7 @@ export {
   type DoctorScanDir,
   type DoctorThemeBlock,
   type DoctorTokenConflict,
+  type DoctorUndeclaredDependency,
   formatDoctorReport,
   granularDoctor,
 } from './doctor'

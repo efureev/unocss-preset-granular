@@ -85,6 +85,9 @@ Full documentation is in the monorepo root, in English and Russian:
 [CLI](../../docs/ru/cli.md) ·
 [Миграция 0.4 → 0.5](../../docs/ru/migration-0.5.md))
 
+Release history, and what "breaking" means in a `0.x` minor:
+[CHANGELOG.md](./CHANGELOG.md).
+
 ## CLI — `granular`
 
 `doctor` prints the resolved configuration: providers, the transitive component

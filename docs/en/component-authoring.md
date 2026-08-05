@@ -99,10 +99,35 @@ export const myButtonConfig = defineGranularComponent(import.meta.url, {
 | Field          | TL;DR                                                                     |
 |----------------|---------------------------------------------------------------------------|
 | `name`         | PascalCase, strictly === directory name.                                  |
-| `dependencies` | Only components your **template** truly depends on.                       |
+| `dependencies` | Only components your built code **actually imports**.                     |
 | `safelist`     | `string \| RegExp`. Only what **can't** be extracted statically.          |
 | `cssFiles`     | Paths relative to `config.ts`. Shipped as UnoCSS `preflights`.            |
 | `tokenDefinitions` | `Record<themeName, { selector, tokens }>`. CSS theme tokens published by this component. |
+
+### `dependencies` — critical
+
+There is exactly one criterion: **the component's built code imports another
+granular component's directory**. Not "the template" — an import from
+`<script setup>`, from a composable, from a render function or a dynamic
+`import()` counts just the same.
+
+- ✅ My component renders someone else's (`<GrButton>` inside `GrSidebar.vue`).
+- ✅ The other component is pulled in conditionally or lazily — `import()` is
+  an edge too.
+- ❌ I import a constant, a type or a helper from another component's
+  directory and it renders nothing: that is not a dependency, and declaring
+  it ships the donor's entire CSS and safelist to every consumer of mine.
+- ❌ The component appears next to mine in a demo or in the docs, but not
+  inside my own template.
+
+What happens when you forget an edge: the preset scans `components/<Name>/`
+and merges `safelist` only for components in the selection. An app with
+`components: ['GrSidebar']` never looks into `components/GrButton/` — the
+button rendered inside the sidebar comes out with no background and no focus
+ring. Nothing fails: the provider builds, the types are intact, the app
+builds. To check, run `granular doctor` with `components: 'all'`: it reports
+a declared graph that disagrees with the imports actually present in `dist`
+as `undeclared-dependency` (→ [cli.md](./cli.md)).
 
 ### `safelist` — critical
 

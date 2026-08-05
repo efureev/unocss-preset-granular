@@ -135,7 +135,7 @@ interface GranularComponentDescriptor {
 | Field | Requirement |
 |---|---|
 | `name` | **MUST** be unique within the provider. It is also the directory name in the layout contract (§7), so it **MUST** be a valid path segment. Duplicates raise `DuplicateComponentNameError`. |
-| `dependencies` | Other components required by this one; see §4.1. |
+| `dependencies` | Other components required by this one; see §4.1. A component whose emitted code imports another component's directory (§7) **MUST** declare that component here. |
 | `safelist` | **MUST** contain only this component's **own** classes, and only those that static extraction cannot see (classes built at runtime). Classes written literally in the template **MUST NOT** be listed — scanning (§7) covers them. |
 | `cssFiles` | Absolute URL strings, normally produced by `defineGranularComponent`. Loaded as UnoCSS preflights. |
 | `cssFileAssetNames` | Positional fallback for `cssFiles`; see §4.2. |
@@ -159,6 +159,19 @@ A `GranularComponentDependency` is one of:
 Form 1 is available **only** in `component.dependencies`. It is **not** valid
 in the consumer's `options.components`, which requires a qualified key or the
 object form.
+
+The declared graph **MUST** cover what the provider actually ships: if a
+component's emitted code imports a file under another component's directory
+(§7), directly or through a shared chunk, that component **MUST** be reachable
+from its `dependencies`. Nothing in a provider's build enforces this —
+bundlers do not read `dependencies` — and the consequence of a missing edge is
+silent: an application selecting only the outer component never scans the inner
+one's directory and never merges its `safelist` (§7.1). `granular doctor`
+reports the divergence as `undeclared-dependency` (§10).
+
+The converse is **not** required: importing a constant, a type or a helper from
+another component's directory is not a dependency in this sense. Declaring it
+pulls the donor's whole `safelist` and CSS into every consumer.
 
 ### 4.2 CSS file fallback
 
@@ -398,6 +411,15 @@ pipeline the build uses and exits `1` on any layout-contract violation. It is
 the normative conformance check for §7 and **SHOULD** run in a provider's CI.
 See [The `granular` CLI](../../../docs/en/cli.md).
 
+It also compares the declared dependency graph (§4.1) against the imports
+present in the emitted code of the selected components and reports every edge
+not covered by the graph as `undeclared-dependency`. That check is heuristic —
+it reads the text of the bundle, not an AST — so its level is `warn`: it moves
+`clean`, not `ok`, and fails the command only under `--strict`. A provider's CI
+**SHOULD** run it with every component selected, since only selected components
+serve as sources. Its limits are listed in
+[The `granular` CLI](../../../docs/en/cli.md).
+
 `doctor` does **not** verify that declared CSS files exist (§4.2), that the
 browser/node boundary is intact (§9), or that `safelist` is minimal. Those
 require the checks described in their own sections.
@@ -442,7 +464,8 @@ that was simply absent.
 - [ ] Token keys carry no `--` prefix.
 - [ ] Browser entry free of `./node` imports, verified on the bundle.
 - [ ] Cross-provider donors listed in `peerDependencies`.
-- [ ] `granular doctor` exits `0` with all components selected.
+- [ ] `granular doctor --strict` exits `0` with all components selected — in
+      particular, no `undeclared-dependency`.
 - [ ] Smoke test: install into a fresh app, select one component, build, and
       confirm its classes appear in the CSS with no `safelist`.
 

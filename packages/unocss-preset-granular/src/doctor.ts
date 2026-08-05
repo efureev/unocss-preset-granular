@@ -1,9 +1,13 @@
 import type { GranularComponentDependency, GranularProvider } from './contract'
 import type { ResolvedThemeWarning, ThemeNamesSource } from './core/resolveThemes'
+import type { EmittedImportEdge } from './fs/emittedImports'
 import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
-import type { resolvePresetGranular } from './preset'
+import type { PresetGranularResolution, resolvePresetGranular } from './preset'
 
 import type { PresetGranularNodeOptions } from './preset.node'
+import { buildRegistry } from './core/registry'
+import { collectDependencyClosure } from './core/resolveSelection'
+import { inspectEmittedComponentImports } from './fs/emittedImports'
 import { inspectGranularScanDirs, resolveGranularFilesystemGlobs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,14 @@ export type DoctorScanDir = ResolvedScanDir
  */
 export type DoctorMissingDir = SkippedScanDir
 
+/**
+ * Импорт в чужую директорию, не покрытый графом `dependencies`.
+ *
+ * Тот же тип, что отдаёт FS-инспектор, — doctor не строит собственного обхода
+ * `dist` и потому не может разойтись с тем, что реально отгружено.
+ */
+export type DoctorUndeclaredDependency = EmittedImportEdge
+
 /** Уровень диагностики. `error` роняет `doctor`, `warn` — только с `--strict`. */
 export type DoctorDiagnosticLevel = 'error' | 'warn'
 
@@ -64,13 +76,16 @@ export type DoctorDiagnosticLevel = 'error' | 'warn'
  *   - `layout-contract` — компонент не попал в скан (единственный `error`);
  *   - `theme-warning` — предупреждение резолва тем (`ResolvedThemeWarning`);
  *   - `token-conflict` — токен задаётся несколькими слоями;
- *   - `unused-provider` — провайдер в сборке не даёт ей ничего.
+ *   - `unused-provider` — провайдер в сборке не даёт ей ничего;
+ *   - `undeclared-dependency` — собранный компонент импортирует чужой,
+ *     не объявив его в `dependencies`.
  */
 export type DoctorDiagnosticCode
   = | 'layout-contract'
     | 'theme-warning'
     | 'token-conflict'
     | 'unused-provider'
+    | 'undeclared-dependency'
 
 /**
  * Одна проблема с уровнем.
@@ -100,6 +115,8 @@ export interface DoctorReport {
     warnings: readonly ResolvedThemeWarning[]
   }
   tokenConflicts: DoctorTokenConflict[]
+  /** Рёбра `dist`-импортов, которых нет в объявленном графе зависимостей. */
+  undeclaredDependencies: DoctorUndeclaredDependency[]
   scan: {
     globs: string[]
     dirs: DoctorScanDir[]
@@ -180,6 +197,37 @@ function computeTokenConflicts(
     .map(e => ({ theme: e.theme, selector: e.selector, token: e.token, sources: e.sources, finalValue: e.value }))
 }
 
+/**
+ * Импорты в `dist`, не покрытые объявленным графом.
+ *
+ * Проверка сознательно НЕ смотрит на текущую селекцию: компонент-цель может
+ * оказаться выбранным по другой причине, и тогда в этой конкретной сборке CSS
+ * будет верным — но `dependencies` всё равно врут, и у следующего потребителя,
+ * выбравшего компонент отдельно, классы исчезнут. Иначе самая частая
+ * конфигурация (`components: 'all'`) не находила бы ничего никогда.
+ *
+ * От селекции не зависят ЦЕЛИ; ИСТОЧНИКАМИ остаются только выбранные
+ * компоненты (`resolution.resolved.entries`) — читать `dist` пакета целиком
+ * ради конфигурации приложения незачем. Поэтому автору провайдера доктора
+ * надо запускать с `components: 'all'`, иначе он проверит лишь замыкание
+ * своей селекции (это сказано в `docs/{en,ru}/authoring-providers.md`).
+ */
+function computeUndeclaredDependencies(
+  resolution: PresetGranularResolution,
+): DoctorUndeclaredDependency[] {
+  const registry = buildRegistry(resolution.providers)
+  const closures = new Map<string, Set<string>>()
+
+  return inspectEmittedComponentImports(resolution).filter((edge) => {
+    let closure = closures.get(edge.from)
+    if (!closure) {
+      closure = collectDependencyClosure(registry, edge.from)
+      closures.set(edge.from, closure)
+    }
+    return !closure.has(edge.to)
+  })
+}
+
 /** Причина, по которой компонент не попал в скан — общая для отчёта и диагностик. */
 const REASON_TEXT: Record<DoctorMissingDir['reason'], string> = {
   'missing-dir': 'директория отсутствует',
@@ -210,6 +258,19 @@ function themeWarningSubject(w: ResolvedThemeWarning): string {
  * конфигурации: конфликт токенов часто и есть замысел автора, частичная тема
  * может быть намеренной. Их уровень — `warn`, и падают они только под
  * `--strict`.
+ *
+ * `undeclared-dependency` по последствиям тянет на `error` — это ровно тот
+ * механизм, которым классы исчезают из CSS. Уровень всё же `warn`, и причина
+ * ровно одна: находка ЭВРИСТИЧЕСКАЯ. Она выведена из текста бандла
+ * регулярным выражением, а не из контракта, поэтому ложное срабатывание
+ * возможно (спецификатор внутри строкового литерала, bare-импорт у
+ * провайдера, чей `id` не совпал с именем пакета). Ставить такую находку в
+ * `ok: false` — значит дать эвристике право на безусловный отказ.
+ *
+ * Смягчением это НЕ является и мерой предосторожности для CI считаться не
+ * может: `--strict`, который доки предлагают ставить в CI, роняет `warn`
+ * ровно так же, как `error`. Разница только в поведении по умолчанию — и в
+ * том, что находка меняет `clean`, а не `ok`.
  */
 function collectDiagnostics(
   providers: readonly GranularProvider[],
@@ -217,6 +278,7 @@ function collectDiagnostics(
   missing: readonly DoctorMissingDir[],
   themeWarnings: readonly ResolvedThemeWarning[],
   tokenConflicts: readonly DoctorTokenConflict[],
+  undeclared: readonly DoctorUndeclaredDependency[],
 ): DoctorDiagnostic[] {
   const errors: DoctorDiagnostic[] = missing.map(m => ({
     level: 'error' as const,
@@ -243,6 +305,17 @@ function collectDiagnostics(
       subject: `${t.theme}:${t.token}`,
       message: `${t.selector} { --${t.token} } задаётся несколькими слоями `
         + `(${t.sources.join(' → ')}), победило ${t.finalValue}`,
+    })
+  }
+
+  for (const edge of undeclared) {
+    warns.push({
+      level: 'warn',
+      code: 'undeclared-dependency',
+      subject: edge.from,
+      message: `собранный код импортирует ${edge.to} ("${edge.specifier}" в ${edge.source}), `
+        + `но ${edge.to} не достижим из его dependencies — при селекции без ${edge.to} `
+        + 'его директория не сканируется и safelist не подмешивается',
     })
   }
 
@@ -303,12 +376,15 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
   // Тот же (мемоизированный) результат, из которого построены globs выше.
   const { dirs, skipped } = inspectGranularScanDirs(options)
 
+  const undeclaredDependencies = computeUndeclaredDependencies(resolution)
+
   const diagnostics = collectDiagnostics(
     resolution.providers,
     components,
     skipped,
     resolution.themes.warnings,
     tokenConflicts,
+    undeclaredDependencies,
   )
 
   return {
@@ -321,6 +397,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
       warnings: resolution.themes.warnings,
     },
     tokenConflicts,
+    undeclaredDependencies,
     scan: { globs, dirs, missing: skipped },
     diagnostics,
     ok: !diagnostics.some(d => d.level === 'error'),
@@ -419,6 +496,13 @@ export function formatDoctorReport(report: DoctorReport): string {
     push(`Конфликты токенов (${report.tokenConflicts.length}) — значение задаётся несколькими слоями:`)
     for (const t of report.tokenConflicts)
       push(`  • [${t.theme}] ${t.selector} { --${t.token} } ← ${t.sources.join(' → ')} = ${t.finalValue}`)
+    push()
+  }
+
+  if (report.undeclaredDependencies.length) {
+    push(`Незаявленные зависимости (${report.undeclaredDependencies.length}) — импорт есть в dist, в dependencies нет:`)
+    for (const edge of report.undeclaredDependencies)
+      push(`  • ${edge.from} → ${edge.to} ("${edge.specifier}" в ${edge.source})`)
     push()
   }
 

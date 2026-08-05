@@ -28,14 +28,21 @@ Likely causes, in order of probability:
    Static extraction can't see it. Either refactor to static, or add the
    specific classes to `safelist`.
 
-To tell causes 2–4 apart without guessing, ask the CLI which channel the class
+5. **The class belongs to a component you never selected**, rendered *inside*
+   one you did — and the outer component forgot to declare it in
+   `dependencies`. Its directory is then outside the scan and its safelist is
+   never merged. `granular doctor` reports this as `undeclared-dependency`
+   (see [CLI](./cli.md#undeclared-dependencies)); the fix belongs in the
+   provider, not in your app.
+
+To tell causes 2–5 apart without guessing, ask the CLI which channel the class
 arrives through — safelist, the component's CSS file, or a scanned source:
 
 ```bash
 npx granular why-css ./granular.options.mjs p-5
 ```
 
-"No source found" narrows it to a scan problem (2–3) or a dynamic class (4).
+"No source found" narrows it to a scan problem (2–3, 5) or a dynamic class (4).
 
 ## "Adding `'all'` pulls in way too much CSS"
 
@@ -99,8 +106,9 @@ CSS file — the watcher picks it up and the preflight regenerates.
 When a symptom above doesn't match anything, stop guessing and print what the
 preset actually resolved. The `granular doctor` CLI reports the providers, the
 transitive selected‑component graph, theme token blocks per selector, **token
-conflicts** across layers, the final scan globs, and any **missing
-`components/<Name>/` directories** (layout‑contract violations). It exits `1`
+conflicts** across layers, **undeclared dependencies** (imports present in the
+build output but missing from the declared graph), the final scan globs, and any
+**missing `components/<Name>/` directories** (layout‑contract violations). It exits `1`
 on any violation (and, with `--strict`, on warnings too), so it also works as a
 CI gate. Two narrower questions have their own commands: `granular explain
 <providerId:Name>` — why a component is in the build and what it contributes;

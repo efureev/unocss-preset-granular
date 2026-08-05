@@ -82,6 +82,7 @@ Section by section:
 | `Выбранные компоненты` — selected components | The transitive closure of `options.components`, in the order the preset emits them: **dependencies before dependents** (post-order DFS). Per entry: `deps`, `safelist` size, `cssFiles` count, `group`. |
 | `Темы` — themes | The active theme list and, in parentheses, **where the list came from**: `themes.names`, the keys of `themes.define`, providers' `defaultThemes`, or the core fallback. Then one line per token block: theme → selector → token count. |
 | `Конфликты токенов` — token conflicts | Only printed when non-empty. See below. |
+| `Незаявленные зависимости` — undeclared dependencies | Only printed when non-empty. See below. |
 | `Скан-globs` — scan globs | The exact globs handed to UnoCSS `content.filesystem`. If a class from a component source never reaches your CSS, this is the first place to look. |
 | `Проблемы layout-контракта` — layout violations | Only printed when non-empty. See below. |
 | `Итоги диагностики` — diagnostics summary | Every finding in one list, with its level and machine-readable code. Only printed when non-empty. |
@@ -102,6 +103,73 @@ sources and the value that won:
 Sources are shown in application order and named `provider:<id>`,
 `component:<Name>`, `app-theme` (a theme declared by the app via
 `themes.define`) or `app-override` (`themes.tokenOverrides`).
+
+### Undeclared dependencies
+
+`component.dependencies` is what a provider **declares**; its build output is
+what it actually **ships**. Nothing keeps the two in sync — a provider's bundler
+does not read `dependencies` at all — so they drift silently. `doctor` reads the
+emitted code of each selected component and reports every import that lands in
+another component's directory without being reachable through the declared
+graph:
+
+```text
+Незаявленные зависимости (1) — импорт есть в dist, в dependencies нет:
+  • @your/pkg:XSidebar → @your/pkg:XButton ("../../XButton/chunks/XButton-DCi4.js" в chunks/XSidebar-Esxe.js)
+```
+
+Why it matters: the preset scans `components/<Name>/` only for components in the
+selection. An app that selects `XSidebar` alone therefore never scans
+`XButton`'s directory and never gets its safelist — the button rendered inside
+the sidebar comes out with no background and no focus ring. Nothing fails: the
+provider builds, the types are intact, the app builds, and the defect surfaces
+only in the browser of whoever picked that particular selection.
+
+The check deliberately **ignores the current selection** — as far as TARGETS
+go. The target component may well be selected for another reason, and then this
+build's CSS is correct, but the declaration is still wrong and the next consumer
+pays for it. Were it selection-aware, the most common configuration
+(`components: 'all'`) would never report anything. SOURCES, however, are the
+selected components only: as a provider author, run `doctor` with
+`components: 'all'`, or you will have checked nothing but your own selection's
+closure.
+
+Relative imports inside the package are recognised — including those that go
+through a shared chunk (`chunks/`, `groups/<group>/shared/`): the path
+`A → shared → B` is as much an edge as a direct import, and `source` in the
+report points at the file where the import is actually written. Cross-package
+edges are recognised through bare specifiers of the form
+`<providerId>/components/<ComponentName>` (or `<providerId>/<ComponentName>`);
+that relies on the convention that a provider's `id` is its npm package name,
+and silently skips the edge when it is not.
+
+### What the check cannot see
+
+The parsing is a regular expression over the text of the bundle, not a parser,
+and `dist` is read without being executed. Hence a list of what is knowingly out
+of scope:
+
+- **CJS output.** `require()` is not recognised, and `.cjs` is not read at all —
+  so that an empty result never looks like a clean bill of health. The granular
+  layout contract assumes ESM (`components/<Name>/index.js`).
+- **Dynamic `import()` with a template string** (`` import(`../${n}.js`) ``) —
+  the target is unknown until runtime.
+- **Imports-as-data.** A specifier inside a string literal is counted as an
+  import. Not something real bundles contain, but possible.
+- **Components outside the selection** as sources — see `components: 'all'`
+  above.
+
+And the converse, which the check cannot tell apart: importing a **constant, a
+type or a helper** from another component's directory looks exactly like
+importing the component. If a reported edge renders nothing, it is a false
+positive rather than a missing dependency — declaring it ships the donor's
+entire CSS and safelist to every consumer of yours.
+
+The level is `warn`, not `error`, for one reason: the finding is **heuristic**
+(see the list above), and a heuristic has no business issuing an unconditional
+failure. This is not a safety net: `--strict`, recommended for CI right here,
+fails on a `warn` exactly as it does on an `error`. The only difference is the
+default behaviour — and that the finding moves `clean`, not `ok`.
 
 ### Layout-contract violations
 
@@ -137,6 +205,7 @@ with two levels. The criterion is one: **must this break the build**.
 | `theme-warning` | `warn` | A theme-resolution warning: `defaultThemes` without a source, a partial theme, a broken `extends`, several default themes at once. |
 | `token-conflict` | `warn` | A token is written by more than one layer. |
 | `unused-provider` | `warn` | A provider contributed nothing: no selected components, no `theme`, no `unocss`. |
+| `undeclared-dependency` | `warn` | A built component imports another one without declaring it — its classes vanish for anyone who selects it alone. |
 
 `ok` in the report means "no `error` at all", `clean` means "nothing at all".
 By default `doctor` only fails on an `error`; `--strict` makes it fail on
@@ -308,10 +377,28 @@ resolved one.
 
 The types (exported from `/node`): `DoctorReport` has `providers`,
 `components`, `themes` (`names`, `namesSource`, `blocks`, `warnings`),
-`tokenConflicts`, `scan` (`globs`, `dirs`, `missing`), `diagnostics` and the
-booleans `ok` / `clean`; `ExplainReport` has `reason`, `chain`, `requiredBy`,
+`tokenConflicts`, `undeclaredDependencies`, `scan` (`globs`, `dirs`, `missing`),
+`diagnostics` and the booleans `ok` / `clean`; `ExplainReport` has `reason`, `chain`, `requiredBy`,
 `safelist`, `cssFiles`, `tokens`, `scanDirs`; `WhyCssReport` has `hits`,
 `scanned`, `found`.
+
+### Report stability
+
+The reports **grow in minor versions**: new fields and new diagnostic codes are
+added without a major bump. What that means if you consume them from code:
+
+- `DoctorDiagnosticCode` is an **open** union. Do not write an exhaustive
+  `switch` with a `never` branch over it — it will stop compiling on an
+  upgrade. Handle the codes you know and let a default branch take the rest.
+- Report fields are **required**. If you build a `DoctorReport` by hand (a mock
+  in tests), a new field breaks compilation — take the report from
+  `granularDoctor` instead of assembling one yourself.
+- A new `warn`-level code **moves `clean`, never `ok`**. A CI job on
+  `doctor --strict` may go red after a minor upgrade; that is expected and
+  means a real finding, not an API break.
+
+`GRANULAR_CONTRACT_VERSION` has nothing to do with this: it versions the shape
+of `GranularProvider`, not the CLI reports.
 
 ## See also
 
