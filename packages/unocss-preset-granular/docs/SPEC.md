@@ -304,6 +304,11 @@ A bare string is shorthand for `{ url }`. Relative URLs are resolved against
 the calling module's `import.meta.url` by the `define*` helpers, which also fill
 in `assetName`.
 
+Only references for themes that can become active in the build — the active
+set (§6.2) plus transitive `extends` bases — are read. A reference belonging
+to any other theme is ignored: its file is never touched, and a broken URL
+there does not fail the build.
+
 `strict` defaults to **`true`**: a missing selector or unsupported nesting is an
 error, not a quietly empty theme.
 
@@ -388,19 +393,21 @@ consumer sets `expandDirectives: true`.
 |---|---|---|
 | `.` | No | preset (browser), contract re-exports |
 | `./contract` | No | types and `define*` helpers |
-| `./vite` | No | pure build helpers (`granularChunkFileNames`, `granularAssetFileNames`) |
+| `./vite` | Yes (build stage) | provider build helpers: pure naming callbacks (`granularChunkFileNames`, `granularAssetFileNames`) and `granularCssAssetsPlugin`, which reads and writes the filesystem |
 | `./runtime` | No | `createThemeController` |
 | `./node` | Yes | node preset, `granularContent`, doctor, CSS reading |
 
 A provider's browser entry — and therefore any component `config.ts` reachable
-from it — **MUST NOT** import `./node`, nor a donor's `/node` entry. Doing so
-pulls `node:fs` into the client bundle. **The build does not fail**; only the
-consumer's runtime does.
+from it — **MUST NOT** import `./node` or `./vite`, nor a donor's `/node`
+entry. `./vite` is build-configuration code (`vite.config.ts` runs in Node),
+and its entry carries static `node:` imports even though the naming callbacks
+themselves are pure. Importing either entry pulls `node:fs` into the client
+bundle. **The build does not fail**; only the consumer's runtime does.
 
 Conformance **SHOULD** be checked against build output, not sources:
 
 ```bash
-grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.js
+grep -rn "unocss-preset-granular/\(node\|vite\)" dist/granular-provider.js dist/chunks/*.js
 # must print nothing
 ```
 
@@ -462,7 +469,7 @@ that was simply absent.
 - [ ] `package.json.exports` publishes every one of those subpaths.
 - [ ] `safelist` holds only own, non-statically-extractable classes.
 - [ ] Token keys carry no `--` prefix.
-- [ ] Browser entry free of `./node` imports, verified on the bundle.
+- [ ] Browser entry free of `./node` and `./vite` imports, verified on the bundle.
 - [ ] Cross-provider donors listed in `peerDependencies`.
 - [ ] `granular doctor --strict` exits `0` with all components selected — in
       particular, no `undeclared-dependency`.

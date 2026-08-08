@@ -208,7 +208,7 @@ describe('parseCssCustomPropertyBlocks', () => {
   })
 })
 
-describe('парсер: последнее объявление без `;` (AUDIT A3)', () => {
+describe('парсер: последнее объявление без `;`', () => {
   it('подхватывает последний токен без точки с запятой', () => {
     expect(parseCssCustomPropertyBlocksSync(':root { --a: 1px; --b: 2px }')).toEqual([
       { selector: ':root', tokens: { a: '1px', b: '2px' } },
@@ -222,7 +222,7 @@ describe('парсер: последнее объявление без `;` (AUDI
   })
 })
 
-describe('парсер: вложенность и at-rules (AUDIT A4)', () => {
+describe('парсер: вложенность и at-rules', () => {
   const NESTED = '.dark { :root { --a: 1px; } }'
   const AT_RULE = '@media (min-width: 100px) { :root { --a: 1px; } }'
 

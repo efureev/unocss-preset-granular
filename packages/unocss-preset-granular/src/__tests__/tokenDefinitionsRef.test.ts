@@ -176,6 +176,104 @@ describe('материализация ссылок в node-слое', () => {
   })
 })
 
+describe('материализация читает только темы, которые могут стать активными', () => {
+  it('битая ссылка НЕАКТИВНОЙ темы не валит сборку', async () => {
+    const provider = defineGranularProvider({
+      id: 'partial',
+      contractVersion: 1,
+      packageBaseUrl: srcBase,
+      components: [defineGranularComponent(
+        pathToFileURL(join(root, 'src/components/XTok/config.ts')).href,
+        {
+          name: 'XTok',
+          tokenDefinitionsRef: {
+            light: './themes/light.css',
+            // Файла нет — но темы нет в `names`, читать его и не нужно.
+            corporate: './themes/missing.css',
+          },
+        },
+      )],
+    })
+
+    const css = await getGranularThemeCss({
+      providers: [provider],
+      components: 'all',
+      themes: { names: ['light'] },
+    })
+    expect(css).toContain('--brd: #eee')
+  })
+
+  it('битая ссылка АКТИВНОЙ темы по-прежнему падает типизированно', () => {
+    const provider = defineGranularProvider({
+      id: 'partial',
+      contractVersion: 1,
+      packageBaseUrl: srcBase,
+      components: [defineGranularComponent(
+        pathToFileURL(join(root, 'src/components/XTok/config.ts')).href,
+        { name: 'XTok', tokenDefinitionsRef: { corporate: './themes/missing.css' } },
+      )],
+    })
+
+    expect(() => resolveGranularNode({
+      providers: [provider],
+      components: 'all',
+      themes: { names: ['corporate'] },
+    })).toThrow(GranularTokenRefError)
+  })
+
+  it('база extends, поставляемая только ссылкой, материализуется', async () => {
+    // `light` в `names` не входит, но нужна как база — её ссылка обязана
+    // прочитаться, иначе наследовать будет нечего.
+    const provider = defineGranularProvider({
+      id: 'base-by-ref',
+      contractVersion: 1,
+      packageBaseUrl: srcBase,
+      components: [tokenizedComponent()],
+    })
+
+    const css = await getGranularThemeCss({
+      providers: [provider],
+      components: 'all',
+      themes: {
+        names: ['emerald'],
+        define: { emerald: { extends: 'light', selector: '[data-theme="emerald"]' } },
+      },
+    })
+    expect(css).toContain('[data-theme="emerald"]')
+    expect(css).toContain('--brd: #eee')
+  })
+
+  it('defaultThemes транзитивного донора учитываются при фильтрации', async () => {
+    // Активный набор выводится из `defaultThemes` ДОНОРА, которого приложение
+    // не перечисляло, — обход графа при материализации обязан его увидеть.
+    const donor = defineGranularProvider({
+      id: 'donor-defaults',
+      contractVersion: 1,
+      packageBaseUrl: srcBase,
+      components: [],
+      theme: {
+        defaultThemes: ['dark'],
+        tokenDefinitionsRef: {
+          dark: {
+            url: `${srcBase}components/XTok/themes/dark.css`,
+            selector: '.dark, [data-theme="dark"]',
+          },
+        },
+      },
+    })
+    const parent = defineGranularProvider({
+      id: 'parent',
+      contractVersion: 1,
+      packageBaseUrl: srcBase,
+      components: [],
+      dependencies: [donor],
+    })
+
+    const css = await getGranularThemeCss({ providers: [parent] })
+    expect(css).toContain('--brd: #333')
+  })
+})
+
 describe('материализация не ломает граф провайдеров', () => {
   it('провайдер без ссылок возвращается по идентичности', () => {
     const plain = defineGranularProvider({

@@ -206,6 +206,7 @@ with two levels. The criterion is one: **must this break the build**.
 | `token-conflict` | `warn` | A token is written by more than one layer. |
 | `unused-provider` | `warn` | A provider contributed nothing: no selected components, no `theme`, no `unocss`. |
 | `undeclared-dependency` | `warn` | A built component imports another one without declaring it — its classes vanish for anyone who selects it alone. |
+| `token-prefix` | `warn` | A token key is declared **with** the `--` prefix — the generator adds it itself, so the CSS gets a valid but useless `----x` and the theme silently loses the value. |
 
 `ok` in the report means "no `error` at all", `clean` means "nothing at all".
 By default `doctor` only fails on an `error`; `--strict` makes it fail on

@@ -60,6 +60,35 @@ describe('granularDoctor', () => {
     expect(report.tokenConflicts.some(t => t.token === 'accent')).toBe(false)
   })
 
+  it('находит токены, объявленные с префиксом `--` (token-prefix)', () => {
+    const provider = defineGranularProvider({
+      id: 'dash',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///dash/',
+      components: [],
+      theme: {
+        // '--brand' — ловушка: в CSS уедет `----brand`. 'ok' — корректный ключ.
+        tokenDefinitions: { light: { selector: ':root', tokens: { '--brand': '#f00', 'ok': '#0f0' } } },
+      },
+    })
+
+    const report = granularDoctor({
+      providers: [provider],
+      components: 'all',
+      themes: { names: ['light'], tokenOverrides: { light: { '--extra': '1px' } } },
+    })
+
+    const dash = report.diagnostics.filter(d => d.code === 'token-prefix')
+    expect(dash.map(d => d.subject).sort()).toEqual(['light:--brand', 'light:--extra'])
+    expect(dash.every(d => d.level === 'warn')).toBe(true)
+    // Сборка формально живая (это не layout-нарушение): ok остаётся true,
+    // а вот clean — нет; под --strict такое падает.
+    expect(report.ok).toBe(true)
+    expect(report.clean).toBe(false)
+    // Корректный ключ диагностику не порождает.
+    expect(dash.some(d => d.subject.includes(':ok'))).toBe(false)
+  })
+
   it('репортит скан-globs и отсутствующие директории компонентов (missing)', () => {
     // Реальная директория провайдера: одна компонента есть с index.js, другой нет.
     const root = mkdtempSync(join(tmpdir(), 'granular-doctor-'))

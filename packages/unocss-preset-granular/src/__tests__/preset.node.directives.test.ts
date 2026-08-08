@@ -55,7 +55,7 @@ describe('expandDirectives (G2)', () => {
   })
 })
 
-describe('expandDirectives: диагностика ошибок (AUDIT C8)', () => {
+describe('expandDirectives: диагностика ошибок', () => {
   /**
    * Компонент с ошибкой в CSS. Триггер — `theme()` с несуществующим путём:
    * `@apply` неизвестного класса трансформер молча оставляет как есть,

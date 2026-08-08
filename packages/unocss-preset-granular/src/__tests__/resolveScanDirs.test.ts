@@ -410,7 +410,7 @@ describe('presetGranularNode content.filesystem', () => {
     })
 
     // Пустые globs не повод схлопывать весь `content` в undefined: стандартный
-    // фильтр расширений в pipeline.include от числа globs не зависит (AUDIT A6).
+    // фильтр расширений в pipeline.include от числа globs не зависит.
     const include = (preset.content?.pipeline as { include?: RegExp[] } | undefined)?.include ?? []
     expect(include.length).toBeGreaterThan(0)
     expect(include.some(re => re.test('/app/src/App.vue'))).toBe(true)

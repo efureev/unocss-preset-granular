@@ -9,7 +9,7 @@ import type { PresetGranularOptions } from '../preset'
 
 import { existsSync } from 'node:fs'
 
-import { APP_THEME_SOURCE } from '../core/resolveThemes'
+import { APP_THEME_SOURCE, resolveNeededThemeNames } from '../core/resolveThemes'
 import { isCssDataUrl, resolveCssFilePath } from '../fs/readCss'
 import { tokenDefinitionsFromCssSync } from './tokenDefinitionsFromCss'
 
@@ -113,18 +113,31 @@ function readTokenSet(
  * Литеральные `tokenDefinitions` для той же темы имеют приоритет: конкретное
  * значение специфичнее ссылки, и это даёт провайдеру способ переопределить
  * собственную ссылку, не убирая её.
+ *
+ * Читаются ТОЛЬКО темы из `needed` (активный набор + базы `extends`,
+ * см. `resolveNeededThemeNames`): битая ссылка темы, которую сборка не
+ * запрашивала, не должна ни валить конфиг, ни стоить обращения к FS.
+ * Если после фильтра разворачивать нечего — возвращаются исходные `literals`
+ * (возможно `undefined`), чтобы вызывающий код сохранил идентичность.
  */
 function materializeRefs(
   refs: Readonly<Record<string, GranularThemeTokenRef | string>> | undefined,
   literals: Readonly<Record<string, GranularThemeTokenSet>> | undefined,
   context: RefContext,
+  needed: ReadonlySet<string>,
 ): Readonly<Record<string, GranularThemeTokenSet>> | undefined {
   if (!refs)
     return literals
 
   const resolved: Record<string, GranularThemeTokenSet> = {}
-  for (const [themeName, ref] of Object.entries(refs))
+  for (const [themeName, ref] of Object.entries(refs)) {
+    if (!needed.has(themeName))
+      continue
     resolved[themeName] = readTokenSet(themeName, ref, context)
+  }
+
+  if (Object.keys(resolved).length === 0)
+    return literals
 
   return { ...resolved, ...literals }
 }
@@ -133,23 +146,28 @@ function materializeComponent(
   descriptor: GranularComponentDescriptor,
   providerId: string,
   packageBaseUrl: string,
+  needed: ReadonlySet<string>,
 ): GranularComponentDescriptor {
   if (!descriptor.tokenDefinitionsRef)
     return descriptor
 
-  return {
-    ...descriptor,
-    tokenDefinitions: materializeRefs(
-      descriptor.tokenDefinitionsRef,
-      descriptor.tokenDefinitions,
-      { providerId, componentName: descriptor.name, packageBaseUrl },
-    ),
-  }
+  const tokenDefinitions = materializeRefs(
+    descriptor.tokenDefinitionsRef,
+    descriptor.tokenDefinitions,
+    { providerId, componentName: descriptor.name, packageBaseUrl },
+    needed,
+  )
+  // Все ссылки отфильтрованы как неактивные — дескриптор не менялся.
+  if (tokenDefinitions === descriptor.tokenDefinitions)
+    return descriptor
+
+  return { ...descriptor, tokenDefinitions }
 }
 
 function materializeProvider(
   provider: GranularProvider,
   seen: Map<GranularProvider, GranularProvider>,
+  needed: ReadonlySet<string>,
 ): GranularProvider {
   const cached = seen.get(provider)
   if (cached)
@@ -159,24 +177,25 @@ function materializeProvider(
   // дал бы два разных инстанса одного донора, а `expandProviders` считает это
   // `DuplicateProviderIdError`.
   const dependencies = provider.dependencies?.map(dependency =>
-    typeof dependency === 'string' ? dependency : materializeProvider(dependency, seen),
+    typeof dependency === 'string' ? dependency : materializeProvider(dependency, seen, needed),
   )
 
   const components = provider.components.map(descriptor =>
-    materializeComponent(descriptor, provider.id, provider.packageBaseUrl),
+    materializeComponent(descriptor, provider.id, provider.packageBaseUrl, needed),
   )
 
   const themeRefs = provider.theme?.tokenDefinitionsRef
-  const theme = themeRefs
-    ? {
-        ...provider.theme,
-        tokenDefinitions: materializeRefs(
-          themeRefs,
-          provider.theme?.tokenDefinitions,
-          { providerId: provider.id, packageBaseUrl: provider.packageBaseUrl },
-        ),
-      }
-    : provider.theme
+  let theme = provider.theme
+  if (themeRefs) {
+    const tokenDefinitions = materializeRefs(
+      themeRefs,
+      provider.theme?.tokenDefinitions,
+      { providerId: provider.id, packageBaseUrl: provider.packageBaseUrl },
+      needed,
+    )
+    if (tokenDefinitions !== provider.theme?.tokenDefinitions)
+      theme = { ...provider.theme, tokenDefinitions }
+  }
 
   const changed
     = theme !== provider.theme
@@ -207,11 +226,13 @@ function materializeProvider(
  */
 function materializeAppThemes(
   define: Readonly<Record<string, GranularAppThemeDefinition>>,
+  needed: ReadonlySet<string>,
 ): Record<string, GranularAppThemeDefinition> {
   const resolved: Record<string, GranularAppThemeDefinition> = {}
 
   for (const [themeName, definition] of Object.entries(define)) {
-    if (!definition.tokensRef) {
+    // Ссылки неактивных тем не читаются — как и у провайдеров.
+    if (!definition.tokensRef || !needed.has(themeName)) {
       resolved[themeName] = definition
       continue
     }
@@ -238,8 +259,38 @@ function materializeAppThemes(
 const materializedCache = new WeakMap<PresetGranularOptions, PresetGranularOptions>()
 
 /**
- * Разворачивает все `tokenDefinitionsRef` в готовые `tokenDefinitions`,
- * возвращая ПРОИЗВОДНЫЙ объект опций.
+ * Все инстансы провайдеров графа: корни + транзитивные объектные
+ * `dependencies`. Порядок и дедуп по `id` здесь не важны — результат нужен
+ * только как источник `theme.defaultThemes` для вычисления активного набора
+ * тем; валидацией графа занимается `expandProviders`.
+ */
+function collectAllProviders(roots: readonly GranularProvider[]): GranularProvider[] {
+  const seen = new Set<GranularProvider>()
+  const out: GranularProvider[] = []
+
+  const visit = (provider: GranularProvider): void => {
+    if (seen.has(provider))
+      return
+    seen.add(provider)
+    out.push(provider)
+    for (const dependency of provider.dependencies ?? []) {
+      if (typeof dependency !== 'string')
+        visit(dependency)
+    }
+  }
+
+  for (const root of roots)
+    visit(root)
+
+  return out
+}
+
+/**
+ * Разворачивает `tokenDefinitionsRef` в готовые `tokenDefinitions`,
+ * возвращая ПРОИЗВОДНЫЙ объект опций. Читаются только ссылки тем, которые
+ * могут стать активными (активный набор + базы `extends` — см.
+ * `resolveNeededThemeNames`): битый ref темы, которую сборка не запрашивала,
+ * не валит конфиг и не стоит обращения к FS.
  *
  * Почему так, а не пост-обработкой реестра тем: приоритеты слияния токенов
  * (провайдеры → компоненты → app-overrides), фильтрация по активным темам и
@@ -258,13 +309,18 @@ export function materializeGranularOptions<T extends PresetGranularOptions>(opti
   if (cached)
     return cached as T
 
+  // Темы, которые могут стать активными, известны ДО чтения значений —
+  // только их ссылки и материализуются (остальные не стоят даже `existsSync`).
+  const needed = resolveNeededThemeNames(collectAllProviders(options.providers), options.themes)
+
   const seen = new Map<GranularProvider, GranularProvider>()
-  const providers = options.providers.map(provider => materializeProvider(provider, seen))
+  const providers = options.providers.map(provider => materializeProvider(provider, seen, needed))
 
   const define = options.themes?.define
-  const hasAppRefs = define !== undefined && Object.values(define).some(d => d.tokensRef !== undefined)
+  const hasAppRefs = define !== undefined
+    && Object.entries(define).some(([name, d]) => d.tokensRef !== undefined && needed.has(name))
   const themes = hasAppRefs
-    ? { ...options.themes, define: materializeAppThemes(define) }
+    ? { ...options.themes, define: materializeAppThemes(define, needed) }
     : options.themes
 
   const changed

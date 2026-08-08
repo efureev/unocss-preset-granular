@@ -558,6 +558,23 @@ function suppliedThemeNames(provider: GranularProvider): Set<string> {
 }
 
 /**
+ * Темы, значения которых понадобятся резолву при данных провайдерах и
+ * настройках: активный набор (по правилам {@link resolveThemeNames}) плюс
+ * транзитивные базы `extends` из `define`.
+ *
+ * Нужна node-слою ДО чтения файлов: `tokenDefinitionsRef` материализуются
+ * только для этих тем — битая ссылка темы, которую сборка не запрашивала,
+ * не должна ни валить конфиг, ни стоить обращения к FS.
+ */
+export function resolveNeededThemeNames(
+  providers: readonly GranularProvider[],
+  input: ResolveThemesInput = {},
+): Set<string> {
+  const { names } = resolveThemeNames(providers, input)
+  return new Set(planAppThemes(names, input.define ?? {}).needed)
+}
+
+/**
  * Итоговый набор тем и его происхождение.
  *
  * Приоритет источников: явный `names` → ключи `define` → `defaultThemes`

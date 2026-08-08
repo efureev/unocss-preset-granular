@@ -16,7 +16,7 @@ function provider(patch: Partial<GranularProvider> = {}): GranularProvider {
   } as GranularProvider
 }
 
-describe('валидация провайдера при регистрации (AUDIT C7)', () => {
+describe('валидация провайдера при регистрации', () => {
   it('пустой id — ошибка сразу, а не битые ключи providerId:Name', () => {
     expect(() => expandProviders([provider({ id: '   ' })])).toThrow(InvalidProviderError)
     try {
@@ -74,7 +74,7 @@ describe('валидация провайдера при регистрации 
   })
 })
 
-describe('контекст в ошибке чтения CSS (AUDIT C7)', () => {
+describe('контекст в ошибке чтения CSS', () => {
   it('называет провайдера, секцию и компонент вместо голого ENOENT', async () => {
     const withMissingCss = provider({
       id: '@scope/ds',

@@ -78,7 +78,9 @@ export type DoctorDiagnosticLevel = 'error' | 'warn'
  *   - `token-conflict` — токен задаётся несколькими слоями;
  *   - `unused-provider` — провайдер в сборке не даёт ей ничего;
  *   - `undeclared-dependency` — собранный компонент импортирует чужой,
- *     не объявив его в `dependencies`.
+ *     не объявив его в `dependencies`;
+ *   - `token-prefix` — ключ токена объявлен С префиксом `--`: генератор
+ *     дописывает префикс сам, в CSS уедет валидный, но бесполезный `----x`.
  */
 export type DoctorDiagnosticCode
   = | 'layout-contract'
@@ -86,6 +88,7 @@ export type DoctorDiagnosticCode
     | 'token-conflict'
     | 'unused-provider'
     | 'undeclared-dependency'
+    | 'token-prefix'
 
 /**
  * Одна проблема с уровнем.
@@ -197,6 +200,73 @@ function computeTokenConflicts(
     .map(e => ({ theme: e.theme, selector: e.selector, token: e.token, sources: e.sources, finalValue: e.value }))
 }
 
+/** Токен, объявленный С префиксом `--`, и кто его объявил. */
+interface DashPrefixedToken {
+  theme: string
+  token: string
+  source: string
+}
+
+/**
+ * Ключи токенов, записанные с префиксом `--`.
+ *
+ * Контракт (SPEC §6.1) требует ключи БЕЗ префикса: генератор дописывает его
+ * сам, поэтому `'--brand'` превращается в валидный CSS custom property
+ * `----brand` — тема ломается молча, без единой ошибки. Это самая
+ * задокументированная ловушка контракта, и doctor обязан её показывать.
+ *
+ * Проверяются те же источники, что и в {@link computeTokenConflicts}:
+ * вклады провайдеров/компонентов/приложения (`themes.items`) и оба вида
+ * `tokenOverrides`.
+ */
+function computeDashPrefixedTokens(
+  resolution: ReturnType<typeof resolvePresetGranular>,
+  themesOpts: PresetGranularNodeOptions['themes'],
+): DashPrefixedToken[] {
+  const found: DashPrefixedToken[] = []
+  const seen = new Set<string>()
+  const add = (theme: string, token: string, source: string): void => {
+    const key = `${theme}\0${token}\0${source}`
+    if (seen.has(key))
+      return
+    seen.add(key)
+    found.push({ theme, token, source })
+  }
+
+  for (const item of resolution.themes.items) {
+    if (!item.tokenDefinition)
+      continue
+    const source = item.appDefined
+      ? 'app-theme'
+      : item.componentName ? `component:${item.componentName}` : `provider:${item.providerId}`
+    for (const token of Object.keys(item.tokenDefinition.tokens)) {
+      if (token.startsWith('--'))
+        add(item.themeName, token, source)
+    }
+  }
+
+  const overrides = themesOpts?.tokenOverrides
+  if (overrides) {
+    for (const [theme, value] of Object.entries(overrides)) {
+      if (!value)
+        continue
+      for (const [key, inner] of Object.entries(value)) {
+        if (typeof inner === 'string') {
+          if (key.startsWith('--'))
+            add(theme, key, 'app-override')
+          continue
+        }
+        for (const token of Object.keys(inner)) {
+          if (token.startsWith('--'))
+            add(theme, token, 'app-override')
+        }
+      }
+    }
+  }
+
+  return found
+}
+
 /**
  * Импорты в `dist`, не покрытые объявленным графом.
  *
@@ -279,6 +349,7 @@ function collectDiagnostics(
   themeWarnings: readonly ResolvedThemeWarning[],
   tokenConflicts: readonly DoctorTokenConflict[],
   undeclared: readonly DoctorUndeclaredDependency[],
+  dashTokens: readonly DashPrefixedToken[],
 ): DoctorDiagnostic[] {
   const errors: DoctorDiagnostic[] = missing.map(m => ({
     level: 'error' as const,
@@ -316,6 +387,16 @@ function collectDiagnostics(
       message: `собранный код импортирует ${edge.to} ("${edge.specifier}" в ${edge.source}), `
         + `но ${edge.to} не достижим из его dependencies — при селекции без ${edge.to} `
         + 'его директория не сканируется и safelist не подмешивается',
+    })
+  }
+
+  for (const t of dashTokens) {
+    warns.push({
+      level: 'warn',
+      code: 'token-prefix',
+      subject: `${t.theme}:${t.token}`,
+      message: `токен объявлен с префиксом '--' (${t.source}) — генератор дописывает префикс сам, `
+        + `в CSS уедет '--${t.token}', и тема молча останется без значения`,
     })
   }
 
@@ -385,6 +466,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
     resolution.themes.warnings,
     tokenConflicts,
     undeclaredDependencies,
+    computeDashPrefixedTokens(resolution, options.themes),
   )
 
   return {

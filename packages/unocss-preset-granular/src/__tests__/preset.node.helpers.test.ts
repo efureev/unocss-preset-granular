@@ -94,7 +94,7 @@ describe('node CSS helpers (G3)', () => {
   })
 })
 
-describe('мемоизация путей к CSS компонентов (AUDIT D3)', () => {
+describe('мемоизация путей к CSS компонентов', () => {
   it('второй вызов не переспрашивает FS — путь остаётся прежним', async () => {
     const root = mkdtempSync(join(tmpdir(), 'granular-cssfiles-'))
     try {
@@ -138,7 +138,7 @@ describe('мемоизация путей к CSS компонентов (AUDIT D
   })
 })
 
-describe('параллельное чтение файлов тем (AUDIT D2)', () => {
+describe('параллельное чтение файлов тем', () => {
   it('порядок тем в CSS соответствует порядку `names`', async () => {
     const themed = defineGranularProvider({
       id: 't',

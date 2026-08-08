@@ -212,7 +212,7 @@ export function planGranularCssAssets(options: GranularCssAssetsOptions): Granul
     }
 
     const from = url.startsWith('file:') ? fileURLToPath(url) : url
-    const key = `${from} ${assetName}`
+    const key = `${from}\0${assetName}`
     if (seen.has(key))
       return
     seen.add(key)

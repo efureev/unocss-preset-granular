@@ -34,6 +34,37 @@ they summarise what shipped, not what was written down at the time.
   resolves to the last matching rule, so a divergence here would make the
   emitted CSS depend on preset order.
 
+- **`granular doctor` now reports token keys declared with the `--` prefix**
+  (`token-prefix`, level `warn`). The generator adds the prefix itself, so
+  `'--brand'` emits a valid but useless `----brand` custom property and the
+  theme silently loses the value — the single most documented trap of the
+  contract (SPEC §6.1) used to pass `doctor` with `clean: true`.
+
+### Changed
+
+- **Breaking (report types):** `DoctorDiagnosticCode` gained `'token-prefix'`.
+  Treat the union as open — same policy as in 0.7.0.
+- **`tokenDefinitionsRef` are now materialized only for themes that can become
+  active** (the active set of §6.2 plus transitive `extends` bases). A broken
+  reference belonging to a theme the build never requested no longer fails
+  config loading — and its file is no longer read at all. References of
+  active themes still fail loudly with `GranularTokenRefError` (SPEC §6.4).
+- **SPEC §9 corrected to match the shipped code:** the `./vite` entry is
+  build-stage code and carries static `node:` imports
+  (`granularCssAssetsPlugin` reads and writes the filesystem); the naming
+  callbacks remain pure. Importing `./vite` from browser-reachable code is
+  now explicitly forbidden, same as `./node`, and the conformance grep in
+  §9/§12 covers both entries.
+
+### Fixed
+
+- **A raw NUL byte in `src/vite-utils/cssAssets.ts`** (the dedupe key inside
+  `planGranularCssAssets`) made git, `grep` and `file` treat both the source
+  file and the built `dist/vite.js` as binary: diffs showed "Binary files
+  differ", and the grep-based boundary checks from SPEC §9 silently matched
+  nothing on those files. The byte is now written as the `\0` escape; runtime
+  behaviour is unchanged.
+
 ## [0.7.0] — 2026-08-05
 
 ### Added

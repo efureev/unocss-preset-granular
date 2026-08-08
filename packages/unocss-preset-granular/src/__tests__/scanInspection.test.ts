@@ -44,7 +44,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true })
 })
 
-describe('мемоизация инспекции скан-директорий (AUDIT D1)', () => {
+describe('мемоизация инспекции скан-директорий', () => {
   it('обход FS выполняется один раз на объект опций', () => {
     const opts: PresetGranularNodeOptions = { ...options }
 
@@ -76,7 +76,7 @@ describe('мемоизация инспекции скан-директорий 
   })
 })
 
-describe('мемоизация granularContent (AUDIT D5)', () => {
+describe('мемоизация granularContent', () => {
   it('повторный вызов отдаёт тот же объект — глобы и регексы не пересобираются', () => {
     const opts: PresetGranularNodeOptions = { ...options }
     const first = granularContent(opts)
@@ -92,7 +92,7 @@ describe('мемоизация granularContent (AUDIT D5)', () => {
   })
 })
 
-describe('doctor и content.filesystem считают одно и то же (AUDIT C5)', () => {
+describe('doctor и content.filesystem считают одно и то же', () => {
   it('doctor показывает ровно те директории, что уходят в скан', () => {
     const opts: PresetGranularNodeOptions = { ...options }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

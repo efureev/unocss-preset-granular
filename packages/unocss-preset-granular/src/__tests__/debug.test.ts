@@ -43,7 +43,7 @@ describe('createDebug', () => {
   })
 })
 
-describe('createDebug: разбор DEBUG один раз (AUDIT D4)', () => {
+describe('createDebug: разбор DEBUG один раз', () => {
   it('выключенный логгер — no-op, состояние берётся из DEBUG на момент создания', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 

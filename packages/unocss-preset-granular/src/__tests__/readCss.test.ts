@@ -38,7 +38,7 @@ describe('readCss (mtime cache)', () => {
   })
 })
 
-describe('cssCache: верхняя граница (AUDIT C6)', () => {
+describe('cssCache: верхняя граница', () => {
   it('вытесняет самые давние записи, не растёт бесконечно', async () => {
     clearCssCache()
     const dir = mkdtempSync(join(tmpdir(), 'granular-css-lru-'))
