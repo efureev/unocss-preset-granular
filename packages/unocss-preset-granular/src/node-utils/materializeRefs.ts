@@ -41,12 +41,12 @@ export class GranularTokenRefError extends Error {
       : `${componentName ? `component '${componentName}' of provider` : 'provider'} '${providerId}'`
 
     const hint = isApp
-      ? `  hint: относительный путь резолвится от process.cwd() — от корня приложения. `
-      + `Надёжнее указывать литералом: new URL('./themes/${themeName}.css', import.meta.url).href.`
-      : `  hint: если файл не эмитится сборкой провайдера, объявляйте ссылку литералом — `
-        + `new URL('./themes/${themeName}.css', import.meta.url).href: именно на него реагирует бандлер `
-        + `и кладёт CSS в свой выход (обычно как data:-URL). Строковая форма './themes/${themeName}.css' `
-        + `рассчитана на файлы, которые и так лежат в 'components/<Name>/...' собранного пакета.`
+      ? `  hint: a relative path resolves from process.cwd() — the application root. `
+      + `The literal form is more reliable: new URL('./themes/${themeName}.css', import.meta.url).href.`
+      : `  hint: if the file is not emitted by the provider's build, declare the reference as a literal — `
+        + `new URL('./themes/${themeName}.css', import.meta.url).href: that is the exact form the bundler `
+        + `recognises and inlines into its output (usually as a data: URL). The string form './themes/${themeName}.css' `
+        + `is meant for files that already live under 'components/<Name>/...' of the built package.`
 
     super(
       `Granular: failed to resolve ${field} declared by ${where}.\n`

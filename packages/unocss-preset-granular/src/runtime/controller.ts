@@ -113,7 +113,7 @@ export function createThemeController(
   options: GranularThemeControllerOptions = {},
 ): GranularThemeController {
   if (!manifest || manifest.themes.length === 0)
-    throw new Error('createThemeController: манифест пуст — в сборке нет ни одной темы.')
+    throw new Error('createThemeController: the manifest is empty — the build contains no themes.')
 
   const byName = new Map(manifest.themes.map(theme => [theme.name, theme]))
   const target = options.target ?? defaultTarget()
@@ -125,9 +125,9 @@ export function createThemeController(
     const found = byName.get(name)
     if (!found) {
       throw new Error(
-        `createThemeController: тема '${name}' отсутствует в сборке. `
-        + `Доступные: ${manifest.themes.map(t => t.name).join(', ')}. `
-        + `Список тем задаётся опцией 'themes.names' пресета (или 'defaultThemes' провайдеров).`,
+        `createThemeController: theme '${name}' is not in the build. `
+        + `Available: ${manifest.themes.map(t => t.name).join(', ')}. `
+        + `The theme set is controlled by the preset's 'themes.names' option (or the providers' 'defaultThemes').`,
       )
     }
     return found
@@ -160,11 +160,11 @@ export function createThemeController(
 
     if (theme.activation.type === 'unknown') {
       throw new Error(
-        `createThemeController: для темы '${name}' сборка не смогла вывести селектор активации `
-        + `(селекторы: ${theme.selectors.length ? theme.selectors.join(', ') : '—'}). `
-        + `Так бывает, когда провайдер отдаёт тему готовым CSS-файлом: пресет инлайнит его как есть `
-        + `и не знает, что внутри. Либо переведите провайдера на 'tokenDefinitions', `
-        + `либо задайте активацию явно через опцию 'activations' при сборке манифеста.`,
+        `createThemeController: the build could not derive an activation selector for theme '${name}' `
+        + `(selectors: ${theme.selectors.length ? theme.selectors.join(', ') : '—'}). `
+        + `This happens when a provider ships the theme as a ready-made CSS file: the preset inlines it `
+        + `as-is and does not know what is inside. Either switch the provider to 'tokenDefinitions', `
+        + `or set the activation explicitly via the 'activations' option when building the manifest.`,
       )
     }
 

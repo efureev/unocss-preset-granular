@@ -337,7 +337,7 @@ describe('диагностика undeclared-dependency', () => {
   it('печатает секцию в текстовом отчёте', () => {
     const text = formatDoctorReport(granularDoctor({ providers: [undeclaredFixture()], components: ['p:A'] }))
 
-    expect(text).toContain('Незаявленные зависимости (1)')
+    expect(text).toContain('Undeclared dependencies (1)')
     expect(text).toContain('p:A → p:B')
   })
 })

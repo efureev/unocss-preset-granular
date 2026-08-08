@@ -3,7 +3,7 @@ import type {
   GranularProvider,
 } from '../contract'
 import type { ComponentKey, ComponentRegistry, RegistryEntry } from './registry'
-import { CircularDependencyError, ComponentNotFoundError, ProviderNotRegisteredError } from './errors'
+import { CircularDependencyError, ComponentNotFoundError, InvalidComponentKeyError, ProviderNotRegisteredError } from './errors'
 import { toComponentKey } from './registry'
 
 /**
@@ -68,11 +68,8 @@ export function normalizeSelection(
 
 function parseQualifiedKey(input: string): ComponentKey {
   const idx = input.lastIndexOf(':')
-  if (idx <= 0 || idx === input.length - 1) {
-    throw new Error(
-      `Invalid component key '${input}': expected 'providerId:ComponentName' (short form 'Name' is only allowed inside a component's 'dependencies').`,
-    )
-  }
+  if (idx <= 0 || idx === input.length - 1)
+    throw new InvalidComponentKeyError(input)
   return input as ComponentKey
 }
 

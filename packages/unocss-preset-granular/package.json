@@ -39,9 +39,7 @@
     "dist",
     "CHANGELOG.md"
   ],
-  "sideEffects": [
-    "**/*.css"
-  ],
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/types/src/index.d.ts",

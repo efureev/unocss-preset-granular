@@ -2,12 +2,30 @@ import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { clearCssCache, CSS_CACHE_MAX_ENTRIES, getCssCacheSize, readCss } from '../fs/readCss'
+import { clearCssCache, CSS_CACHE_MAX_ENTRIES, getCssCacheSize, GranularCssSourceError, readCss, resolveCssFilePath } from '../fs/readCss'
 
 describe('readCss (mtime cache)', () => {
   it('декодирует data URL без обращения к FS', async () => {
     expect(await readCss('data:text/css,.a{color:red}')).toBe('.a{color:red}')
     expect(await readCss('data:text/css;base64,LmF7fQ==')).toBe('.a{}')
+  })
+
+  it('не-file протокол — типизированная ошибка, а не путь от cwd', () => {
+    try {
+      resolveCssFilePath('https://example.com/theme.css')
+      throw new Error('should have thrown')
+    }
+    catch (error) {
+      expect(error).toBeInstanceOf(GranularCssSourceError)
+      expect((error as GranularCssSourceError).reason).toBe('unsupported-protocol')
+      expect((error as GranularCssSourceError).source).toBe('https://example.com/theme.css')
+    }
+  })
+
+  it('битый data-URL — типизированная ошибка', async () => {
+    // `data:text/css` без запятой не разбирается на metadata/body.
+    await expect(readCss('data:text/css')).rejects.toBeInstanceOf(GranularCssSourceError)
+    await expect(readCss('data:text/css')).rejects.toMatchObject({ reason: 'invalid-data-url' })
   })
 
   it('читает файл и возвращает свежее содержимое после изменения', async () => {

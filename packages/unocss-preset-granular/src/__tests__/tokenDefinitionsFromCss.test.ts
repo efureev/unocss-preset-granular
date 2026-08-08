@@ -78,6 +78,14 @@ describe('tokenDefinitionsFromCss (data URLs)', () => {
     await expect(
       tokenDefinitionsFromCss(toDataUrl(MULTI_BLOCKS_CSS), { selector: '.unknown' }),
     ).rejects.toThrow(/selector ".unknown" not found/)
+    // Типизированный класс: reason + список доступных селекторов в полях.
+    await expect(
+      tokenDefinitionsFromCss(toDataUrl(MULTI_BLOCKS_CSS), { selector: '.unknown' }),
+    ).rejects.toMatchObject({
+      name: 'GranularTokenParseError',
+      reason: 'selector-not-found',
+      available: [':root', '.dark, [data-theme="dark"]'],
+    })
   })
 
   it('falls back to the first block in non-strict mode', async () => {
@@ -93,6 +101,9 @@ describe('tokenDefinitionsFromCss (data URLs)', () => {
     await expect(
       tokenDefinitionsFromCss(toDataUrl(EMPTY_CSS)),
     ).rejects.toThrow(/no CSS custom properties/)
+    await expect(
+      tokenDefinitionsFromCss(toDataUrl(EMPTY_CSS)),
+    ).rejects.toMatchObject({ name: 'GranularTokenParseError', reason: 'no-tokens' })
   })
 
   it('returns empty tokens in non-strict mode when nothing is found', async () => {
@@ -246,9 +257,17 @@ describe('парсер: вложенность и at-rules', () => {
     ])
   })
 
-  it('strict-режим бросает ошибку вместо тихой порчи темы', () => {
+  it('strict-режим бросает типизированную ошибку вместо тихой порчи темы', () => {
     expect(() => tokenDefinitionsFromCssSync(toDataUrl(NESTED)))
       .toThrow(/Only flat top-level blocks/)
+    try {
+      tokenDefinitionsFromCssSync(toDataUrl(NESTED))
+      throw new Error('should have thrown')
+    }
+    catch (error) {
+      expect((error as Error).name).toBe('GranularTokenParseError')
+      expect((error as { reason?: string }).reason).toBe('unsupported-blocks')
+    }
   })
 
   it('в non-strict возвращает только плоские блоки', () => {

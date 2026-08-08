@@ -40,6 +40,19 @@ they summarise what shipped, not what was written down at the time.
   theme silently loses the value — the single most documented trap of the
   contract (SPEC §6.1) used to pass `doctor` with `clean: true`.
 
+- **Typed error classes for every remaining bare `Error`**: a malformed
+  selection key now raises `InvalidComponentKeyError` (exported from `.`);
+  a non-`file:` CSS URL or a malformed `data:` URL raises
+  `GranularCssSourceError`; strict token-parse failures raise
+  `GranularTokenParseError` with a machine-readable `reason` (both exported
+  from `./node`); a CLI options file without the expected export raises
+  `GranularOptionsLoadError`. Messages are unchanged — only the classes are
+  new. SPEC §11 lists the new rows.
+
+- **`InvalidProviderError` and `InvalidProviderReason` are now exported from
+  the root entry.** The class was thrown since 0.6 but never re-exported, so
+  consumers could not `instanceof` it.
+
 ### Changed
 
 - **Breaking (report types):** `DoctorDiagnosticCode` gained `'token-prefix'`.
@@ -56,6 +69,13 @@ they summarise what shipped, not what was written down at the time.
   now explicitly forbidden, same as `./node`, and the conformance grep in
   §9/§12 covers both entries.
 
+- **The entire user-facing surface now speaks English**: the text reports of
+  `doctor` / `explain` / `why-css`, `diagnostics[].message`, the CLI usage and
+  its errors, the runtime-controller errors and every `console.warn`. The
+  structured (`--json`) report shapes are unchanged. Anything that matched the
+  Russian text of the reports must update — the text format was never a stable
+  API; parse `--json` instead.
+
 ### Fixed
 
 - **A raw NUL byte in `src/vite-utils/cssAssets.ts`** (the dedupe key inside
@@ -64,6 +84,24 @@ they summarise what shipped, not what was written down at the time.
   differ", and the grep-based boundary checks from SPEC §9 silently matched
   nothing on those files. The byte is now written as the `\0` escape; runtime
   behaviour is unchanged.
+
+- **`getGranularComponentCss` now wraps read failures in
+  `GranularCssReadError`** naming the provider and the component, like every
+  other CSS-reading path. It was the last place where a missing file produced
+  a bare `ENOENT` with an absolute path and no culprit.
+
+- **`sideEffects` corrected to `false`.** The old `["**/*.css"]` matched
+  nothing — the package publishes no CSS files — and misleadingly declared
+  assets that do not exist. Tree-shaking behaviour is identical.
+
+- **`lib: ["DOM"]` removed from `tsconfig`.** The `/runtime` entry documents
+  that it does not depend on `lib.dom` (structural types only); the compiler
+  now enforces that instead of relying on discipline.
+
+- **The contract JSDoc of `cssFileAssetNames`** claimed a length mismatch
+  "silently disables the fallback for the tail" — in fact registration raises
+  `InvalidProviderError('css-files-length-mismatch')` (SPEC §4.2). The comment
+  described behaviour the package left behind.
 
 ## [0.7.0] — 2026-08-05
 

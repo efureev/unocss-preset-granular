@@ -239,6 +239,6 @@ describe('createThemeController', () => {
 
   it('пустой манифест — внятная ошибка, а не тихое ничего', () => {
     expect(() => createThemeController({ themes: [], defaultTheme: '' }))
-      .toThrow(/манифест пуст/)
+      .toThrow(/manifest is empty/)
   })
 })

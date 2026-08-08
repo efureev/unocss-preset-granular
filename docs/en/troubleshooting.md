@@ -42,7 +42,7 @@ arrives through — safelist, the component's CSS file, or a scanned source:
 npx granular why-css ./granular.options.mjs p-5
 ```
 
-"No source found" narrows it to a scan problem (2–3, 5) or a dynamic class (4).
+"No sources found" narrows it to a scan problem (2–3, 5) or a dynamic class (4).
 
 ## "Adding `'all'` pulls in way too much CSS"
 

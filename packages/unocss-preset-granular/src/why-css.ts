@@ -185,9 +185,9 @@ export async function granularWhyCss(
 // ---------------------------------------------------------------------------
 
 const VIA_TEXT: Record<WhyCssVia, string> = {
-  'safelist': 'safelist компонента (утилита эмитится всегда)',
-  'component-css': 'селектор в CSS-файле компонента',
-  'source-scan': 'исходник компонента в content.filesystem',
+  'safelist': 'component safelist (the utility is always emitted)',
+  'component-css': 'selector in a component CSS file',
+  'source-scan': 'component source in content.filesystem',
 }
 
 /** Рендерит {@link WhyCssReport} в человекочитаемый многострочный текст. */
@@ -204,12 +204,12 @@ export function formatWhyCssReport(report: WhyCssReport, cwd: string): string {
   push()
 
   if (!report.found) {
-    push(`Источников не найдено (просмотрено: CSS-файлов ${report.scanned.cssFiles}, `
-      + `исходников ${report.scanned.sourceFiles} в ${report.scanned.dirs} директории(ях)).`)
+    push(`No sources found (scanned: ${report.scanned.cssFiles} CSS file(s), `
+      + `${report.scanned.sourceFiles} source file(s) in ${report.scanned.dirs} director(ies)).`)
     push()
-    push('Класс может приходить не от компонента: из rules/shortcuts самого UnoCSS')
-    push('или провайдера (provider.unocss), из base/tokens/CSS темы либо из кода')
-    push('приложения — granular о них не знает.')
+    push('The class may come from outside any component: from rules/shortcuts of')
+    push('UnoCSS itself or a provider (provider.unocss), from base/tokens/theme CSS,')
+    push('or from the application code — granular does not track those.')
     return lines.join('\n')
   }
 
@@ -220,15 +220,15 @@ export function formatWhyCssReport(report: WhyCssReport, cwd: string): string {
     byVia.set(hit.via, list)
   }
 
-  push(`Источники (${report.hits.length}):`)
+  push(`Sources (${report.hits.length}):`)
   for (const [via, list] of byVia) {
     push(`  ${VIA_TEXT[via]}:`)
     for (const hit of list)
       push(`    • ${hit.providerId}:${hit.componentName}${hit.file ? ` — ${short(hit.file)}` : ''}`)
   }
   push()
-  push(`Просмотрено: CSS-файлов ${report.scanned.cssFiles}, `
-    + `исходников ${report.scanned.sourceFiles} в ${report.scanned.dirs} директории(ях).`)
+  push(`Scanned: ${report.scanned.cssFiles} CSS file(s), `
+    + `${report.scanned.sourceFiles} source file(s) in ${report.scanned.dirs} director(ies).`)
 
   return lines.join('\n')
 }

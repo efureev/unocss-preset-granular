@@ -1,7 +1,6 @@
 import type { GranularThemeTokenSet } from '../contract'
-import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
-import { isCssDataUrl, readCss, resolveCssFilePath } from '../fs/readCss'
+import { decodeCssDataUrl, isCssDataUrl, readCss, resolveCssFilePath } from '../fs/readCss'
 
 /** Результат парсинга одного CSS-блока с custom properties. */
 export interface ParsedTokenBlock {
@@ -34,6 +33,27 @@ export interface TokenDefinitionsFromCssOptions {
 }
 
 const DEFAULT_SELECTOR = ':root'
+
+/**
+ * Отказ strict-режима парсера токенов: файл не даёт того, что у него просили.
+ *
+ *   - `unsupported-blocks` — есть блоки, невыразимые парой `{ selector, tokens }`
+ *     (вложенность, at-rules);
+ *   - `no-tokens` — в файле нет ни одного блока с custom properties;
+ *   - `selector-not-found` — запрошенный селектор отсутствует, а однозначно
+ *     выбрать блок нельзя (`available` перечисляет, что в файле есть).
+ */
+export class GranularTokenParseError extends Error {
+  constructor(
+    message: string,
+    public readonly source: string,
+    public readonly reason: 'unsupported-blocks' | 'no-tokens' | 'selector-not-found',
+    public readonly available?: readonly string[],
+  ) {
+    super(message)
+    this.name = 'GranularTokenParseError'
+  }
+}
 
 /**
  * Асинхронный хелпер для авторов granular-провайдеров.
@@ -133,13 +153,18 @@ function parseAndPick(
       = `tokenDefinitionsFromCss: unsupported CSS block(s) in ${truncate(source)}: ${describeSkipped(skipped)}. `
         + 'Only flat top-level blocks are parsed; move the custom properties to a top-level selector.'
     if (strict)
-      throw new Error(message)
+      throw new GranularTokenParseError(message, source, 'unsupported-blocks')
     warnOnce(message)
   }
 
   if (blocks.length === 0) {
-    if (strict)
-      throw new Error(`tokenDefinitionsFromCss: no CSS custom properties found in ${truncate(source)}`)
+    if (strict) {
+      throw new GranularTokenParseError(
+        `tokenDefinitionsFromCss: no CSS custom properties found in ${truncate(source)}`,
+        source,
+        'no-tokens',
+      )
+    }
     return { selector: as ?? selector, tokens: {} }
   }
 
@@ -150,9 +175,12 @@ function parseAndPick(
       picked = blocks[0]
     }
     else if (strict) {
-      throw new Error(
+      throw new GranularTokenParseError(
         `tokenDefinitionsFromCss: selector "${selector}" not found in ${truncate(source)}; `
         + `available selectors: ${blocks.map(b => JSON.stringify(b.selector)).join(', ')}`,
+        source,
+        'selector-not-found',
+        blocks.map(b => b.selector),
       )
     }
     else {
@@ -168,18 +196,8 @@ function parseAndPick(
 
 function readCssSync(source: string): string {
   if (isCssDataUrl(source))
-    return decodeDataUrlSync(source)
+    return decodeCssDataUrl(source)
   return readFileSync(resolveCssFilePath(source), 'utf8')
-}
-
-function decodeDataUrlSync(file: string): string {
-  const match = file.match(/^data:([^,]*),(.*)$/s)
-  if (!match)
-    throw new Error(`Unsupported CSS data URL: ${file.slice(0, 64)}...`)
-  const [, metadata = '', body = ''] = match
-  if (metadata.includes(';base64'))
-    return Buffer.from(body, 'base64').toString('utf8')
-  return decodeURIComponent(body)
 }
 
 function looksLikeCssLiteral(source: string): boolean {

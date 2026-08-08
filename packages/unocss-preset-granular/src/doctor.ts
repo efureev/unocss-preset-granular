@@ -300,9 +300,9 @@ function computeUndeclaredDependencies(
 
 /** Причина, по которой компонент не попал в скан — общая для отчёта и диагностик. */
 const REASON_TEXT: Record<DoctorMissingDir['reason'], string> = {
-  'missing-dir': 'директория отсутствует',
-  'missing-entry': 'нет index.js',
-  'invalid-base-url': 'некорректный packageBaseUrl',
+  'missing-dir': 'directory is missing',
+  'missing-entry': 'index.js is missing',
+  'invalid-base-url': 'invalid packageBaseUrl',
 }
 
 /** К чему относится предупреждение резолва тем. */
@@ -374,8 +374,8 @@ function collectDiagnostics(
       level: 'warn',
       code: 'token-conflict',
       subject: `${t.theme}:${t.token}`,
-      message: `${t.selector} { --${t.token} } задаётся несколькими слоями `
-        + `(${t.sources.join(' → ')}), победило ${t.finalValue}`,
+      message: `${t.selector} { --${t.token} } is written by several layers `
+        + `(${t.sources.join(' → ')}), final value: ${t.finalValue}`,
     })
   }
 
@@ -384,9 +384,9 @@ function collectDiagnostics(
       level: 'warn',
       code: 'undeclared-dependency',
       subject: edge.from,
-      message: `собранный код импортирует ${edge.to} ("${edge.specifier}" в ${edge.source}), `
-        + `но ${edge.to} не достижим из его dependencies — при селекции без ${edge.to} `
-        + 'его директория не сканируется и safelist не подмешивается',
+      message: `the emitted code imports ${edge.to} ("${edge.specifier}" in ${edge.source}), `
+        + `but ${edge.to} is not reachable from its dependencies — a selection without ${edge.to} `
+        + 'never scans its directory and never merges its safelist',
     })
   }
 
@@ -395,8 +395,8 @@ function collectDiagnostics(
       level: 'warn',
       code: 'token-prefix',
       subject: `${t.theme}:${t.token}`,
-      message: `токен объявлен с префиксом '--' (${t.source}) — генератор дописывает префикс сам, `
-        + `в CSS уедет '--${t.token}', и тема молча останется без значения`,
+      message: `token key is declared with the '--' prefix (${t.source}) — the generator adds the prefix `
+        + `itself, so the CSS gets '--${t.token}' and the theme silently loses the value`,
     })
   }
 
@@ -411,7 +411,7 @@ function collectDiagnostics(
       level: 'warn',
       code: 'unused-provider',
       subject: provider.id,
-      message: 'провайдер ничего не даёт сборке: ни выбранных компонентов, ни theme, ни unocss',
+      message: 'the provider contributes nothing to the build: no selected components, no theme, no unocss',
     })
   }
 
@@ -508,31 +508,31 @@ export function countDoctorDiagnostics(
 
 const NAMES_SOURCE_TEXT: Record<ThemeNamesSource, string> = {
   'explicit': 'themes.names',
-  'app-defined': 'ключи themes.define',
-  'provider-defaults': 'defaultThemes провайдеров',
-  'fallback': 'фолбэк ядра',
+  'app-defined': 'keys of themes.define',
+  'provider-defaults': 'providers\' defaultThemes',
+  'fallback': 'core fallback',
 }
 
 const EXTENDS_REASON_TEXT: Record<'unknown' | 'opaque', string> = {
-  unknown: 'такой темы не поставляет никто',
-  opaque: 'тема приходит готовым CSS-файлом, её значения пресету не видны',
+  unknown: 'no provider supplies a theme with that name',
+  opaque: 'the theme comes as a ready-made CSS file, its values are opaque to the preset',
 }
 
 function formatThemeWarning(w: ResolvedThemeWarning): string {
   switch (w.kind) {
     case 'theme-extends-unresolved':
-      return `тема "${w.theme}" наследует "${w.base}", но унаследовать нечего: `
+      return `theme "${w.theme}" extends "${w.base}", but there is nothing to inherit: `
         + `${EXTENDS_REASON_TEXT[w.reason]}`
     case 'theme-extends-cycle':
-      return `цикл в themes.define[].extends: ${w.chain.join(' → ')} — цепочка оборвана`
+      return `cycle in themes.define[].extends: ${w.chain.join(' → ')} — the chain is cut`
     case 'default-theme-without-source':
-      return `${w.providerId} объявил "${w.theme}" в defaultThemes, но не поставляет её `
-        + '(нет ни themes[name], ни tokenDefinitions[name])'
+      return `${w.providerId} lists "${w.theme}" in defaultThemes but does not supply it `
+        + '(neither themes[name] nor tokenDefinitions[name])'
     case 'partial-theme':
-      return `тема "${w.theme}" покрыта не всеми провайдерами — без неё: ${w.providersWithout.join(', ')}`
+      return `theme "${w.theme}" is not covered by every provider — missing from: ${w.providersWithout.join(', ')}`
     case 'multiple-default-themes':
-      return `по умолчанию активировано несколько тем: [${w.themes.join(', ')}] — `
-        + 'их блоки эмитятся одновременно; при пересекающихся селекторах победит последняя'
+      return `several themes are active by default: [${w.themes.join(', ')}] — `
+        + 'their blocks are emitted simultaneously; with overlapping selectors the last one wins'
   }
 }
 
@@ -545,14 +545,14 @@ export function formatDoctorReport(report: DoctorReport): string {
   push('===============')
   push()
 
-  push(`Провайдеры (${report.providers.length}):`)
+  push(`Providers (${report.providers.length}):`)
   for (const p of report.providers) {
-    push(`  • ${p.id} — компонентов: ${p.components}`
-      + `${p.hasTheme ? ', theme: да' : ''}${p.hasUnocss ? ', unocss: да' : ''}`)
+    push(`  • ${p.id} — components: ${p.components}`
+      + `${p.hasTheme ? ', theme: yes' : ''}${p.hasUnocss ? ', unocss: yes' : ''}`)
   }
   push()
 
-  push(`Выбранные компоненты (${report.components.length}, порядок = deps → зависящие):`)
+  push(`Selected components (${report.components.length}, order = deps → dependents):`)
   for (const c of report.components) {
     const extra: string[] = []
     if (c.dependencies.length)
@@ -567,34 +567,34 @@ export function formatDoctorReport(report: DoctorReport): string {
   }
   push()
 
-  push(`Темы: [${report.themes.names.join(', ') || '—'}] (${NAMES_SOURCE_TEXT[report.themes.namesSource]})`)
+  push(`Themes: [${report.themes.names.join(', ') || '—'}] (source: ${NAMES_SOURCE_TEXT[report.themes.namesSource]})`)
   for (const b of report.themes.blocks)
-    push(`  • ${b.theme} → ${b.selector} (${b.tokens} токен(ов))`)
+    push(`  • ${b.theme} → ${b.selector} (${b.tokens} token(s))`)
   for (const w of report.themes.warnings)
     push(`  ⚠ ${formatThemeWarning(w)}`)
   push()
 
   if (report.tokenConflicts.length) {
-    push(`Конфликты токенов (${report.tokenConflicts.length}) — значение задаётся несколькими слоями:`)
+    push(`Token conflicts (${report.tokenConflicts.length}) — the value is written by several layers:`)
     for (const t of report.tokenConflicts)
       push(`  • [${t.theme}] ${t.selector} { --${t.token} } ← ${t.sources.join(' → ')} = ${t.finalValue}`)
     push()
   }
 
   if (report.undeclaredDependencies.length) {
-    push(`Незаявленные зависимости (${report.undeclaredDependencies.length}) — импорт есть в dist, в dependencies нет:`)
+    push(`Undeclared dependencies (${report.undeclaredDependencies.length}) — the import is in dist, not in dependencies:`)
     for (const edge of report.undeclaredDependencies)
-      push(`  • ${edge.from} → ${edge.to} ("${edge.specifier}" в ${edge.source})`)
+      push(`  • ${edge.from} → ${edge.to} ("${edge.specifier}" in ${edge.source})`)
     push()
   }
 
-  push(`Скан-globs (${report.scan.globs.length}):`)
+  push(`Scan globs (${report.scan.globs.length}):`)
   for (const g of report.scan.globs)
     push(`  • ${g}`)
   push()
 
   if (report.scan.missing.length) {
-    push(`⚠ Проблемы layout-контракта (${report.scan.missing.length}):`)
+    push(`⚠ Layout-contract problems (${report.scan.missing.length}):`)
     for (const m of report.scan.missing)
       push(`  • ${m.providerId}:${m.componentName} — ${REASON_TEXT[m.reason]} (${m.expectedDir})`)
     push()
@@ -603,18 +603,18 @@ export function formatDoctorReport(report: DoctorReport): string {
   const { errors, warnings } = countDoctorDiagnostics(report)
 
   if (report.diagnostics.length) {
-    push(`Итоги диагностики (ошибок: ${errors}, предупреждений: ${warnings}):`)
+    push(`Diagnostics summary (errors: ${errors}, warnings: ${warnings}):`)
     for (const d of report.diagnostics)
       push(`  ${d.level === 'error' ? '✗' : '⚠'} [${d.code}] ${d.subject} — ${d.message}`)
     push()
   }
 
   if (!report.ok)
-    push(`✗ Найдены нарушения layout-контракта: ${report.scan.missing.length}.`)
+    push(`✗ Layout-contract violations found: ${report.scan.missing.length}.`)
   else if (warnings)
-    push(`✓ OK — нарушений layout-контракта не найдено; предупреждений: ${warnings} (падают только с --strict).`)
+    push(`✓ OK — no layout-contract violations; warnings: ${warnings} (they only fail with --strict).`)
   else
-    push('✓ OK — нарушений layout-контракта не найдено.')
+    push('✓ OK — no layout-contract violations.')
 
   return lines.join('\n')
 }

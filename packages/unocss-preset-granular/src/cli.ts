@@ -8,43 +8,55 @@ import { countDoctorDiagnostics, formatDoctorReport, granularDoctor } from './do
 import { formatExplainReport, granularExplain } from './explain'
 import { formatWhyCssReport, granularWhyCss } from './why-css'
 
-export const GRANULAR_CLI_USAGE = `granular — диагностика @feugene/unocss-preset-granular
+export const GRANULAR_CLI_USAGE = `granular — diagnostics for @feugene/unocss-preset-granular
 
-Использование:
+Usage:
   granular doctor  <options-file> [--json] [--strict]
   granular explain <options-file> <providerId:Component> [--json]
   granular why-css <options-file> <class> [--json]
 
-  <options-file> — JS/MJS модуль, экспортирующий granular-опции
-  (default / \`granularOptions\` / \`options\`) с массивом \`providers\`.
-  Обычно опции выносят из uno.config.ts в отдельный файл:
+  <options-file> is a JS/MJS module exporting the granular options
+  (default / \`granularOptions\` / \`options\`) with a \`providers\` array.
+  Usually the options are extracted from uno.config.ts into their own file:
 
     // granular.options.mjs
     import provider from '@your/pkg/granular-provider/node'
     export default { providers: [provider], components: 'all' }
 
-  Затем:  granular doctor ./granular.options.mjs
+  Then:  granular doctor ./granular.options.mjs
 
-Команды:
-  doctor   — полный отчёт о конфигурации: провайдеры, граф компонентов, темы,
-             конфликты токенов, скан-globs, нарушения layout-контракта.
-  explain  — почему компонент в сборке: цепочка от корня селекции, обратные
-             зависимости и что он даёт в safelist/CSS/токены. Имя компонента
-             можно указать без провайдера, если оно однозначно.
-  why-css  — какой компонент притащил класс в итоговый CSS: safelist,
-             CSS-файлы компонентов, исходники в content.filesystem.
+Commands:
+  doctor   — full report on the configuration: providers, the component graph,
+             themes, token conflicts, scan globs, layout-contract violations.
+  explain  — why a component is in the build: the chain from the selection
+             root, reverse dependencies and its safelist/CSS/token
+             contribution. The provider prefix may be omitted when the
+             component name is unambiguous.
+  why-css  — which component pulled a class into the final CSS: safelist,
+             component CSS files, sources in content.filesystem.
 
-Флаги:
-  --json    вывести структурированный отчёт вместо текста.
-  --strict  (только doctor) считать предупреждения ошибками.
+Flags:
+  --json    print a structured report instead of text.
+  --strict  (doctor only) treat warnings as errors.
 
-Коды выхода: 0 — OK, 1 — найдены нарушения или ошибка.
+Exit codes: 0 — OK, 1 — violations found or an error occurred.
 `
 
 /** Куда CLI пишет вывод. Инъекция нужна тестам, в проде — потоки процесса. */
 export interface GranularCliIo {
   stdout: (text: string) => void
   stderr: (text: string) => void
+}
+
+/** Файл опций не экспортирует того, что CLI обязан в нём найти. */
+export class GranularOptionsLoadError extends Error {
+  constructor(public readonly file: string) {
+    super(
+      `Module '${file}' must export the granular options `
+      + `(default / granularOptions / options) with a 'providers' array.`,
+    )
+    this.name = 'GranularOptionsLoadError'
+  }
 }
 
 /**
@@ -58,12 +70,8 @@ export async function loadGranularOptions(file: string): Promise<PresetGranularN
   const url = pathToFileURL(resolve(file)).href
   const mod = await import(url)
   const options = mod.default ?? mod.granularOptions ?? mod.options
-  if (!options || !Array.isArray(options.providers)) {
-    throw new Error(
-      `Модуль '${file}' должен экспортировать granular-опции `
-      + `(default / granularOptions / options) с массивом 'providers'.`,
-    )
-  }
+  if (!options || !Array.isArray(options.providers))
+    throw new GranularOptionsLoadError(file)
   return options as PresetGranularNodeOptions
 }
 
@@ -130,18 +138,18 @@ export async function runGranularCli(
   }
 
   if (command !== 'doctor' && command !== 'explain' && command !== 'why-css') {
-    io.stderr(`Неизвестная команда '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
+    io.stderr(`Unknown command '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
 
   if (!file) {
-    io.stderr(`Не указан <options-file>.\n\n${GRANULAR_CLI_USAGE}`)
+    io.stderr(`Missing <options-file>.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
 
   if (command !== 'doctor' && !subject) {
     const what = command === 'explain' ? '<providerId:Component>' : '<class>'
-    io.stderr(`Не указан ${what} для '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
+    io.stderr(`Missing ${what} for '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
 

@@ -207,6 +207,7 @@ registered provider.
 In a string selection item the separator is the **last** colon. Both sides
 **MUST** be non-empty. Therefore `'a:b:C'` denotes component `C` of provider
 `a:b` — provider ids containing colons are supported and are not ambiguous.
+A string that does not parse raises `InvalidComponentKeyError`.
 
 ### 5.2 Transitive closure
 
@@ -448,12 +449,15 @@ Every rejection is a typed error class from `core/errors.ts` (or
 | Two components with one name in a provider | `DuplicateComponentNameError` | registration |
 | Cycle in `provider.dependencies` | `CircularProviderDependencyError` | registration |
 | String dependency never satisfied | `UnresolvedProviderDependencyError` | registration |
+| Selection key not of the form `providerId:Name` | `InvalidComponentKeyError` | selection |
 | Selection references an unregistered provider | `ProviderNotRegisteredError` | selection |
 | Selection references an unknown component | `ComponentNotFoundError` | selection |
 | Cycle in `component.dependencies` | `CircularDependencyError` | selection |
 | Missing component directory, `scan.strict` | `GranularProviderContractError` | scan |
 | Missing component directory, default | `console.warn`, component skipped | scan |
 | CSS file missing on both path and fallback | `GranularCssReadError` | CSS read |
+| CSS source is a non-`file:` URL or a malformed `data:` URL | `GranularCssSourceError` | CSS read |
+| Strict token-ref parse failure (unsupported blocks, no tokens, selector not found) | `GranularTokenParseError`, wrapped in `GranularTokenRefError` | ref materialization |
 
 *(Informative)* Registration-time failures are deliberate: each of them used to
 surface much later as an empty scan, a bare `ERR_INVALID_URL_SCHEME`, or CSS

@@ -471,9 +471,9 @@ async function expandCssDirectives(
     if (!directivesUnavailableWarned) {
       directivesUnavailableWarned = true
       console.warn(
-        `[granular] expandDirectives: не удалось загрузить трансформер — `
-        + `нужны разрешимые 'unocss' (transformerDirectives) и 'magic-string'. `
-        + `CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
+        `[granular] expandDirectives: failed to load the transformer — `
+        + `resolvable 'unocss' (transformerDirectives) and 'magic-string' are required. `
+        + `CSS left unchanged. Cause: ${(error as Error)?.message ?? error}`,
       )
     }
     return css
@@ -492,8 +492,8 @@ async function expandCssDirectives(
     // НЕ глушим повторы: это ошибка в CSS, и она нужна пользователю каждый
     // раз, пока не исправлена.
     console.warn(
-      `[granular] expandDirectives: ошибка при раскрытии @apply/@screen/theme() `
-      + `в инлайн-CSS. CSS оставлен без изменений. Причина: ${(error as Error)?.message ?? error}`,
+      `[granular] expandDirectives: failed to expand @apply/@screen/theme() `
+      + `in the inline CSS. CSS left unchanged. Cause: ${(error as Error)?.message ?? error}`,
     )
     return css
   }
@@ -544,7 +544,12 @@ export async function getGranularComponentCss(
 ): Promise<string> {
   const resolution = resolveGranularNode(options)
   const files = await resolveComponentCssFiles(resolution)
-  const parts = await Promise.all(files.map(f => readCss(f.filePath)))
+  // Тот же контекст ошибки, что и у основного пути (`collectNodeCssSections`):
+  // голый ENOENT без провайдера и компонента здесь так же бесполезен.
+  const parts = await Promise.all(files.map(f => readCssFrom(
+    f.filePath,
+    { origin: `provider '${f.providerId}'`, section: 'component', subject: f.componentName },
+  )))
   return parts.join('\n')
 }
 

@@ -165,13 +165,13 @@ describe('formatExplainReport', () => {
     expect(text).toContain('granular explain pkg:Base')
     expect(text).toContain('pkg:Card → pkg:Base')
     expect(text).toContain('safelist (1): base-cls')
-    expect(text).toContain('(перебит → #fff)')
+    expect(text).toContain('(overridden → #fff)')
   })
 
   it('для unknown печатает список известных компонентов', () => {
     const text = formatExplainReport(granularExplain(options(), 'pkg:Nope'))
 
-    expect(text).toContain('такого компонента не объявлял')
+    expect(text).toContain('no provider declares such a component')
     expect(text).toContain('pkg:Card')
   })
 
@@ -185,6 +185,6 @@ describe('formatExplainReport', () => {
     const report = granularExplain({ providers: [broken], components: 'all' }, 'broken:Ghost')
 
     expect(report.scanSkipped?.reason).toBe('missing-dir')
-    expect(formatExplainReport(report)).toContain('В скан не попал')
+    expect(formatExplainReport(report)).toContain('Not scanned')
   })
 })

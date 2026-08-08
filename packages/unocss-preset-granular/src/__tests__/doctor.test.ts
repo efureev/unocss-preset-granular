@@ -141,11 +141,11 @@ describe('formatDoctorReport', () => {
     const text = formatDoctorReport(report)
 
     expect(text).toContain('granular doctor')
-    expect(text).toContain('Провайдеры (1):')
+    expect(text).toContain('Providers (1):')
     expect(text).toContain('s:X')
-    expect(text).toContain('light → :root (1 токен(ов))')
+    expect(text).toContain('light → :root (1 token(s))')
     // s:X отсутствует на диске → нарушение
-    expect(text).toContain('✗ Найдены нарушения layout-контракта')
+    expect(text).toContain('✗ Layout-contract violations found')
   })
 })
 
@@ -244,8 +244,8 @@ describe('doctor: уровни диагностики', () => {
     const text = formatDoctorReport(report)
 
     expect(report.clean).toBe(true)
-    expect(text).toContain('✓ OK — нарушений layout-контракта не найдено.')
-    expect(text).not.toContain('Итоги диагностики')
+    expect(text).toContain('✓ OK — no layout-contract violations.')
+    expect(text).not.toContain('Diagnostics summary')
   })
 
   it('текстовый отчёт со сводкой упоминает --strict', () => {
@@ -259,9 +259,9 @@ describe('doctor: уровни диагностики', () => {
 
     const text = formatDoctorReport(granularDoctor({ providers: [provider], scan: { enabled: false } }))
 
-    expect(text).toContain('Итоги диагностики (ошибок: 0, предупреждений: 2):')
+    expect(text).toContain('Diagnostics summary (errors: 0, warnings: 2):')
     expect(text).toContain('[theme-warning]')
-    expect(text).toContain('падают только с --strict')
+    expect(text).toContain('they only fail with --strict')
   })
 })
 
@@ -288,7 +288,7 @@ describe('doctor: темы по умолчанию', () => {
     ])
 
     const text = formatDoctorReport(report)
-    expect(text).toContain('defaultThemes провайдеров')
-    expect(text).toContain('не поставляет её')
+    expect(text).toContain('providers\' defaultThemes')
+    expect(text).toContain('does not supply it')
   })
 })

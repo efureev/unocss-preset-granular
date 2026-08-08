@@ -32,6 +32,7 @@ export {
   CSS_CACHE_MAX_ENTRIES,
   fileExists,
   getCssCacheSize,
+  GranularCssSourceError,
   isCssDataUrl,
   readCss,
   resolveComponentCssFile,
@@ -58,6 +59,7 @@ export {
   type GranularVitePlugin,
 } from './node-utils/themeManifest'
 export {
+  GranularTokenParseError,
   parseCssCustomPropertyBlocks,
   parseCssCustomPropertyBlocksSync,
   type ParsedTokenBlock,

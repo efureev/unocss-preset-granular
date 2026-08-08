@@ -88,8 +88,8 @@ describe('expandDirectives: диагностика ошибок', () => {
     const messages = warn.mock.calls.map(c => String(c[0]))
     // Раньше здесь было бы «нужны разрешимые 'unocss' и 'magic-string'»,
     // причём ровно один раз за процесс.
-    expect(messages.every(m => !m.includes('не удалось загрузить трансформер'))).toBe(true)
-    expect(messages.filter(m => m.includes('ошибка при раскрытии'))).toHaveLength(2)
+    expect(messages.every(m => !m.includes('failed to load the transformer'))).toBe(true)
+    expect(messages.filter(m => m.includes('failed to expand'))).toHaveLength(2)
     expect(messages.some(m => m.includes('colors.nope.500'))).toBe(true)
 
     warn.mockRestore()

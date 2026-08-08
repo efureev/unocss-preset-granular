@@ -26,6 +26,23 @@ export class ComponentNotFoundError extends Error {
   }
 }
 
+/**
+ * Строковый элемент селекции не разбирается как `providerId:ComponentName`.
+ *
+ * Разделитель — ПОСЛЕДНЕЕ двоеточие, обе стороны непустые; короткая форма
+ * `'Name'` допустима только внутри `component.dependencies`, но не в
+ * `options.components`.
+ */
+export class InvalidComponentKeyError extends Error {
+  constructor(public readonly key: string) {
+    super(
+      `Invalid component key '${key}': expected 'providerId:ComponentName' `
+      + `(short form 'Name' is only allowed inside a component's 'dependencies').`,
+    )
+    this.name = 'InvalidComponentKeyError'
+  }
+}
+
 export class CircularDependencyError extends Error {
   constructor(public readonly chain: readonly string[]) {
     super(`Circular granular component dependency detected: ${chain.join(' -> ')}`)

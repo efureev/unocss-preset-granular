@@ -12,6 +12,24 @@ export function isCssDataUrl(file: string): boolean {
 }
 
 /**
+ * Источник CSS невозможно прочитать в принципе: не-file протокол либо битый
+ * data-URL. Отдельный класс, а не голый `Error`, — как и остальные отказы
+ * пакета (см. `core/errors.ts`).
+ */
+export class GranularCssSourceError extends Error {
+  constructor(
+    public readonly source: string,
+    public readonly reason: 'unsupported-protocol' | 'invalid-data-url',
+  ) {
+    super(reason === 'unsupported-protocol'
+      ? `Granular: cannot read CSS from a non-file URL '${source}'. `
+      + `Only local paths, 'file://' URLs and 'data:text/css' URLs are supported.`
+      : `Granular: unsupported CSS data URL: ${source.slice(0, 64)}...`)
+    this.name = 'GranularCssSourceError'
+  }
+}
+
+/**
  * Нормализует вход (data URL / file:// URL / другой protocol / абсолютный путь / относительный)
  * в абсолютный путь или data URL.
  */
@@ -26,10 +44,7 @@ export function resolveCssFilePath(file: string): string {
     // Only `file:` URLs (and data: CSS handled above) are readable from disk.
     // Remote protocols (`http:`, `https:`, …) cannot be inlined at build time;
     // fail loudly instead of silently mapping the pathname onto `cwd`.
-    throw new Error(
-      `[granular] cannot read CSS from a non-file URL '${file}'. `
-      + `Only local paths, 'file://' URLs and 'data:text/css' URLs are supported.`,
-    )
+    throw new GranularCssSourceError(file, 'unsupported-protocol')
   }
 
   if (isAbsolute(file))
@@ -38,10 +53,11 @@ export function resolveCssFilePath(file: string): string {
   return resolve(process.cwd(), file)
 }
 
-function decodeCssDataUrl(file: string): string {
+/** Декодирует `data:text/css`-URL. Общий для async- и sync-путей чтения. */
+export function decodeCssDataUrl(file: string): string {
   const match = file.match(/^data:([^,]*),(.*)$/s)
   if (!match)
-    throw new Error(`Unsupported CSS data URL: ${file.slice(0, 64)}...`)
+    throw new GranularCssSourceError(file, 'invalid-data-url')
   const [, metadata = '', body = ''] = match
   if (metadata.includes(';base64'))
     return Buffer.from(body, 'base64').toString('utf8')

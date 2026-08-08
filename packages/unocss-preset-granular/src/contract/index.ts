@@ -54,8 +54,9 @@ export interface GranularComponentDescriptor<Name extends string = string> {
   /**
    * Fallback-имена ассетов, сопоставляются с `cssFiles` ПОЗИЦИОННО.
    * Если файл из `cssFiles[i]` не существует, node-слой читает
-   * `new URL(cssFileAssetNames[i], packageBaseUrl)`. Рассинхрон длин молча
-   * отключает fallback для «хвоста».
+   * `new URL(cssFileAssetNames[i], packageBaseUrl)`. Если оба массива
+   * непусты, длины обязаны совпадать: рассинхрон ловится на регистрации —
+   * `InvalidProviderError('css-files-length-mismatch')` (SPEC §4.2).
    */
   cssFileAssetNames?: readonly string[]
   /**

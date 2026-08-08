@@ -126,14 +126,14 @@ describe('formatWhyCssReport', () => {
     const text = formatWhyCssReport(report, root)
 
     expect(text).toContain('granular why-css text-red-500')
-    expect(text).toContain('исходник компонента')
+    expect(text).toContain('component source in content.filesystem')
     expect(text).toContain('components/Btn/index.js')
   })
 
   it('при отсутствии источников подсказывает про rules и темы', async () => {
     const text = formatWhyCssReport(await granularWhyCss(options(), 'nope'), root)
 
-    expect(text).toContain('Источников не найдено')
+    expect(text).toContain('No sources found')
     expect(text).toContain('rules/shortcuts')
   })
 })

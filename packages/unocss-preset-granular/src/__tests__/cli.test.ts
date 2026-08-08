@@ -94,15 +94,15 @@ describe('granular CLI: аргументы', () => {
   it('неизвестная команда — код 1 и usage в stderr', async () => {
     const { io, out, err } = createIo()
     expect(await runGranularCli(['diagnose'], io)).toBe(1)
-    expect(err.join('')).toContain(`Неизвестная команда 'diagnose'`)
-    expect(err.join('')).toContain('Использование:')
+    expect(err.join('')).toContain(`Unknown command 'diagnose'`)
+    expect(err.join('')).toContain('Usage:')
     expect(out).toEqual([])
   })
 
   it('doctor без options-файла — код 1', async () => {
     const { io, err } = createIo()
     expect(await runGranularCli(['doctor'], io)).toBe(1)
-    expect(err.join('')).toContain('Не указан <options-file>')
+    expect(err.join('')).toContain('Missing <options-file>')
   })
 
   it('explain и why-css без своего аргумента — код 1', async () => {
@@ -112,7 +112,7 @@ describe('granular CLI: аргументы', () => {
     ]) {
       const { io, err } = createIo()
       expect(await runGranularCli([command, okOptionsFile], io)).toBe(1)
-      expect(err.join('')).toContain(`Не указан ${expected}`)
+      expect(err.join('')).toContain(`Missing ${expected}`)
     }
   })
 
@@ -140,8 +140,8 @@ describe('granular CLI: doctor', () => {
     expect(await runGranularCli(['doctor', brokenOptionsFile], io)).toBe(1)
 
     const report = out.join('')
-    expect(report).toContain('Проблемы layout-контракта')
-    expect(report).toContain('нет index.js')
+    expect(report).toContain('Layout-contract problems')
+    expect(report).toContain('index.js is missing')
   })
 
   it('несуществующий файл — код 1, сообщение вместо стектрейса', async () => {
@@ -166,7 +166,7 @@ describe('granular CLI: doctor', () => {
 
     const { io, err } = createIo()
     expect(await runGranularCli(['doctor', bad], io)).toBe(1)
-    expect(err.join('')).toContain(`должен экспортировать granular-опции`)
+    expect(err.join('')).toContain(`must export the granular options`)
   })
 })
 
@@ -197,7 +197,7 @@ describe('granular CLI: doctor --json / --strict', () => {
     const { io: io1, out } = createIo()
     expect(await runGranularCli(['doctor', warnOptionsFile], io1)).toBe(0)
     expect(out.join('')).toContain('unused-provider')
-    expect(out.join('')).toContain('падают только с --strict')
+    expect(out.join('')).toContain('they only fail with --strict')
 
     const { io: io2 } = createIo()
     expect(await runGranularCli(['doctor', warnOptionsFile, '--strict'], io2)).toBe(1)
@@ -216,7 +216,7 @@ describe('granular CLI: explain', () => {
 
     const text = out.join('')
     expect(text).toContain('granular explain pkg:Btn')
-    expect(text).toContain('в сборке')
+    expect(text).toContain('in the build')
     expect(text).toContain('btn')
   })
 
@@ -239,14 +239,14 @@ describe('granular CLI: why-css', () => {
     expect(await runGranularCli(['why-css', okOptionsFile, 'btn'], io)).toBe(0)
 
     const text = out.join('')
-    expect(text).toContain('safelist компонента')
+    expect(text).toContain('component safelist')
     expect(text).toContain('pkg:Btn')
   })
 
   it('класс без источника — код 1 и подсказка про rules', async () => {
     const { io, out } = createIo()
     expect(await runGranularCli(['why-css', okOptionsFile, 'no-such-class'], io)).toBe(1)
-    expect(out.join('')).toContain('Источников не найдено')
+    expect(out.join('')).toContain('No sources found')
   })
 
   it('--json отдаёт структурированные hits', async () => {

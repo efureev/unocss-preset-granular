@@ -11,7 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "allowImportingTsExtensions": true,
     "allowSyntheticDefaultImports": true,
-    "lib": ["ESNext", "DOM"],
+    "lib": ["ESNext"],
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node", "vitest/globals"]

@@ -301,16 +301,16 @@ export function granularExplain(
 // ---------------------------------------------------------------------------
 
 const REASON_TEXT: Record<ExplainReason, string> = {
-  'selected': 'перечислен в options.components',
-  'dependency': 'притянут как зависимость',
-  'not-selected': 'объявлен провайдером, но в сборку НЕ попал',
-  'unknown': 'такого компонента не объявлял ни один провайдер',
+  'selected': 'listed in options.components',
+  'dependency': 'pulled in as a dependency',
+  'not-selected': 'declared by its provider but NOT part of the build',
+  'unknown': 'no provider declares such a component',
 }
 
 const SKIP_REASON_TEXT: Record<SkippedScanDir['reason'], string> = {
-  'missing-dir': 'директория отсутствует',
-  'missing-entry': 'нет index.js',
-  'invalid-base-url': 'некорректный packageBaseUrl',
+  'missing-dir': 'directory is missing',
+  'missing-entry': 'index.js is missing',
+  'invalid-base-url': 'invalid packageBaseUrl',
 }
 
 /** Рендерит {@link ExplainReport} в человекочитаемый многострочный текст. */
@@ -322,11 +322,11 @@ export function formatExplainReport(report: ExplainReport): string {
   push('='.repeat(`granular explain ${report.key}`.length))
   push()
 
-  push(`Статус: ${report.included ? 'в сборке' : 'НЕ в сборке'} — ${REASON_TEXT[report.reason]}`)
+  push(`Status: ${report.included ? 'in the build' : 'NOT in the build'} — ${REASON_TEXT[report.reason]}`)
 
   if (report.reason === 'unknown') {
     push()
-    push(`Известные компоненты (${report.available?.length ?? 0}):`)
+    push(`Known components (${report.available?.length ?? 0}):`)
     for (const key of report.available ?? [])
       push(`  • ${key}`)
     return lines.join('\n')
@@ -334,47 +334,47 @@ export function formatExplainReport(report: ExplainReport): string {
 
   if (report.chain.length > 1) {
     push()
-    push('Цепочка от корня селекции:')
+    push('Chain from the selection root:')
     push(`  ${report.chain.join(' → ')}`)
   }
 
   push()
-  push(`Зависимости (${report.dependencies.length}):`)
+  push(`Dependencies (${report.dependencies.length}):`)
   for (const dep of report.dependencies)
     push(`  • ${dep}`)
 
   push()
-  push(`От него зависят (${report.requiredBy.length}):`)
+  push(`Required by (${report.requiredBy.length}):`)
   for (const dep of report.requiredBy)
     push(`  • ${dep}`)
 
   push()
-  push(`Даёт сборке:`)
+  push(`Contributes to the build:`)
   push(`  safelist (${report.safelist.length}): ${report.safelist.join(', ') || '—'}`)
   push(`  cssFiles (${report.cssFiles.length}):${report.cssFiles.length ? '' : ' —'}`)
   for (const file of report.cssFiles) {
     push(`    • ${file.url}${file.assetName ? ` (asset: ${file.assetName})` : ''}`
-      + `${file.dedupedInto ? ` — дедуплицирован в ${file.dedupedInto}` : ''}`)
+      + `${file.dedupedInto ? ` — deduplicated into ${file.dedupedInto}` : ''}`)
   }
-  push(`  токены (${report.tokens.length} тем(ы)):${report.tokens.length ? '' : ' —'}`)
+  push(`  tokens (${report.tokens.length} theme(s)):${report.tokens.length ? '' : ' —'}`)
   for (const contribution of report.tokens) {
     push(`    • [${contribution.theme}] ${contribution.selector}`)
     for (const token of contribution.tokens) {
       push(`        --${token.name}: ${token.value}`
-        + `${token.overridden ? ` (перебит → ${token.effective})` : ''}`)
+        + `${token.overridden ? ` (overridden → ${token.effective})` : ''}`)
     }
   }
   if (report.group)
-    push(`  группа: ${report.group}`)
+    push(`  group: ${report.group}`)
 
   push()
-  push(`Скан-директории (${report.scanDirs.length}):${report.scanDirs.length ? '' : ' —'}`)
+  push(`Scan directories (${report.scanDirs.length}):${report.scanDirs.length ? '' : ' —'}`)
   for (const dir of report.scanDirs)
-    push(`  • ${dir.dir}${dir.kind === 'group-shared' ? ' (shared группы)' : ''}`)
+    push(`  • ${dir.dir}${dir.kind === 'group-shared' ? ' (group shared)' : ''}`)
 
   if (report.scanSkipped) {
     push()
-    push(`⚠ В скан не попал: ${SKIP_REASON_TEXT[report.scanSkipped.reason]} `
+    push(`⚠ Not scanned: ${SKIP_REASON_TEXT[report.scanSkipped.reason]} `
       + `(${report.scanSkipped.expectedDir})`)
   }
 

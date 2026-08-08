@@ -52,38 +52,37 @@ export default {
 granular doctor
 ===============
 
-Провайдеры (1):
-  • @feugene/simple-package — компонентов: 7
+Providers (1):
+  • @feugene/simple-package — components: 7
 
-Выбранные компоненты (1, порядок = deps → зависящие):
+Selected components (1, order = deps → dependents):
   • @feugene/simple-package:XTest1
 
-Темы: [light] (фолбэк ядра)
+Themes: [light] (source: core fallback)
 
-Скан-globs (1):
+Scan globs (1):
   • /abs/path/packages/simple-package/dist/components/XTest1/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx,vue}
 
-✓ OK — нарушений layout-контракта не найдено.
+✓ OK — no layout-contract violations.
 ```
 
-> **Примечание:** отчёт печатается по-русски — это рабочий язык пакета.
-> Структура стабильна, а идентификаторы (id провайдеров, имена компонентов,
-> селекторы, пути) не переводятся. Для программного использования берите
-> `--json` или структурный `DoctorReport`, а не разбирайте текст; см.
+> **Примечание:** структура текстового отчёта стабильна, но для программного
+> использования берите `--json` или структурный `DoctorReport`, а не
+> разбирайте текст; см.
 > [Программный доступ](#программный-доступ).
 
 По разделам:
 
 | Раздел | Что показывает |
 |---|---|
-| `Провайдеры` | Все резолвнутые провайдеры, сколько компонентов каждый **объявляет** (не сколько выбрано), есть ли у него секция `theme` и вклад `unocss`. |
-| `Выбранные компоненты` | Транзитивное замыкание `options.components` в том порядке, в котором их эмитит пресет: **зависимости раньше зависящих** (post-order DFS). По каждому: `deps`, размер `safelist`, число `cssFiles`, `group`. |
-| `Темы` | Список активных тем и в скобках — **откуда взялся список**: `themes.names`, ключи `themes.define`, `defaultThemes` провайдеров или фолбэк ядра. Дальше по строке на блок токенов: тема → селектор → число токенов. |
-| `Конфликты токенов` | Печатается, только если непустой. См. ниже. |
-| `Незаявленные зависимости` | Печатается, только если непустой. См. ниже. |
-| `Скан-globs` | Ровно те globs, что уходят в UnoCSS `content.filesystem`. Если класс из исходника компонента не доезжает до CSS — смотреть надо сюда в первую очередь. |
-| `Проблемы layout-контракта` | Печатается, только если непустой. См. ниже. |
-| `Итоги диагностики` | Все находки одним списком, с уровнем и машинным кодом. Печатается, только если непустой. |
+| `Providers` | Все резолвнутые провайдеры, сколько компонентов каждый **объявляет** (не сколько выбрано), есть ли у него секция `theme` и вклад `unocss`. |
+| `Selected components` | Транзитивное замыкание `options.components` в том порядке, в котором их эмитит пресет: **зависимости раньше зависящих** (post-order DFS). По каждому: `deps`, размер `safelist`, число `cssFiles`, `group`. |
+| `Themes` | Список активных тем и в скобках — **откуда взялся список**: `themes.names`, ключи `themes.define`, `defaultThemes` провайдеров или фолбэк ядра. Дальше по строке на блок токенов: тема → селектор → число токенов. |
+| `Token conflicts` | Печатается, только если непустой. См. ниже. |
+| `Undeclared dependencies` | Печатается, только если непустой. См. ниже. |
+| `Scan globs` | Ровно те globs, что уходят в UnoCSS `content.filesystem`. Если класс из исходника компонента не доезжает до CSS — смотреть надо сюда в первую очередь. |
+| `Layout-contract problems` | Печатается, только если непустой. См. ниже. |
+| `Diagnostics summary` | Все находки одним списком, с уровнем и машинным кодом. Печатается, только если непустой. |
 
 ### Конфликты токенов
 
@@ -94,7 +93,7 @@ granular doctor
 источников и победившим значением:
 
 ```text
-Конфликты токенов (1) — значение задаётся несколькими слоями:
+Token conflicts (1) — the value is written by several layers:
   • [light] :root { --x-tokenized } ← component:XTokenized → app-override = #34d399
 ```
 
@@ -111,8 +110,8 @@ granular doctor
 ведущем в директорию другого компонента и не покрытом объявленным графом:
 
 ```text
-Незаявленные зависимости (1) — импорт есть в dist, в dependencies нет:
-  • @your/pkg:XSidebar → @your/pkg:XButton ("../../XButton/chunks/XButton-DCi4.js" в chunks/XSidebar-Esxe.js)
+Undeclared dependencies (1) — the import is in dist, not in dependencies:
+  • @your/pkg:XSidebar → @your/pkg:XButton ("../../XButton/chunks/XButton-DCi4.js" in chunks/XSidebar-Esxe.js)
 ```
 
 Почему это важно: пресет сканирует `components/<Name>/` только у компонентов из
@@ -172,17 +171,17 @@ safelist донора.
 этом зелёная. `doctor` — та проверка, которая превращает это в отказ:
 
 ```text
-Скан-globs (0):
+Scan globs (0):
 
-⚠ Проблемы layout-контракта (1):
-  • @feugene/simple-package:XTest1 — директория отсутствует (/abs/path/components/XTest1/)
+⚠ Layout-contract problems (1):
+  • @feugene/simple-package:XTest1 — directory is missing (/abs/path/components/XTest1/)
 
-✗ Найдены нарушения layout-контракта: 1.
+✗ Layout-contract violations found: 1.
 ```
 
-Различаются три причины — `директория отсутствует`, `нет index.js` (директория
-без entry) и `некорректный packageBaseUrl` (база провайдера не резолвится,
-обычно это ловушка с `data:`-URL). Лечится почти всегда рецептом
+Различаются три причины — `directory is missing`, `index.js is missing`
+(директория без entry) и `invalid packageBaseUrl` (база провайдера не
+резолвится, обычно это ловушка с `data:`-URL). Лечится почти всегда рецептом
 `chunkFileNames` из [Разработки провайдеров](./authoring-providers.md).
 
 ### Уровни диагностики и `--strict`
@@ -204,11 +203,11 @@ safelist донора.
 предупреждениях:
 
 ```text
-Итоги диагностики (ошибок: 0, предупреждений: 2):
-  ⚠ [theme-warning] p:night — p объявил "night" в defaultThemes, но не поставляет её (нет ни themes[name], ни tokenDefinitions[name])
-  ⚠ [token-conflict] light:primary — :root { --primary } задаётся несколькими слоями (provider:p → app-override), победило red
+Diagnostics summary (errors: 0, warnings: 2):
+  ⚠ [theme-warning] p:night — p lists "night" in defaultThemes but does not supply it (neither themes[name] nor tokenDefinitions[name])
+  ⚠ [token-conflict] light:primary — :root { --primary } is written by several layers (provider:p → app-override), final value: red
 
-✓ OK — нарушений layout-контракта не найдено; предупреждений: 2 (падают только с --strict).
+✓ OK — no layout-contract violations; warnings: 2 (they only fail with --strict).
 ```
 
 ### `--json`
@@ -240,40 +239,40 @@ npx granular explain ./granular.options.mjs XCard
 granular explain @your/pkg:XBase
 ================================
 
-Статус: в сборке — притянут как зависимость
+Status: in the build — pulled in as a dependency
 
-Цепочка от корня селекции:
+Chain from the selection root:
   @your/pkg:XCard → @your/pkg:XBase
 
-Зависимости (0):
+Dependencies (0):
 
-От него зависят (1):
+Required by (1):
   • @your/pkg:XCard
 
-Даёт сборке:
+Contributes to the build:
   safelist (1): base-cls
   cssFiles (1):
     • file:///abs/path/base.css (asset: base.css)
-  токены (1 тем(ы)):
+  tokens (1 theme(s)):
     • [light] :root
-        --x-color: #000 (перебит → #fff)
+        --x-color: #000 (overridden → #fff)
 
-Скан-директории (1):
+Scan directories (1):
   • /abs/path/packages/pkg/dist/components/XBase
 ```
 
 Что здесь важно:
 
-- **Цепочка** — кратчайший путь от корня селекции. Если компонент перечислен в
-  `options.components` напрямую, цепочка состоит из него одного.
-- **`перебит → …`** у токена значит, что значение компонента переписал слой
+- **Цепочка (`Chain`)** — кратчайший путь от корня селекции. Если компонент
+  перечислен в `options.components` напрямую, цепочка состоит из него одного.
+- **`overridden → …`** у токена значит, что значение компонента переписал слой
   выше (другой компонент, `themes.define` или `tokenOverrides`).
-- **`дедуплицирован в …`** у `cssFiles` значит, что тот же URL раньше объявил
+- **`deduplicated into …`** у `cssFiles` значит, что тот же URL раньше объявил
   другой компонент, и файл эмитится от его имени (дедуп идёт по URL).
 - **Пустые скан-директории** — тот же layout-контракт, что и в `doctor`;
   причина печатается отдельной строкой.
 
-Компонент вне селекции — это валидный ответ (`НЕ в сборке`) и код `0`.
+Компонент вне селекции — это валидный ответ (`NOT in the build`) и код `0`.
 Код `1` даёт только неизвестное имя: тогда команда печатает список известных.
 
 ## `why-css` — кто притащил класс
@@ -289,19 +288,19 @@ npx granular why-css ./granular.options.mjs x-sp-test
 granular why-css x-sp-test
 ==========================
 
-Источники (1):
-  исходник компонента в content.filesystem:
+Sources (1):
+  component source in content.filesystem:
     • @feugene/simple-package:XTest1 — dist/components/XTest1/chunks/XTest1-86x1RTRg.js
 
-Просмотрено: CSS-файлов 0, исходников 2 в 1 директории(ях).
+Scanned: 0 CSS file(s), 2 source file(s) in 1 director(ies).
 ```
 
-- `safelist компонента` — класс объявлен в `safelist`, утилита эмитится всегда,
+- `component safelist` — класс объявлен в `safelist`, утилита эмитится всегда,
   даже если класса нет ни в одном исходнике;
-- `селектор в CSS-файле компонента` — класс приезжает готовым правилом из
+- `selector in a component CSS file` — класс приезжает готовым правилом из
   `cssFiles` (экранирование вида `.hover\:bg-red` учитывается, искать надо по
   исходному имени класса);
-- `исходник компонента в content.filesystem` — класс найден в файлах, которые
+- `component source in content.filesystem` — класс найден в файлах, которые
   видит extractor; набор расширений тот же, что у скана (с учётом
   `scan.extensions` / `scan.replaceExtensions`).
 

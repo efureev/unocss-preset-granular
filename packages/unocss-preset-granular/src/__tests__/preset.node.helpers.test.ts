@@ -9,6 +9,7 @@ import {
   getGranularComponentCssFiles,
   getGranularNodeCss,
   getGranularThemeCss,
+  GranularCssReadError,
 } from '../preset.node'
 
 const cssA = 'data:text/css,.a{color:red}'
@@ -91,6 +92,25 @@ describe('node CSS helpers (G3)', () => {
     expect(css).toBe('')
     const files = await getGranularComponentCssFiles({ providers: [bare], components: 'all' })
     expect(files).toEqual([])
+  })
+
+  it('getGranularComponentCss называет провайдера и компонент вместо голого ENOENT', async () => {
+    const missing = defineGranularProvider({
+      id: 'gone',
+      contractVersion: 1,
+      packageBaseUrl: 'file:///definitely/not/here/',
+      components: [{ name: 'Ghost', safelist: [], cssFiles: ['file:///definitely/not/here/nope.css'] }],
+    })
+
+    try {
+      await getGranularComponentCss({ providers: [missing], components: 'all' })
+      throw new Error('should have thrown')
+    }
+    catch (error) {
+      expect(error).toBeInstanceOf(GranularCssReadError)
+      expect((error as Error).message).toContain(`provider 'gone'`)
+      expect((error as Error).message).toContain(`component 'Ghost'`)
+    }
   })
 })
 

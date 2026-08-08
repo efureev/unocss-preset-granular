@@ -7,6 +7,7 @@ import {
   ComponentNotFoundError,
   DuplicateComponentNameError,
   DuplicateProviderIdError,
+  InvalidComponentKeyError,
   ProviderNotRegisteredError,
 } from '../core/errors'
 import { buildRegistry } from '../core/registry'
@@ -117,9 +118,24 @@ describe('resolveSelection', () => {
     expect(r.order).toEqual(['@scope/pkg:sub:Btn'])
   })
 
-  it('короткая форма без провайдера в components — ошибка', () => {
+  it('короткая форма без провайдера в components — типизированная ошибка', () => {
+    expect(() => resolveSelection(buildRegistry([P_DS]), ['DsButton']))
+      .toThrowError(InvalidComponentKeyError)
     expect(() => resolveSelection(buildRegistry([P_DS]), ['DsButton']))
       .toThrowError(/Invalid component key/)
+  })
+
+  it('пустая сторона ключа (":X" / "X:") — типизированная ошибка с полем key', () => {
+    for (const bad of [':X', 'X:']) {
+      try {
+        resolveSelection(buildRegistry([P_DS]), [bad])
+        throw new Error('should have thrown')
+      }
+      catch (error) {
+        expect(error).toBeInstanceOf(InvalidComponentKeyError)
+        expect((error as InvalidComponentKeyError).key).toBe(bad)
+      }
+    }
   })
 
   it('ошибка если провайдер не зарегистрирован (через dep)', () => {
