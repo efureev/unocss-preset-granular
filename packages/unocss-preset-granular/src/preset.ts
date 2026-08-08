@@ -68,8 +68,10 @@ export interface ThemesOptions extends ResolveThemesInput {
   tokenOverrides?: Partial<Record<string, Readonly<Record<string, string | Readonly<Record<string, string>>>>>>
 
   /**
-   * Если `true`, запрещает override токенов, которых нет ни в одном провайдере.
-   * По умолчанию — `false` (lenient mode).
+   * Если `true` — override токена, которого нет ни в одном блоке темы
+   * (у провайдеров и компонентов), ПРОПУСКАЕТСЯ с `console.warn`; сборка
+   * продолжается. По умолчанию — `false`: неизвестный токен пишется как есть
+   * (так приложение может добавить собственный токен через override).
    */
   strictTokens?: boolean
 

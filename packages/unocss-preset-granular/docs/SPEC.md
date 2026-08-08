@@ -1,7 +1,7 @@
 # Granular provider contract — specification
 
 **Contract version:** 1 (`GRANULAR_CONTRACT_VERSION`)
-**Defined by:** `@feugene/unocss-preset-granular` 0.5.x
+**Defined by:** `@feugene/unocss-preset-granular` 0.7.x
 **Status:** normative for contract version 1
 
 This document specifies what a **granular provider** is: the shape of the

@@ -103,6 +103,11 @@ they summarise what shipped, not what was written down at the time.
   `InvalidProviderError('css-files-length-mismatch')` (SPEC §4.2). The comment
   described behaviour the package left behind.
 
+- **The `strictTokens` JSDoc** said it "forbids" overriding tokens unknown to
+  the providers — it actually skips such an override with a `console.warn`
+  while the build continues. The comment now states the real behaviour
+  (`docs/{en,ru}` described it correctly all along).
+
 ## [0.7.0] — 2026-08-05
 
 ### Added
