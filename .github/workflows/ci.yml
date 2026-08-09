@@ -222,10 +222,39 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
+  # Юнит-тесты @feugene/unocss-mini-extra-rules — по исходникам (`src/`), без
+  # сборки: правила пакета чистые функции без FS/DOM. Гоняются на матрице
+  # node, как у granular-пресета.
+  test-unocss-mini-extra-rules:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [ 22, 24 ]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Test package
+        run: yarn workspace @feugene/unocss-mini-extra-rules test:run
+
+      # Тип-тест публичного API (`src/__tests__/publicApi.test-d.ts`) — форма
+      # `Rule[]`/`Variant[]`/`Preflight[]` каждого экспорта проверяется через
+      # `tsc`, а не только на потребителях (granular-пресет, app-4).
+      - name: Test package public API types
+        run: yarn workspace @feugene/unocss-mini-extra-rules test:types
+
   # Сборка @feugene/unocss-mini-extra-rules. Пакет содержит дополнительные
   # правила поверх @unocss/preset-mini (animation, colorOpacity, filters,
   # spacing) и не зависит от рантайма @feugene/granularity.
   build-unocss-mini-extra-rules:
+    needs:
+      - test-unocss-mini-extra-rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -257,9 +286,12 @@ jobs:
   # `unocss-mini-extra-rules-v<semver>`. Независимый префикс тега позволяет
   # релизить пакет отдельно от остальных.
   #
-  # `verify-contract` в зависимостях не ради контракта granular (пакет с ним не
-  # связан), а потому что его правила реально потребляет app-4: сломанное
-  # правило проявится там как пропавший CSS, а не как красный тест.
+  # Логику правил гейтит `test-unocss-mini-extra-rules` (через транзитивный
+  # `needs` у `build-unocss-mini-extra-rules`) — юнит-тесты пакета, не app-4.
+  # `verify-contract` в зависимостях остаётся отдельным сигналом: app-4
+  # (`includeExtraRules: false`, все правила подключены напрямую из этого
+  # пакета) реально потребляет собранный `dist/`, так что он ловит и то, что
+  # юнит-тестам не видно — сломанный `exports`/бандл при неизменной логике.
   publish-npm-unocss-mini-extra-rules:
     needs:
       - build-unocss-mini-extra-rules

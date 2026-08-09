@@ -71,12 +71,14 @@ function percentWithDefault(input?: string, ctx?: RuleContext<FilterTheme>) {
   if (value != null)
     return value
 
+  // `h.percent()` returns a unitless fraction (`h.percent('100')` → `'1'`),
+  // not a percentage string — compare the fraction directly, no `%`-slicing.
   // For `grayscale` / `invert` / `sepia` the CSS function saturates at 100%,
   // so a plain numeric shorthand above 100 (`grayscale-150`) intentionally
   // does NOT produce a utility and falls through. Use a bracket value
-  // (`grayscale-[150%]`) to bypass the clamp. Mirrors @unocss/preset-mini.
-  value = input ? h.percent(input) : '100%'
-  if (value != null && Number.parseFloat(value.slice(0, -1)) <= 100)
+  // (`grayscale-[150%]`) to bypass the clamp. Mirrors @unocss/preset-wind3.
+  value = input ? h.percent(input) : '1'
+  if (value != null && Number.parseFloat(value) <= 1)
     return value
 
   return undefined

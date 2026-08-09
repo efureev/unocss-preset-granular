@@ -6,12 +6,13 @@ import { defineConfig } from 'vite'
  *
  * — ESM-only (`formats: ['es']`);
  * — all `@unocss/*` packages stay external, but they are declared differently:
- *   `@unocss/core` is a peerDependency (its `symbols` must be the very same
- *   instance the generator uses), while `@unocss/preset-mini` and
- *   `@unocss/rule-utils` are plain dependencies — only pure helpers (`h`,
- *   `getStringComponents`) are imported from them, so instance identity does
- *   not matter, and as peers they would fail to resolve under strict
- *   `node_modules` layouts (pnpm, Yarn PnP);
+ *   `@unocss/core` is a peerDependency (so the consumer's `Rule`/`Preset`
+ *   types and the `@unocss/core` instance in their tree stay a single,
+ *   consistent version), while `@unocss/preset-mini` and `@unocss/rule-utils`
+ *   are plain dependencies — only pure helpers (`h`, `getStringComponents`)
+ *   are imported from them, so version identity does not matter there, and as
+ *   peers they would fail to resolve under strict `node_modules` layouts
+ *   (pnpm, Yarn PnP);
  * — declarations are emitted separately via `vue-tsc -p tsconfig.build.json`
  *   (see `package.json` scripts).
  */

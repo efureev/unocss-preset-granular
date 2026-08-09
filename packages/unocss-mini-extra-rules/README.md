@@ -7,11 +7,11 @@ filter / backdrop‑filter utilities, Tailwind‑like `space-*` / `divide-*`
 spacing, the `text-transform` family and the `sr-only` screen‑reader pair.
 
 - ESM only, Node ≥ 22, TypeScript strict.
-- `@unocss/core` stays a `peerDependency` (its `symbols` must be the very
-  same instance the generator uses); `@unocss/preset-mini` and
-  `@unocss/rule-utils` are plain dependencies — only pure helpers are
-  imported from them, and as peers they would fail to resolve under strict
-  `node_modules` layouts.
+- `@unocss/core` stays a `peerDependency` (so the consumer's `Rule`/`Preset`
+  types and the `@unocss/core` instance in their tree stay a single,
+  consistent version); `@unocss/preset-mini` and `@unocss/rule-utils` are
+  plain dependencies — only pure helpers are imported from them, and as peers
+  they would fail to resolve under strict `node_modules` layouts.
 - Tree‑shakeable: each group of rules is exported separately so you can
   import only what you need.
 - No coupling to `@feugene/unocss-preset-granular` — usable in any UnoCSS
@@ -196,7 +196,7 @@ export const spacingVariants: Variant[]
 
 - Node ≥ 22
 - UnoCSS: `@unocss/core`, `@unocss/preset-mini`, `@unocss/rule-utils`
-  in range `>=0.60.0 <1.0.0` (incl. the 66.x line).
+  in range `^66.7.5` (`>=66.7.5 <67.0.0`).
 
 ## License
 

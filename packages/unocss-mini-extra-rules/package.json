@@ -1,7 +1,7 @@
 {
   "name": "@feugene/unocss-mini-extra-rules",
   "description": "Extra UnoCSS rules on top of @unocss/preset-mini: animations, bracket color with opacity, advanced filters and spacing utilities.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "author": {
     "name": "Evgeniy Fureev",
@@ -55,13 +55,19 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@unocss/core": "^66.7.5",
+    "@vitest/coverage-v8": "^4.1.10",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
+    "vitest": "^4.1.10",
     "vue-tsc": "^3.3.7"
   },
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.build.json",
     "dev": "vite build --watch",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest --config vitest.config.ts",
+    "test:run": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:types": "vitest run --config vitest.config.ts --typecheck"
   }
 }

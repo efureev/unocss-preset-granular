@@ -1,12 +1,14 @@
 import {defineConfig, presetMini} from 'unocss'
 import {granularContent, presetGranularNode, type PresetGranularNodeOptions} from '@feugene/unocss-preset-granular/node'
 import {
+    accessibilityRules,
     animationPreflights,
     animationRules,
     colorOpacityRules,
     filterRules,
     spacingRules,
     spacingVariants,
+    typographyRules,
 } from '@feugene/unocss-mini-extra-rules'
 import xSimplePkgProvider from '@feugene/simple-package/granular-provider/node'
 
@@ -20,6 +22,13 @@ const granularOptions: PresetGranularNodeOptions = {
     // themes: {
     //     names: ['light', 'dark']
     // }
+    // Явно `false`, а не дефолт: правила ниже уже подключены напрямую из
+    // `@feugene/unocss-mini-extra-rules`. С дефолтным `true` пресет тихо
+    // подмешал бы ту же копию правил ещё раз — итоговый CSS не изменился бы
+    // (UnoCSS дедуплицирует по тексту), но тогда app-4 перестал бы отличать
+    // рабочий публичный экспорт пакета от сломанного: без прямого импорта
+    // CSS всё равно собрался бы из внутренней копии пресета.
+    includeExtraRules: false,
 }
 
 export default defineConfig({
@@ -29,15 +38,20 @@ export default defineConfig({
         }),
         presetGranularNode(granularOptions),
     ],
-    // Дополнительные правила поверх preset-mini из
-    // `@feugene/unocss-mini-extra-rules`: spinner-анимация, bracket‑color с
-    // `/NN` opacity, расширенные filter/backdrop‑filter утилиты и
-    // Tailwind‑совместимые `space-*` / `divide-*`.
+    // Полный набор правил из `@feugene/unocss-mini-extra-rules` — все шесть
+    // семейств, а не подмножество: spinner-анимация, bracket‑color с `/NN`
+    // opacity, расширенные filter/backdrop‑filter утилиты, Tailwind‑совместимые
+    // `space-*` / `divide-*`, `text-transform` и `sr-only`/`not-sr-only`.
+    // Раз `includeExtraRules: false` выше отключил внутреннюю копию пресета,
+    // это единственный источник этих утилит в app-4 — неполный список здесь
+    // молча потерял бы соответствующий CSS, а не дал ошибку.
     rules: [
+        ...accessibilityRules,
         ...animationRules,
         ...colorOpacityRules,
         ...filterRules,
         ...spacingRules,
+        ...typographyRules,
     ],
     variants: [
         ...spacingVariants,
