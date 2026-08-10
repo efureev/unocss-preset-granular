@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import {XNestedReverse} from "@feugene/simple-package/components/XNestedReverse";
+
+// Широкая (3:1) картинка для демонстрации object-fit — см. комментарий в шаблоне.
+const stripe = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 20">'
+    + '<rect width="60" height="20" fill="#0ea5e9"/>'
+    + '<circle cx="30" cy="10" r="8" fill="#f8fafc"/>'
+    + '</svg>',
+)}`
 </script>
 
 <template>
@@ -29,6 +37,21 @@ import {XNestedReverse} from "@feugene/simple-package/components/XNestedReverse"
       <!-- filterRules: несколько фильтров на одном элементе -->
       <div class="p-4 blur-1 saturate-150 backdrop-blur-md">
         композиция blur / saturate / backdrop → filterRules
+      </div>
+
+      <!-- objectRules: object-fit виден только на замещаемом элементе с
+           заданными размерами и содержимым другой пропорции — отсюда
+           фиксированный бокс 24×16 и нарочито широкая картинка 3:1.
+           Картинка — inline data-URI: у app-4 нет `public/`, а ссылка на
+           несуществующий файл дала бы битый <img> без ошибки сборки. -->
+      <div class="flex items-center gap-3 p-4">
+        <img :src="stripe" alt="" class="h-16 w-24 object-cover">
+        <img :src="stripe" alt="" class="h-16 w-24 object-contain">
+        <!-- object-position: ключевое слово и bracket-значение — вторая
+             половина семейства, отдельная от object-fit. -->
+        <img :src="stripe" alt="" class="h-16 w-24 object-cover object-left">
+        <img :src="stripe" alt="" class="h-16 w-24 object-cover object-[50%_20%]">
+        <span>кадрирование / вписывание / позиция → objectRules</span>
       </div>
 
       <!-- accessibilityRules: пара sr-only / not-sr-only в её обычном виде —

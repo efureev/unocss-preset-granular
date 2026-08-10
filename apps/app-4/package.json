@@ -11,7 +11,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
     "@feugene/unocss-preset-granular": "^0.8.0",
-    "@feugene/unocss-mini-extra-rules": "^0.6.0",
+    "@feugene/unocss-mini-extra-rules": "^0.7.0",
     "typescript": "^6.0.3",
     "unocss": "^66.7.5",
     "vite": "^8.1.5"

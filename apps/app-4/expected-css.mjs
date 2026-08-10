@@ -34,6 +34,14 @@ export default {
       css: '--un-blur',
     },
     {
+      what: 'objectRules: object-fit',
+      css: 'object-fit:cover',
+    },
+    {
+      what: 'objectRules: object-position из bracket-значения',
+      css: 'object-position:50% 20%',
+    },
+    {
       what: 'spacingRules + spacingVariants',
       css: 'space-x-4',
     },

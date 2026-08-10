@@ -10,6 +10,7 @@ import {
   animationRules,
   colorOpacityRules,
   filterRules,
+  objectRules,
   spacingRules,
   spacingVariants,
   typographyRules,
@@ -213,6 +214,7 @@ export function presetGranular(options: PresetGranularOptions): Preset {
       ...animationRules,
       ...colorOpacityRules,
       ...filterRules,
+      ...objectRules,
       ...spacingRules,
       ...typographyRules,
     )

@@ -8,6 +8,7 @@ import {
   animationRules,
   colorOpacityRules,
   filterRules,
+  objectRules,
   spacingRules,
   spacingVariants,
   typographyRules,
@@ -25,6 +26,7 @@ expectTypeOf(animationRules).toExtend<Rule[]>()
 expectTypeOf(animationPreflights).toExtend<Preflight[]>()
 expectTypeOf(colorOpacityRules).toExtend<Rule[]>()
 expectTypeOf(filterRules).toExtend<Rule<any>[]>()
+expectTypeOf(objectRules).toExtend<Rule[]>()
 expectTypeOf(spacingRules).toExtend<Rule[]>()
 expectTypeOf(spacingVariants).toExtend<Variant<any>[]>()
 expectTypeOf(typographyRules).toExtend<Rule[]>()

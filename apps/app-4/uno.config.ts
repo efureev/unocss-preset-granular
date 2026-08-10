@@ -6,6 +6,7 @@ import {
     animationRules,
     colorOpacityRules,
     filterRules,
+    objectRules,
     spacingRules,
     spacingVariants,
     typographyRules,
@@ -38,10 +39,12 @@ export default defineConfig({
         }),
         presetGranularNode(granularOptions),
     ],
-    // Полный набор правил из `@feugene/unocss-mini-extra-rules` — все шесть
+    // Полный набор правил из `@feugene/unocss-mini-extra-rules` — все семь
     // семейств, а не подмножество: spinner-анимация, bracket‑color с `/NN`
-    // opacity, расширенные filter/backdrop‑filter утилиты, Tailwind‑совместимые
-    // `space-*` / `divide-*`, `text-transform` и `sr-only`/`not-sr-only`.
+    // opacity, расширенные filter/backdrop‑filter утилиты, `object-fit` и
+    // `object-position`,
+    // Tailwind‑совместимые `space-*` / `divide-*`, `text-transform` и
+    // `sr-only`/`not-sr-only`.
     // Раз `includeExtraRules: false` выше отключил внутреннюю копию пресета,
     // это единственный источник этих утилит в app-4 — неполный список здесь
     // молча потерял бы соответствующий CSS, а не дал ошибку.
@@ -50,6 +53,7 @@ export default defineConfig({
         ...animationRules,
         ...colorOpacityRules,
         ...filterRules,
+        ...objectRules,
         ...spacingRules,
         ...typographyRules,
     ],

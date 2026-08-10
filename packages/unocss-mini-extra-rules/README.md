@@ -4,7 +4,8 @@ Extra [UnoCSS](https://unocss.dev/) rules that extend
 [`@unocss/preset-mini`](https://unocss.dev/presets/mini) with a few missing
 pieces: spinner animation, bracketed color + opacity helpers, advanced
 filter / backdrop‑filter utilities, Tailwind‑like `space-*` / `divide-*`
-spacing, the `text-transform` family and the `sr-only` screen‑reader pair.
+spacing, the `object-fit` / `object-position` and `text-transform` families
+and the `sr-only` screen‑reader pair.
 
 - ESM only, Node ≥ 22, TypeScript strict.
 - `@unocss/core` stays a `peerDependency` (so the consumer's `Rule`/`Preset`
@@ -34,6 +35,8 @@ shapes that are convenient to have in real‑world apps:
   `divide-*` variant behaviour.
 - `sr-only` / `not-sr-only`, without which visually hidden labels stay
   visible.
+- The `object-fit` / `object-position` families, without which images
+  silently stretch instead of being cropped, fitted or aligned.
 
 This package bundles all of the above as small, composable `Rule[]` /
 `Preflight[]` / `Variant[]` arrays.
@@ -159,6 +162,24 @@ Without them a component that writes `uppercase` keeps the class in the
 markup while no CSS is emitted — the build succeeds and the text is simply
 not transformed.
 
+### `objectRules`
+
+The `object-fit` and `object-position` families, also `presetWind*`‑only:
+
+- `object-cover`, `object-contain`, `object-fill`, `object-scale-down`,
+  `object-none` — `object-fit`
+- `object-center`, `object-top`, `object-top-left`, … and the short aliases
+  (`object-rb` → `right bottom`) — `object-position`, resolved through
+  `presetMini`'s own `positionMap`
+- `object-[50%_20%]` — bracket values, via `h.bracketOfPosition`
+
+Unlike `presetWind4`, the bracket form does not accept `theme(...)` inside
+`[]`: that syntax is a `presetWind4` extension and `presetMini` has no
+equivalent.
+
+Declarations match `presetWind*` one for one, so with both loaded the CSS does
+not depend on preset order.
+
 ### `accessibilityRules`
 
 The screen‑reader pair, also a `presetWind*`‑only family:
@@ -185,6 +206,8 @@ export const animationPreflights: Preflight[]
 export const colorOpacityRules: Rule[]
 
 export const filterRules: Rule[]
+
+export const objectRules: Rule[]
 
 export const typographyRules: Rule[]
 
