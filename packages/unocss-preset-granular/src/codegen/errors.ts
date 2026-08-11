@@ -10,6 +10,8 @@ export type GranularCodegenReason
     | 'missing-package-exports'
   /** В `package.json#exports` нет ни одного subpath компонента. */
     | 'no-component-exports'
+  /** Директории компонентов нет на диске. */
+    | 'missing-components-dir'
 
 /**
  * Генерация реестров провалилась. Отдельный класс, а не голый `Error`: этот

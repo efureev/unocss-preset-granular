@@ -100,9 +100,18 @@ export function replacePackageExports(
   const firstComponentIndex = entries.findIndex(([key]) => options.isComponentKey(key))
 
   if (firstComponentIndex === -1) {
+    // A package that has no components yet has nothing to anchor to and nothing
+    // to insert — the very first run of a freshly scaffolded provider. Only the
+    // combination is benign: an anchor is genuinely missing once components
+    // exist, and staying silent there would drop them from `exports`.
+    if (components.length === 0)
+      return source
+
     throw new GranularCodegenError(
       'no-component-exports',
-      'package.json#exports has no component subpath to anchor the generated run to.',
+      'package.json#exports has no component subpath to anchor the generated run to. '
+      + 'Add one entry by hand for the first component — the generator keeps the run in place, '
+      + 'but cannot decide where it belongs.',
     )
   }
 

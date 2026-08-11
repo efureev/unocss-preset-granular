@@ -173,6 +173,40 @@ describe('runRegistryCodegen', () => {
     expect(pkg.exports['./components/GrOld']).toBeUndefined()
   })
 
+  it('пакет без компонентов проходит: якорить нечего и вставлять нечего', async () => {
+    // Первый прогон свежесозданного провайдера. Ошибка здесь означала бы, что
+    // каркас пакета нельзя проверить генератором до появления компонента.
+    await mkdir(join(pkgDir, 'src/components'), { recursive: true })
+    await write('package.json', `${JSON.stringify({
+      name: '@acme/fresh',
+      exports: { '.': { import: './dist/index.js' } },
+    }, null, 2)}\n`)
+
+    const result = await runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
+
+    expect(result.components).toEqual([])
+    expect(JSON.parse(await read('package.json')).exports).toEqual({ '.': { import: './dist/index.js' } })
+  })
+
+  it('но без якоря при живых компонентах — ошибка: молчание потеряло бы их', async () => {
+    await component('GrAlert')
+    await write('package.json', `${JSON.stringify({
+      name: '@acme/kit',
+      exports: { '.': { import: './dist/index.js' } },
+    }, null, 2)}\n`)
+
+    await expect(runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() }))
+      .rejects
+      .toMatchObject({ reason: 'no-component-exports' })
+  })
+
+  it('отсутствующая директория компонентов — ошибка, а не «ноль компонентов»', async () => {
+    // Молчание здесь означало бы, что опечатка в пути вычистит каждый реестр.
+    await expect(runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() }))
+      .rejects
+      .toMatchObject({ reason: 'missing-components-dir' })
+  })
+
   it('check ничего не пишет и называет разошедшиеся файлы', async () => {
     await component('GrAlert')
 

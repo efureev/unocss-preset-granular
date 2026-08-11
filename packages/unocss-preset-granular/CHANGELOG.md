@@ -21,6 +21,23 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-12
+
+### Fixed
+
+- **`/codegen` could not bootstrap a freshly scaffolded provider.** The very
+  first run of a package that has no components yet failed with
+  `no-component-exports`: `packageExports` looks for an existing component
+  subpath to anchor the generated run to, and a new package has none. Having no
+  anchor *and* no components is now a no-op — the combination is what makes it
+  benign. A missing anchor with components present still raises, because staying
+  silent there would drop them from `exports`.
+
+- **A missing components directory now raises `missing-components-dir`** instead
+  of a bare `ENOENT`. It is deliberately not treated as "zero components": a
+  typo in `componentsDir` would then pass quietly and strip every registry. An
+  empty but existing directory remains the legitimate bootstrap case.
+
 ## [0.9.0] - 2026-08-12
 
 ### Added

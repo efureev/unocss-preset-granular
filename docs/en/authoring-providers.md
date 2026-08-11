@@ -372,6 +372,11 @@ Anything a provider has beyond the four standard registries goes through
 Run `--check` from a test: it writes nothing and reports which files drifted.
 That is the gate — the lists stay synchronised by machine, not by attention.
 
+A package with no components yet is a legitimate first run: with nothing to
+insert and no existing subpath to anchor to, the generator leaves `exports`
+alone. What it will not do is treat a *missing* components directory as zero
+components — a typo in the path would then quietly strip every registry.
+
 ## What NOT to do
 
 Six mistakes that build cleanly and break only at runtime — or only in the

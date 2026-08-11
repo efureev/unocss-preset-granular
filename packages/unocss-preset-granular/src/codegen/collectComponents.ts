@@ -45,7 +45,22 @@ export async function collectGranularComponents(options: CollectComponentsOption
   const prefix = options.prefix ?? 'Gr'
   const exportNameOf = options.configExportName ?? (name => defaultConfigExportName(name, prefix))
 
-  const entries = await readdir(componentsDir, { withFileTypes: true })
+  // Отсутствующая директория — не «ноль компонентов». Опечатка в
+  // `componentsDir` тогда прошла бы молча и вычистила бы каждый реестр;
+  // пустая, но существующая директория — законный случай свежего пакета.
+  const entries = await readdir(componentsDir, { withFileTypes: true }).catch((cause: unknown) => {
+    if ((cause as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      throw new GranularCodegenError(
+        'missing-components-dir',
+        `Components directory not found: ${componentsDir}. `
+        + 'An empty directory is fine — a missing one is treated as a misconfigured path, '
+        + 'because silently reading zero components would strip every registry.',
+        componentsDir,
+      )
+    }
+
+    throw cause
+  })
 
   const components = entries
     .filter(entry => entry.isDirectory() && entry.name.startsWith(prefix))

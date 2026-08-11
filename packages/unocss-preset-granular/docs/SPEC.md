@@ -463,7 +463,11 @@ Every rejection is a typed error class from `core/errors.ts` (or
 | Strict token-ref parse failure (unsupported blocks, no tokens, selector not found) | `GranularTokenParseError`, wrapped in `GranularTokenRefError` | ref materialization |
 | A component's config export is named other than the registry expects | `GranularCodegenError` (`config-export-name-mismatch`) | registry codegen |
 | A generated block has no opening / closing marker | `GranularCodegenError` (`missing-open-marker` / `missing-close-marker`) | registry codegen |
-| `package.json` has no `exports`, or no component subpath in it | `GranularCodegenError` (`missing-package-exports` / `no-component-exports`) | registry codegen |
+| `package.json` has no `exports` | `GranularCodegenError` (`missing-package-exports`) | registry codegen |
+| No component subpath in `exports` to anchor the run to, **and** components exist | `GranularCodegenError` (`no-component-exports`) | registry codegen |
+| Neither an anchor nor any component (a freshly scaffolded package) | no-op, `exports` left as-is | registry codegen |
+| The components directory does not exist | `GranularCodegenError` (`missing-components-dir`) | registry codegen |
+| The components directory exists but is empty | zero components; every generated run is emptied | registry codegen |
 
 *(Informative)* Registration-time failures are deliberate: each of them used to
 surface much later as an empty scan, a bare `ERR_INVALID_URL_SCHEME`, or CSS
