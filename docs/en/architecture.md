@@ -6,7 +6,7 @@
 This page describes how the preset is put together internally so you can
 reason about its behaviour, trace issues, and extend it.
 
-## Five entry points
+## Six entry points
 
 | Entry                                       | When to use                                 | Side‑effects         |
 |---------------------------------------------|---------------------------------------------|----------------------|
@@ -15,6 +15,7 @@ reason about its behaviour, trace issues, and extend it.
 | `@feugene/unocss-preset-granular/contract`  | Provider authors — types + `define*` helpers| none (types)         |
 | `@feugene/unocss-preset-granular/vite`      | A **provider's** Vite build — `granularChunkFileNames`, `granularAssetFileNames` | none (pure functions) |
 | `@feugene/unocss-preset-granular/runtime`   | Browser — switching themes at runtime        | none (DOM only)      |
+| `@feugene/unocss-preset-granular/codegen`   | A **provider's** own tooling — generating its component registries | reads and writes files |
 
 The `/vite` entry is part of the scanning contract, not an optional extra:
 without `granularChunkFileNames` in the provider's `build.rollupOptions`, SFC

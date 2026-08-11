@@ -33,6 +33,7 @@ export default defineConfig({
         contract: fileURLToPath(new URL('./src/contract/index.ts', import.meta.url)),
         vite: fileURLToPath(new URL('./src/vite.ts', import.meta.url)),
         runtime: fileURLToPath(new URL('./src/runtime.ts', import.meta.url)),
+        codegen: fileURLToPath(new URL('./src/codegen.ts', import.meta.url)),
         bin: fileURLToPath(new URL('./src/bin.ts', import.meta.url)),
       },
       formats: ['es'],

@@ -322,6 +322,56 @@ granularChunkFileNames({
 })
 ```
 
+## Keeping the registries in sync — `/codegen`
+
+A provider lists its components in several places at once: the root barrel, the
+`exports` subpaths, the build entries, the provider's own registry — and a
+companion package adds its auto-import resolver whitelist and the list feeding
+`granularAssetFileNames`. Miss one and nothing fails to build: tree shaking, a
+subpath import or the UnoCSS class scan breaks on its own, silently.
+
+`@feugene/unocss-preset-granular/codegen` derives all of them from the file
+system. A directory counts as a public component when it has both `index.ts`
+and `config.ts`.
+
+```js
+// scripts/generate-registry.mjs
+import { fileURLToPath } from 'node:url'
+import { codegenTargets, runRegistryCodegen } from '@feugene/unocss-preset-granular/codegen'
+
+const { components, stale } = await runRegistryCodegen({
+  packageDir: fileURLToPath(new URL('..', import.meta.url)),
+  check: process.argv.includes('--check'),
+  targets: [
+    codegenTargets.barrel(),           // src/index.ts
+    codegenTargets.viteEntries(),      // vite.config.ts
+    codegenTargets.packageExports(),   // package.json#exports
+    ...codegenTargets.providerRegistry(), // granular-provider/shared.ts
+  ],
+})
+```
+
+In TypeScript files only the marked block is rewritten — the rest of the file
+is none of the generator's business, and the block's own indentation is kept:
+
+```ts
+// <granularity:components>
+export * from './components/GrAlert'
+// </granularity:components>
+```
+
+`package.json` cannot carry markers, so the contiguous run of component keys is
+replaced in place, leaving every other export where it was.
+
+Anything a provider has beyond the four standard registries goes through
+`codegenTargets.markedBlock({ file, lines })` — the resolver whitelist and the
+`granularAssetFileNames` list are exactly that shape. `prefix` and
+`configExportName` are options too, so a package whose components are not
+`Gr*` is covered without a second generator.
+
+Run `--check` from a test: it writes nothing and reports which files drifted.
+That is the gate — the lists stay synchronised by machine, not by attention.
+
 ## What NOT to do
 
 Six mistakes that build cleanly and break only at runtime — or only in the

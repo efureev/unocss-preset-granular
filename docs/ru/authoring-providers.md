@@ -318,6 +318,57 @@ granularChunkFileNames({
 })
 ```
 
+## Синхронность реестров — `/codegen`
+
+Провайдер перечисляет свои компоненты сразу в нескольких местах: root‑barrel,
+subpath‑экспорты, entry сборки, собственный реестр провайдера — а companion‑пакет
+добавляет к ним whitelist резолвера авто‑импорта и список для
+`granularAssetFileNames`. Пропуск любого не даёт ошибки сборки: ломается что‑то
+одно — tree‑shaking, subpath‑импорт или скан классов UnoCSS, — и молча.
+
+`@feugene/unocss-preset-granular/codegen` выводит все реестры из файловой
+системы. Директория считается публичным компонентом, если в ней есть и
+`index.ts`, и `config.ts`.
+
+```js
+// scripts/generate-registry.mjs
+import { fileURLToPath } from 'node:url'
+import { codegenTargets, runRegistryCodegen } from '@feugene/unocss-preset-granular/codegen'
+
+const { components, stale } = await runRegistryCodegen({
+  packageDir: fileURLToPath(new URL('..', import.meta.url)),
+  check: process.argv.includes('--check'),
+  targets: [
+    codegenTargets.barrel(),           // src/index.ts
+    codegenTargets.viteEntries(),      // vite.config.ts
+    codegenTargets.packageExports(),   // package.json#exports
+    ...codegenTargets.providerRegistry(), // granular-provider/shared.ts
+  ],
+})
+```
+
+В TypeScript‑файлах переписывается только размеченный блок — остальное
+содержимое генератору не принадлежит, а отступ блока сохраняется:
+
+```ts
+// <granularity:components>
+export * from './components/GrAlert'
+// </granularity:components>
+```
+
+В `package.json` маркеров быть не может, поэтому там на месте прежнего ряда
+заменяется непрерывный ряд ключей компонентов, а все прочие экспорты остаются
+где были.
+
+Всё, что у провайдера есть сверх четырёх стандартных реестров, выражается через
+`codegenTargets.markedBlock({ file, lines })` — whitelist резолвера и список для
+`granularAssetFileNames` имеют ровно такую форму. `prefix` и `configExportName`
+тоже опции, так что пакет с компонентами не на `Gr*` покрывается без второго
+генератора.
+
+`--check` зовётся из теста: он ничего не пишет и называет разошедшиеся файлы.
+Это и есть гейт — списки держит машина, а не внимание.
+
 ## Чего НЕ делать
 
 Шесть ошибок, которые собираются без единой жалобы и ломают только рантайм —

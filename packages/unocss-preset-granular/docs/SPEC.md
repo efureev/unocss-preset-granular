@@ -397,10 +397,13 @@ consumer sets `expandDirectives: true`.
 | `./vite` | Yes (build stage) | provider build helpers: pure naming callbacks (`granularChunkFileNames`, `granularAssetFileNames`) and `granularCssAssetsPlugin`, which reads and writes the filesystem |
 | `./runtime` | No | `createThemeController` |
 | `./node` | Yes | node preset, `granularContent`, doctor, CSS reading |
+| `./codegen` | Yes | `runRegistryCodegen` and its targets: a provider's own tooling, reads `src/components/` and rewrites the package's registries |
 
 A provider's browser entry — and therefore any component `config.ts` reachable
-from it — **MUST NOT** import `./node` or `./vite`, nor a donor's `/node`
-entry. `./vite` is build-configuration code (`vite.config.ts` runs in Node),
+from it — **MUST NOT** import `./node`, `./vite` or `./codegen`, nor a donor's
+`/node` entry. `./codegen` is a provider's own tooling: it belongs in scripts
+and tests, never in shipped code.
+`./vite` is build-configuration code (`vite.config.ts` runs in Node),
 and its entry carries static `node:` imports even though the naming callbacks
 themselves are pure. Importing either entry pulls `node:fs` into the client
 bundle. **The build does not fail**; only the consumer's runtime does.
@@ -408,7 +411,7 @@ bundle. **The build does not fail**; only the consumer's runtime does.
 Conformance **SHOULD** be checked against build output, not sources:
 
 ```bash
-grep -rn "unocss-preset-granular/\(node\|vite\)" dist/granular-provider.js dist/chunks/*.js
+grep -rn "unocss-preset-granular/\(node\|vite\|codegen\)" dist/granular-provider.js dist/chunks/*.js
 # must print nothing
 ```
 
@@ -458,6 +461,9 @@ Every rejection is a typed error class from `core/errors.ts` (or
 | CSS file missing on both path and fallback | `GranularCssReadError` | CSS read |
 | CSS source is a non-`file:` URL or a malformed `data:` URL | `GranularCssSourceError` | CSS read |
 | Strict token-ref parse failure (unsupported blocks, no tokens, selector not found) | `GranularTokenParseError`, wrapped in `GranularTokenRefError` | ref materialization |
+| A component's config export is named other than the registry expects | `GranularCodegenError` (`config-export-name-mismatch`) | registry codegen |
+| A generated block has no opening / closing marker | `GranularCodegenError` (`missing-open-marker` / `missing-close-marker`) | registry codegen |
+| `package.json` has no `exports`, or no component subpath in it | `GranularCodegenError` (`missing-package-exports` / `no-component-exports`) | registry codegen |
 
 *(Informative)* Registration-time failures are deliberate: each of them used to
 surface much later as an empty scan, a bare `ERR_INVALID_URL_SCHEME`, or CSS

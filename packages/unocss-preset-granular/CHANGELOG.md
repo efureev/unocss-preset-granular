@@ -21,9 +21,43 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
-## [0.8.2] - 2026-08-12
+## [0.9.0] - 2026-08-12
 
 ### Added
+
+- **`/codegen` — generation of a provider's component registries.** New subpath,
+  Node-only (it touches the file system), like `/node` and `/vite`. Nothing in
+  the existing API changes.
+
+  A provider lists its components in several places at once — the root barrel,
+  the `exports` subpaths, the build entries, the provider's own registry — and a
+  companion package adds two more: the auto-import resolver whitelist and the
+  list feeding `granularAssetFileNames`. Missing one never fails a build:
+  tree shaking, a subpath import or the class scan breaks on its own, silently.
+  `@feugene/granularity` had carried a private copy of this generator since the
+  day its four lists had already drifted; a second companion package would have
+  meant a second copy.
+
+  - `runRegistryCodegen({ packageDir, targets, check })` — collects components
+    from the file system and applies every target, accumulating edits per file
+    so that two targets on one file compose instead of overwriting each other.
+  - `codegenTargets` — ready-made `barrel`, `viteEntries`, `packageExports`,
+    `providerRegistry`, plus the generic `markedBlock` that covers whatever a
+    package has beyond them.
+  - `prefix` and `configExportName` are options: a package whose components are
+    not `Gr*` needs no generator of its own.
+  - Primitives are exported too (`collectGranularComponents`,
+    `replaceMarkedBlock`, `replacePackageExports`) for a provider that wants to
+    assemble its own pipeline.
+  - Every rejection is a `GranularCodegenError` with a machine-readable
+    `reason` and the `file` it stopped on, so a caller can tell "the registries
+    drifted" from "the tooling itself broke" (SPEC §11).
+
+  In TypeScript files only the marked block is rewritten, keeping its own
+  indentation; `package.json` cannot carry markers, so the contiguous run of
+  component keys is replaced in place and every other export stays where it was.
+  `check: true` writes nothing and reports which files drifted — that is the
+  gate a package runs from its test suite.
 
 - **The `font-variant-numeric` family is now part of the `includeExtraRules`
   set** (`numericRules` + `numericPreflights` in
@@ -34,11 +68,6 @@ they summarise what shipped, not what was written down at the time.
   reflowed on every change of value. The preset registers the preflight
   alongside the rules; without it the property would be assembled from
   undefined variables.
-
-- **`object-fit` / `object-position` are part of the `includeExtraRules` set**
-  (`objectRules`, shipped in `@feugene/unocss-mini-extra-rules` 0.7.0). Same
-  silent failure: `object-cover` stayed in the markup while the image was
-  stretched instead of cropped.
 
 - The dependency floor moved to `@feugene/unocss-mini-extra-rules` 0.8.1: 0.8.0
   registers `@property` under a stale variable prefix after `uno.setConfig()`
@@ -60,15 +89,10 @@ they summarise what shipped, not what was written down at the time.
   resolves to the last matching rule, so a divergence here would make the
   emitted CSS depend on preset order.
 
-- **The `font-variant-numeric` family is now part of the `includeExtraRules`
-  set** (`numericRules` + `numericPreflights` in
-  `@feugene/unocss-mini-extra-rules`). `tabular-nums`, `ordinal`,
-  `slashed-zero`, the fraction and figure-style utilities and the `normal-nums`
-  reset all live in `presetWind*` only, so a component writing `tabular-nums`
-  kept the class in the markup with no CSS behind it — a column of numbers
-  reflowed on every change of value. The preset registers the preflight
-  alongside the rules; without it the property would be assembled from
-  undefined variables.
+- **`object-fit` / `object-position` are now part of the `includeExtraRules`
+  set** (`objectRules` in `@feugene/unocss-mini-extra-rules` 0.7.0). Same silent
+  failure as the pair above: `object-cover` stayed in the markup while the image
+  was stretched instead of cropped.
 
 - **`granular doctor` now reports token keys declared with the `--` prefix**
   (`token-prefix`, level `warn`). The generator adds the prefix itself, so

@@ -4,7 +4,7 @@
 > [Component scanning](./component-scanning.md),
 > [Themes and tokens](./themes-and-tokens.md).
 
-## Five entry points
+## Six entry points
 
 | Import                                          | Use it in                             |
 |-------------------------------------------------|---------------------------------------|
@@ -13,6 +13,7 @@
 | `@feugene/unocss-preset-granular/contract`      | types + `defineGranularComponent/Provider` for provider authors |
 | `@feugene/unocss-preset-granular/vite`          | `granularChunkFileNames` / `granularAssetFileNames` for a **provider's** Vite build |
 | `@feugene/unocss-preset-granular/runtime`       | browser — `createThemeController` for runtime theme switching |
+| `@feugene/unocss-preset-granular/codegen`       | a **provider's** own tooling — `runRegistryCodegen` for its component registries |
 
 For apps built with Vite you almost always want `/node` — it reads CSS files
 from disk, resolves the `cssFiles` fallback (see

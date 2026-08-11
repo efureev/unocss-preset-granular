@@ -4,7 +4,7 @@
 > [Сканирование компонентов](./component-scanning.md),
 > [Темы и токены](./themes-and-tokens.md).
 
-## Пять точек входа
+## Шесть точек входа
 
 | Импорт                                     | Где использовать                                                                   |
 |--------------------------------------------|------------------------------------------------------------------------------------|
@@ -13,6 +13,7 @@
 | `@feugene/unocss-preset-granular/contract` | типы + `defineGranularComponent/Provider` для авторов провайдеров                  |
 | `@feugene/unocss-preset-granular/vite`     | `granularChunkFileNames` / `granularAssetFileNames` для Vite‑сборки **провайдера** |
 | `@feugene/unocss-preset-granular/runtime`  | браузеру — `createThemeController` для переключения тем                            |
+| `@feugene/unocss-preset-granular/codegen`  | собственной оснастке **провайдера** — `runRegistryCodegen` для его реестров компонентов |
 
 Для приложений на Vite почти всегда нужен `/node` — он читает CSS‑файлы с диска, делает fallback для `cssFiles` (см.
 [Архитектуру](./architecture.md#файловые-конвенции)) и обеспечивает автосканирование компонентов. Entry `/vite` нужен
