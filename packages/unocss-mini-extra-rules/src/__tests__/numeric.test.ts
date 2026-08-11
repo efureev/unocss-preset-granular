@@ -120,3 +120,45 @@ describe('preflightRoot', () => {
     expect(css).not.toContain('--un-numeric-spacing: ')
   })
 })
+
+describe('полный стек из пяти осей', () => {
+  // Композиция парами проверена выше; здесь — все пять сразу, то есть
+  // ровно тот случай, ради которого свойство собирается из переменных.
+  it('ordinal + slashed-zero + lining-nums + tabular-nums + diagonal-fractions', async () => {
+    const css = await generate('ordinal slashed-zero lining-nums tabular-nums diagonal-fractions')
+
+    expect(css).toContain('--un-ordinal:ordinal')
+    expect(css).toContain('--un-slashed-zero:slashed-zero')
+    expect(css).toContain('--un-numeric-figure:lining-nums')
+    expect(css).toContain('--un-numeric-spacing:tabular-nums')
+    expect(css).toContain('--un-numeric-fraction:diagonal-fractions')
+  })
+
+  // `normal-nums` — единственное правило семейства, которое пишет свойство
+  // напрямую. Оно обязано оставаться отдельной утилитой и не подмешивать
+  // сборку из переменных, иначе сброс перестал бы быть сбросом.
+  it('normal-nums не тянет за собой сборку из переменных', async () => {
+    const css = await generate('normal-nums tabular-nums')
+    const reset = css.match(/\.normal-nums\{[^}]*\}/)?.[0]
+
+    expect(reset).toBe('.normal-nums{font-variant-numeric:normal;}')
+    expect(css).toContain('--un-numeric-spacing:tabular-nums')
+  })
+})
+
+describe('сосуществование с собственным preflight presetMini', () => {
+  // Оба блока садятся на одни и те же селекторы. Это нормально — они
+  // объявляют РАЗНЫЕ переменные, и ни один не должен затирать другой.
+  it('переменные presetMini и numericPreflights переживают друг друга', async () => {
+    const uno = await createGenerator({
+      presets: [presetMini()],
+      rules: numericRules,
+      preflights: numericPreflights,
+    })
+    const { css } = await uno.generate('tabular-nums rotate-45')
+    const preflights = css.split('/* layer: default */')[0]!
+
+    expect(preflights).toContain('--un-rotate:0')
+    expect(preflights).toContain('--un-numeric-spacing: ')
+  })
+})

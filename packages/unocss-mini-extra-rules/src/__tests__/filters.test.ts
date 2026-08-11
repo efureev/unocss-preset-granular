@@ -168,3 +168,45 @@ describe('@property под variablePrefix пресета', () => {
     expect(css).toContain('@property --un-blur')
   })
 })
+
+describe('filterRules: drop-shadow с opacity через `/`', () => {
+  it('drop-shadow-md/50 — размер из темы, альфа из второго сегмента', async () => {
+    const css = await generate('drop-shadow-md/50')
+    expect(css).toContain('--un-drop-shadow-opacity:0.5')
+    expect(css).toContain('--un-drop-shadow:drop-shadow(')
+  })
+
+  // Значение начинается с `/`: сегмент размера пустой, и разбор обязан взять
+  // DEFAULT из темы, а не уехать в неопределённое поведение.
+  it('drop-shadow-/50 — пустой сегмент размера берёт DEFAULT из темы', async () => {
+    const css = await generate('drop-shadow-/50')
+    expect(css).toContain('--un-drop-shadow-opacity:0.5')
+    expect(css).toContain('--un-drop-shadow:drop-shadow(')
+  })
+})
+
+describe('filterRules: `none` как значение', () => {
+  it.each([
+    ['blur-none', '--un-blur:blur(0)'],
+    ['grayscale-none', '--un-grayscale:grayscale(0)'],
+    ['backdrop-blur-none', '--un-backdrop-blur:blur(0)'],
+  ])('%s → %s (не пустая строка, иначе правило бы не сматчилось)', async (className, expected) => {
+    expect(await generate(className)).toContain(expected)
+  })
+})
+
+describe('filterRules: кэш @property-блоков', () => {
+  // Блоки строятся по генератору и кэшируются в WeakMap. Второй проход по
+  // тому же генератору обязан дать те же имена: разъехавшийся кэш означал бы
+  // регистрацию одного имени и ссылку на другое.
+  it('повторная генерация на том же генераторе даёт те же имена', async () => {
+    const uno = await createGenerator({ rules: filterRules, theme })
+
+    const first = (await uno.generate('blur-4')).css
+    const second = (await uno.generate('brightness-110')).css
+
+    expect(first).toContain('@property --un-blur')
+    expect(second).toContain('@property --un-blur')
+    expect(second).toContain('@property --un-brightness')
+  })
+})

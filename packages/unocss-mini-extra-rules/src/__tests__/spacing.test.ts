@@ -160,3 +160,45 @@ describe('spacing: variantSpaceAndDivide', () => {
     expect(variant('p-4')).toBeUndefined()
   })
 })
+
+// Границы ручного парсера бинарного минуса: он обязан отличать оператор от
+// знака числа и не спотыкаться о минус в начале и в конце значения. Обе
+// ситуации достижимы из bracket-формы, и обе раньше не проверялись.
+describe('spacing: минус на краях значения', () => {
+  it('space-x-[-1rem] — ведущий минус остаётся знаком числа, а не оператором', () => {
+    const css = run(spacingRules, 'space-x-[-1rem]')
+    expect(css?.['margin-inline-start']).toContain('calc(-1rem *')
+    expect(css?.['margin-inline-start']).not.toContain('- 1rem')
+  })
+
+  it('space-x-[calc(1px-)] — висящий минус не превращается в оператор', () => {
+    const css = run(spacingRules, 'space-x-[calc(1px-)]')
+    expect(css?.['margin-inline-start']).toContain('calc(1px-)')
+  })
+})
+
+describe('spacing: остальные источники значения space-*', () => {
+  it('space-x-0 берёт ноль из theme.spacing и нормализует его в 0px', () => {
+    const css = run(spacingRules, 'space-x-0')
+    expect(css?.['margin-inline-start']).toContain('calc(0px *')
+  })
+
+  it('space-x-1/2 разбирает дробь в проценты', () => {
+    const css = run(spacingRules, 'space-x-1/2')
+    expect(css?.['margin-inline-start']).toContain('calc(50% *')
+  })
+
+  it('space-x-10vh принимает вьюпортные единицы', () => {
+    const css = run(spacingRules, 'space-x-10vh')
+    expect(css?.['margin-inline-start']).toContain('calc(10vh *')
+  })
+})
+
+describe('spacing: divide-x-0', () => {
+  // Ноль как ширина: голое число трактуется как px, и `0` не должен потеряться
+  // на проверке truthy — `divide-x-0` это осмысленный «убрать разделитель».
+  it('divide-x-0 даёт нулевую ширину, а не отсутствие правила', () => {
+    const css = run(spacingRules, 'divide-x-0')
+    expect(css?.['border-left-width']).toContain('calc(0px *')
+  })
+})

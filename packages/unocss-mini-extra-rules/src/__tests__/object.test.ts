@@ -48,3 +48,20 @@ describe('objectRules', () => {
     expect(await generate('object-nonsense')).not.toContain('object-position')
   })
 })
+
+// Вторая половина bracket-формы: `h.position.fraction.auto.px.cssvar`
+// применяется К КАЖДОЙ части значения по отдельности. Тесты выше проверяли
+// только уже готовые `50% 20%`, то есть саму цепочку конвертации — нет.
+describe('objectRules: bracket-значения по частям', () => {
+  it('object-[1/2_0] — дробь становится процентом, голый ноль получает единицы', async () => {
+    expect(await generate('object-[1/2_0]')).toContain('object-position:50% 0px')
+  })
+
+  it('object-[2rem_50%] — готовые единицы проходят как есть', async () => {
+    expect(await generate('object-[2rem_50%]')).toContain('object-position:2rem 50%')
+  })
+
+  it('object-[var(--pos)] — cssvar не ломается о конвертацию частей', async () => {
+    expect(await generate('object-[var(--pos)]')).toContain('object-position:var(--pos)')
+  })
+})

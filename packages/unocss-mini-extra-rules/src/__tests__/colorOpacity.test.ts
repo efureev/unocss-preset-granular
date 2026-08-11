@@ -45,3 +45,24 @@ describe('colorOpacityRules', () => {
     expect(css).not.toContain('color-mix')
   })
 })
+
+describe('colorOpacityRules: границы значения opacity', () => {
+  it('дробная opacity (/12.5) доезжает до color-mix, а не отбрасывается', async () => {
+    const css = await generate('bg-[#0ea5e9]/12.5')
+    expect(css).toContain('color-mix(in srgb, #0ea5e9 12.5%, transparent)')
+  })
+
+  // Ноль — единственное валидное значение, которое ложно при проверке на
+  // truthy. Правило сравнивает с `null`, и этот тест держит это явным:
+  // замена на `if (!opacity)` тихо выкинула бы `/0` из CSS.
+  it('нулевая opacity (/0) эмитит color-mix, а не выпадает как falsy', async () => {
+    const css = await generate('bg-[#0ea5e9]/0')
+    expect(css).toContain('color-mix(in srgb, #0ea5e9 0%, transparent)')
+  })
+
+  // Граница семейства: правил ровно два, `bg-` и `border-`. Цветовые утилиты
+  // presetMini с `/NN` работают сами, а bracket-цвет — только для этих двух.
+  it('text-[color]/NN не поддерживается — правила такого нет', async () => {
+    expect(await generate('text-[#fff]/50')).not.toContain('color-mix')
+  })
+})

@@ -137,6 +137,8 @@ describe('presetGranular', () => {
       'backdrop-blur-sm',
       'uppercase',
       'sr-only',
+      'object-cover',
+      'tabular-nums',
     ])('%s генерирует CSS из коробки', async (token) => {
       expect(await generate(token)).not.toBe('')
     })
@@ -148,6 +150,34 @@ describe('presetGranular', () => {
       const { css } = await uno.generate('animate-spin')
 
       expect(css).toContain('@keyframes granularity-spin')
+    })
+
+    it('`tabular-nums` получает свои пустые значения по умолчанию', async () => {
+      // Семейство `font-variant-numeric` собирает свойство из пяти переменных,
+      // и без preflight оно схлопывается в неопределённые var() — CSS есть,
+      // цифры по-прежнему пляшут. Проводка preflight'а в пресете держится
+      // только этим тестом: `includeExtraRules` могла бы протащить правила
+      // и потерять preflight, и снаружи это видно только глазами.
+      const uno = await createGenerator({
+        presets: [presetMini(), presetGranular({ providers: [provider], components: [] })],
+      })
+      const { css } = await uno.generate('tabular-nums')
+
+      expect(css).toContain('--un-numeric-spacing: ')
+      expect(css).toContain('--un-numeric-spacing:tabular-nums')
+    })
+
+    it('includeExtraRules=false убирает и правила, и их preflight', async () => {
+      const uno = await createGenerator({
+        presets: [
+          presetMini(),
+          presetGranular({ providers: [provider], components: [], includeExtraRules: false }),
+        ],
+      })
+      const { css } = await uno.generate('tabular-nums animate-spin')
+
+      expect(css).not.toContain('--un-numeric-spacing')
+      expect(css).not.toContain('@keyframes granularity-spin')
     })
 
     it.each([
