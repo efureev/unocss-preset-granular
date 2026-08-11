@@ -21,6 +21,32 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-12
+
+### Added
+
+- **The `font-variant-numeric` family is now part of the `includeExtraRules`
+  set** (`numericRules` + `numericPreflights` in
+  `@feugene/unocss-mini-extra-rules`). `tabular-nums`, `ordinal`,
+  `slashed-zero`, the fraction and figure-style utilities and the `normal-nums`
+  reset all live in `presetWind*` only, so a component writing `tabular-nums`
+  kept the class in the markup with no CSS behind it — a column of numbers
+  reflowed on every change of value. The preset registers the preflight
+  alongside the rules; without it the property would be assembled from
+  undefined variables.
+
+- **`object-fit` / `object-position` are part of the `includeExtraRules` set**
+  (`objectRules`, shipped in `@feugene/unocss-mini-extra-rules` 0.7.0). Same
+  silent failure: `object-cover` stayed in the markup while the image was
+  stretched instead of cropped.
+
+- The dependency floor moved to `@feugene/unocss-mini-extra-rules` 0.8.1: 0.8.0
+  registers `@property` under a stale variable prefix after `uno.setConfig()`
+  (a `uno.config.ts` edit with the dev server running), and its numeric rules
+  shadow `presetWind3`'s without carrying its `preflightKeys`.
+
+## [0.8.1] - 2026-08-10
+
 ### Added
 
 - **`sr-only` / `not-sr-only` are now part of the `includeExtraRules` set**
@@ -43,16 +69,6 @@ they summarise what shipped, not what was written down at the time.
   reflowed on every change of value. The preset registers the preflight
   alongside the rules; without it the property would be assembled from
   undefined variables.
-
-- The dependency floor moved to `@feugene/unocss-mini-extra-rules` 0.8.1: 0.8.0
-  registers `@property` under a stale variable prefix after `uno.setConfig()`
-  (a `uno.config.ts` edit with the dev server running), and its numeric rules
-  shadow `presetWind3`'s without carrying its `preflightKeys`.
-
-- **`object-fit` / `object-position` are part of the `includeExtraRules` set**
-  (`objectRules`, shipped in `@feugene/unocss-mini-extra-rules` 0.7.0). Same
-  silent failure: `object-cover` stayed in the markup while the image was
-  stretched instead of cropped.
 
 - **`granular doctor` now reports token keys declared with the `--` prefix**
   (`token-prefix`, level `warn`). The generator adds the prefix itself, so
