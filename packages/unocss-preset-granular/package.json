@@ -68,7 +68,7 @@
     }
   },
   "dependencies": {
-    "@feugene/unocss-mini-extra-rules": "^0.8.0"
+    "@feugene/unocss-mini-extra-rules": "^0.8.1"
   },
   "peerDependencies": {
     "unocss": "^66.7.5"

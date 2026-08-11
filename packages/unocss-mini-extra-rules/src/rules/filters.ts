@@ -74,11 +74,18 @@ const backdropCss = backdropBaseKeys.map(key => `var(--un-${key},)`).join(' ')
  * фильтром подхватывает родительское значение. `presetWind4` чинит это
  * собственным `postprocess` (он правит и селектор), но полагаться на его
  * присутствие нельзя: пакет живёт поверх `presetMini`.
+ *
+ * Кэш держится за `config`, а НЕ за генератор: `uno.setConfig()` меняет
+ * конфиг на живом генераторе (`@unocss/vite` зовёт его на каждую правку
+ * `uno.config.ts`), и кэш по генератору пережил бы смену `variablePrefix` —
+ * `entries` уехали бы на новый префикс, а `@property` осталась бы на старом.
+ * То есть ровно тот баг, который этот код и чинит, только в dev-режиме и до
+ * перезапуска сервера.
  */
 const propertiesCache = new WeakMap<object, { filter: CSSValueInput[], backdrop: CSSValueInput[] }>()
 
 function resolveProperties(ctx: RuleContext<FilterTheme>) {
-  const cached = propertiesCache.get(ctx.generator)
+  const cached = propertiesCache.get(ctx.generator.config)
   if (cached)
     return cached
 
@@ -91,7 +98,7 @@ function resolveProperties(ctx: RuleContext<FilterTheme>) {
     backdrop: define(backdropBaseKeys),
   }
 
-  propertiesCache.set(ctx.generator, properties)
+  propertiesCache.set(ctx.generator.config, properties)
 
   return properties
 }

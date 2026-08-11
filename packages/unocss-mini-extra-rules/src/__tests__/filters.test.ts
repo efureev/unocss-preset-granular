@@ -210,3 +210,27 @@ describe('filterRules: кэш @property-блоков', () => {
     expect(second).toContain('@property --un-brightness')
   })
 })
+
+describe('filterRules: смена конфига на живом генераторе', () => {
+  // `@unocss/vite` не пересоздаёт генератор на правку `uno.config.ts` — он
+  // зовёт `uno.setConfig()`. Кэш `@property`-блоков, привязанный к генератору,
+  // пережил бы смену `variablePrefix`: `entries` уехали бы на новый префикс,
+  // а регистрация осталась бы на старом — тот же рассинхрон, только в dev и
+  // до перезапуска сервера. Поэтому кэш держится за `config`.
+  it('setConfig с другим variablePrefix переименовывает и @property', async () => {
+    const uno = await createGenerator({ rules: filterRules, theme })
+    const before = (await uno.generate('blur-8')).css
+
+    expect(before).toContain('@property --un-blur')
+
+    await uno.setConfig({
+      presets: [presetMini({ variablePrefix: 'ds-' })],
+      rules: filterRules,
+    })
+    const after = (await uno.generate('blur-8')).css
+
+    expect(after).toContain('--ds-blur:blur(8px)')
+    expect(after).toContain('@property --ds-blur')
+    expect(after).not.toContain('@property --un-blur')
+  })
+})

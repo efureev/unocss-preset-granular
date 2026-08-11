@@ -44,6 +44,11 @@ they summarise what shipped, not what was written down at the time.
   alongside the rules; without it the property would be assembled from
   undefined variables.
 
+- The dependency floor moved to `@feugene/unocss-mini-extra-rules` 0.8.1: 0.8.0
+  registers `@property` under a stale variable prefix after `uno.setConfig()`
+  (a `uno.config.ts` edit with the dev server running), and its numeric rules
+  shadow `presetWind3`'s without carrying its `preflightKeys`.
+
 - **`object-fit` / `object-position` are part of the `includeExtraRules` set**
   (`objectRules`, shipped in `@feugene/unocss-mini-extra-rules` 0.7.0). Same
   silent failure: `object-cover` stayed in the markup while the image was

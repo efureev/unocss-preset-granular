@@ -11,6 +11,37 @@ Entries before `0.6.0` were not tracked separately from
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-12
+
+### Added
+
+- **`numericPreflights` follows `theme.preflightRoot`.** The reset selectors
+  belong to the config, not to the rule: an app that moved `presetMini`'s base
+  variables under its own root left this block behind on the hard-coded
+  default. An empty `preflightRoot` now emits nothing at all, as in
+  `presetMini`.
+
+### Fixed
+
+- **`filterRules` no longer keep stale `@property` names after
+  `uno.setConfig()`.** The `@property` blocks are built per generator and
+  cached; the cache was keyed on the generator, which outlives its config —
+  `@unocss/vite` calls `setConfig` on every `uno.config.ts` change rather than
+  rebuilding the generator. Editing `variablePrefix` with the dev server
+  running therefore moved the utilities to `--ds-blur` while the registration
+  stayed on `--un-blur`: `inherits: false` was lost until the server was
+  restarted. The cache is now keyed on the resolved config.
+
+- **`numericRules` carry `presetWind*`'s `custom.preflightKeys` meta.** The
+  rules are *static* while `presetWind3`'s are regexes, and `parseUtil`
+  consults the static map first — so these rules shadow `presetWind3`'s
+  regardless of preset order, and the keys they used not to declare vanished
+  with them. An app on `presetWind3` with `preflight: 'on-demand'` that
+  imported `numericRules` directly (and skipped `numericPreflights`, since
+  wind3 "already has them") got no defaults for the whole family, including
+  wind3's own utilities: `font-variant-numeric` assembled from undefined
+  variables and silently did not apply.
+
 ## [0.8.0] - 2026-08-12
 
 ### Added
@@ -37,8 +68,8 @@ Entries before `0.6.0` were not tracked separately from
   undefined variables.
 
   The defaults land on the selectors `presetMini` uses for its own preflight
-  (`theme.preflightRoot`, by default `*,::before,::after` and `::backdrop`),
-  and the variable names are run
+  (`*,::before,::after` and `::backdrop`; `theme.preflightRoot` is honoured
+  from 0.8.1 on), and the variable names are run
   through the generator's `postprocess` — the hook `presetMini` uses to rename
   `--un-*` for a custom `variablePrefix`. Both details are load-bearing: on
   `:root` alone the inherited custom properties would leak a parent's

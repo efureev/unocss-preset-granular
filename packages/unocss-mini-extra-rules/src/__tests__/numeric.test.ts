@@ -162,3 +162,39 @@ describe('сосуществование с собственным preflight pre
     expect(preflights).toContain('--un-numeric-spacing: ')
   })
 })
+
+describe('preflightKeys в мета правил', () => {
+  // Правила семейства СТАТИЧЕСКИЕ, а у `presetWind*` — регулярки, и
+  // `parseUtil` смотрит статическую карту раньше динамических. Значит наши
+  // правила перекрывают чужие при любом порядке пресетов — и обязаны нести
+  // те же `preflightKeys`, иначе режим `preflight: 'on-demand'` перестанет
+  // объявлять дефолты, которые он объявлял до подключения этого пакета.
+  it('on-demand объявляет ключи, заявленные правилом', async () => {
+    const uno = await createGenerator({
+      presets: [presetMini({ preflight: 'on-demand' })],
+      rules: numericRules,
+      // Так же, как это делает тема `presetWind*`.
+      theme: {
+        preflightBase: {
+          '--un-numeric-spacing': ' ',
+          '--un-ordinal': ' ',
+        },
+      },
+    })
+    const { css } = await uno.generate('tabular-nums')
+
+    expect(css).toContain('--un-numeric-spacing: ')
+    expect(css).toContain('--un-ordinal: ')
+  })
+
+  it('без активированного правила on-demand ничего не объявляет', async () => {
+    const uno = await createGenerator({
+      presets: [presetMini({ preflight: 'on-demand' })],
+      rules: numericRules,
+      theme: { preflightBase: { '--un-numeric-spacing': ' ' } },
+    })
+    const { css } = await uno.generate('m-4')
+
+    expect(css).not.toContain('--un-numeric-spacing: ')
+  })
+})

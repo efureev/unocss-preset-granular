@@ -44,15 +44,29 @@ function withComposed(entry: Record<string, string>): Record<string, string> {
   return { ...entry, 'font-variant-numeric': COMPOSED }
 }
 
+/**
+ * То же мета-поле, что у `presetWind*`. Оно нужно не нам: в режиме
+ * `preflight: 'on-demand'` `presetMini` объявляет из `theme.preflightBase`
+ * только ключи активированных правил, а читает их отсюда.
+ *
+ * Без него связка «`presetWind3` + эти правила напрямую» ломается молча:
+ * наши правила СТАТИЧЕСКИЕ, а у `presetWind3` — регулярки, и `parseUtil`
+ * смотрит статическую карту первой. То есть наше правило перекрывает чужое
+ * при любом порядке пресетов, и вместе с ним пропадают заявленные им ключи —
+ * `font-variant-numeric` у ВСЕХ утилит семейства, включая правила самого
+ * `presetWind3`, собирается из неопределённых переменных.
+ */
+const NUMERIC_META = { custom: { preflightKeys: [...NUMERIC_VARS] } }
+
 export const numericRules: Rule[] = [
-  ['ordinal', withComposed({ '--un-ordinal': 'ordinal' })],
-  ['slashed-zero', withComposed({ '--un-slashed-zero': 'slashed-zero' })],
-  ['lining-nums', withComposed({ '--un-numeric-figure': 'lining-nums' })],
-  ['oldstyle-nums', withComposed({ '--un-numeric-figure': 'oldstyle-nums' })],
-  ['proportional-nums', withComposed({ '--un-numeric-spacing': 'proportional-nums' })],
-  ['tabular-nums', withComposed({ '--un-numeric-spacing': 'tabular-nums' })],
-  ['diagonal-fractions', withComposed({ '--un-numeric-fraction': 'diagonal-fractions' })],
-  ['stacked-fractions', withComposed({ '--un-numeric-fraction': 'stacked-fractions' })],
+  ['ordinal', withComposed({ '--un-ordinal': 'ordinal' }), NUMERIC_META],
+  ['slashed-zero', withComposed({ '--un-slashed-zero': 'slashed-zero' }), NUMERIC_META],
+  ['lining-nums', withComposed({ '--un-numeric-figure': 'lining-nums' }), NUMERIC_META],
+  ['oldstyle-nums', withComposed({ '--un-numeric-figure': 'oldstyle-nums' }), NUMERIC_META],
+  ['proportional-nums', withComposed({ '--un-numeric-spacing': 'proportional-nums' }), NUMERIC_META],
+  ['tabular-nums', withComposed({ '--un-numeric-spacing': 'tabular-nums' }), NUMERIC_META],
+  ['diagonal-fractions', withComposed({ '--un-numeric-fraction': 'diagonal-fractions' }), NUMERIC_META],
+  ['stacked-fractions', withComposed({ '--un-numeric-fraction': 'stacked-fractions' }), NUMERIC_META],
   // Сбрасывает свойство целиком, а не по частям: так же в `presetWind*`, и
   // `normal` — собственное сбрасывающее значение спецификации.
   ['normal-nums', { 'font-variant-numeric': 'normal' }],
