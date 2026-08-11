@@ -132,6 +132,12 @@ Supported shapes (prefixes are optional — `filter-*`, `backdrop-*`):
 - `drop-shadow(-*)`, `drop-shadow-color-*`, `drop-shadow-op-*`
 - `backdrop-op(acity)-*`
 
+Each variable is registered with `@property … { inherits: false }`, so a
+child element that applies its own filter does not inherit the parent's.
+The registered name follows the generator's `variablePrefix`: under
+`presetMini({ variablePrefix: 'ds-' })` the utilities reference `--ds-blur`
+and `@property --ds-blur` is what gets emitted.
+
 ### `spacingRules`, `spacingVariants`
 
 Tailwind‑style sibling spacing and divide utilities backed by the
@@ -161,6 +167,40 @@ The `text-transform` family, which lives in `presetWind*` and is absent from
 Without them a component that writes `uppercase` keeps the class in the
 markup while no CSS is emitted — the build succeeds and the text is simply
 not transformed.
+
+### `numericRules`, `numericPreflights`
+
+The `font-variant-numeric` family, also `presetWind*`‑only:
+
+- `tabular-nums`, `proportional-nums` — figure spacing
+- `lining-nums`, `oldstyle-nums` — figure style
+- `diagonal-fractions`, `stacked-fractions` — fractions
+- `ordinal`, `slashed-zero` — independent switches
+- `normal-nums` — resets the property outright
+
+`tabular-nums` is the one that usually bites: without it a column of numbers
+jitters as the values change, and a table, a paginator or a character counter
+reflows on every keystroke.
+
+The family is **composable** — `ordinal` and `tabular-nums` set different
+aspects of the same property and must survive together. No rule therefore
+writes `font-variant-numeric` directly; each sets its own custom property and
+the value is assembled from all five, exactly as `presetWind*` does. The empty
+defaults come from `numericPreflights`, so register it alongside the rules —
+without it the property collapses to undefined variables.
+
+The defaults land on the same selectors `presetMini` uses for its own preflight
+(`*,::before,::after` and `::backdrop`), not on `:root` — custom properties
+inherit, so a `:root`‑only declaration would let an `ordinal` nested inside a
+`tabular-nums` element inherit the parent's figure spacing, where `presetWind*`
+gives it `ordinal` alone. Variable names are run through the generator's
+`postprocess`, the same hook `presetMini` uses to rename `--un-*` for a custom
+`variablePrefix`; without that the utilities would reference `--ds-numeric-*`
+while the preflight declared `--un-numeric-*`.
+
+One deliberate divergence from `presetWind*` remains: it emits the defaults
+through `preflightKeys`, only for the keys whose rules actually matched, while
+`numericPreflights` declares all five unconditionally.
 
 ### `objectRules`
 
@@ -206,6 +246,9 @@ export const animationPreflights: Preflight[]
 export const colorOpacityRules: Rule[]
 
 export const filterRules: Rule[]
+
+export const numericRules: Rule[]
+export const numericPreflights: Preflight[]
 
 export const objectRules: Rule[]
 

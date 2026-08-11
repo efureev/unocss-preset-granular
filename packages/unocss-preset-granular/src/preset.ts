@@ -10,6 +10,8 @@ import {
   animationRules,
   colorOpacityRules,
   filterRules,
+  numericPreflights,
+  numericRules,
   objectRules,
   spacingRules,
   spacingVariants,
@@ -214,6 +216,7 @@ export function presetGranular(options: PresetGranularOptions): Preset {
       ...animationRules,
       ...colorOpacityRules,
       ...filterRules,
+      ...numericRules,
       ...objectRules,
       ...spacingRules,
       ...typographyRules,
@@ -222,6 +225,9 @@ export function presetGranular(options: PresetGranularOptions): Preset {
     // `animate-spin` ссылается на `@keyframes granularity-spin`; без preflight
     // правило сгенерируется, а анимации не будет.
     extraPreflights.push(...animationPreflights)
+    // `tabular-nums` и соседи собирают `font-variant-numeric` из пяти
+    // переменных; без preflight они не объявлены, и свойство схлопывается.
+    extraPreflights.push(...numericPreflights)
   }
 
   if (includeProviderUnocss) {

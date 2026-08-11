@@ -1,5 +1,5 @@
 import { createGenerator } from '@unocss/core'
-import { theme } from '@unocss/preset-mini'
+import presetMini, { theme } from '@unocss/preset-mini'
 import { describe, expect, it } from 'vitest'
 
 import { filterRules } from '../index'
@@ -132,5 +132,39 @@ describe('остальные filter/backdrop-filter утилиты', () => {
   it('глобальные ключевые слова (filter-inherit, backdrop-filter-initial) проходят как есть', async () => {
     expect(await generate('filter-inherit')).toContain('filter:inherit')
     expect(await generate('backdrop-filter-initial')).toContain('backdrop-filter:initial')
+  })
+})
+
+describe('@property под variablePrefix пресета', () => {
+  async function generateWithPrefix(className: string) {
+    const uno = await createGenerator({
+      presets: [presetMini({ variablePrefix: 'ds-' })],
+      rules: filterRules,
+    })
+    const { css } = await uno.generate(className)
+    return css
+  }
+
+  // Имя регистрируемого свойства живёт в селекторе (`@property --un-blur`), а
+  // `postprocess` пресета правит только `entries`. Разъехавшись, `@property`
+  // регистрирует переменную, к которой никто не обращается: из-за fallback'а в
+  // `var(--ds-blur,)` фильтр работает, но `inherits: false` теряется — дочерний
+  // элемент со своим фильтром подхватывает родительское значение.
+  it('регистрируется то же имя, на которое ссылается утилита', async () => {
+    const css = await generateWithPrefix('blur-4')
+    expect(css).toContain('--ds-blur:blur(4px)')
+    expect(css).toContain('@property --ds-blur')
+    expect(css).not.toContain('@property --un-blur')
+  })
+
+  it('то же для backdrop-семейства', async () => {
+    const css = await generateWithPrefix('backdrop-blur-md')
+    expect(css).toContain('@property --ds-backdrop-blur')
+    expect(css).not.toContain('@property --un-backdrop-blur')
+  })
+
+  it('без variablePrefix имена остаются `--un-*`', async () => {
+    const css = await generate('blur-4')
+    expect(css).toContain('@property --un-blur')
   })
 })

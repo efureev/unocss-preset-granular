@@ -31,7 +31,25 @@ export default {
     },
     {
       what: 'filterRules: несколько фильтров через кастомные свойства',
-      css: '--un-blur',
+      css: '--ds-blur',
+    },
+    {
+      what: 'filterRules: @property регистрирует то же имя, на которое ссылается '
+        + 'утилита (имя свойства живёт в селекторе, куда postprocess не дотягивается)',
+      css: '@property --ds-blur',
+    },
+    {
+      what: 'numericRules: tabular-nums пишет свою переменную, а не свойство',
+      css: '--ds-numeric-spacing:tabular-nums',
+    },
+    {
+      what: 'numericPreflights под variablePrefix пресета: иначе утилиты '
+        + 'ссылались бы на `--ds-*`, а объявлены были бы `--un-*`',
+      css: '--ds-numeric-spacing: ',
+    },
+    {
+      what: 'numericRules: normal-nums сбрасывает свойство целиком',
+      css: 'font-variant-numeric:normal',
     },
     {
       what: 'objectRules: object-fit',
@@ -59,6 +77,21 @@ export default {
     {
       what: 'CSS невыбранного XTest1',
       css: '.x-sp-test',
+    },
+    {
+      what: 'ни одного `@property --un-*`: у app-4 `variablePrefix: \'ds-\'`, '
+        + 'и имя в селекторе обязано ехать через postprocess вместе с entries. '
+        + '(Просто `--un-` тут не проверить: `--un-default-border-color` '
+        + 'приходит из @unocss/reset — это статический CSS, не генератор.)',
+      css: '@property --un-',
+    },
+    {
+      what: 'переменные фильтров под чужим префиксом',
+      css: '--un-blur',
+    },
+    {
+      what: 'переменные font-variant-numeric под чужим префиксом',
+      css: '--un-numeric-',
     },
   ],
 }

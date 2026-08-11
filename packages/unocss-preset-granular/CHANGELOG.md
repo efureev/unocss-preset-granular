@@ -34,6 +34,21 @@ they summarise what shipped, not what was written down at the time.
   resolves to the last matching rule, so a divergence here would make the
   emitted CSS depend on preset order.
 
+- **The `font-variant-numeric` family is now part of the `includeExtraRules`
+  set** (`numericRules` + `numericPreflights` in
+  `@feugene/unocss-mini-extra-rules`). `tabular-nums`, `ordinal`,
+  `slashed-zero`, the fraction and figure-style utilities and the `normal-nums`
+  reset all live in `presetWind*` only, so a component writing `tabular-nums`
+  kept the class in the markup with no CSS behind it — a column of numbers
+  reflowed on every change of value. The preset registers the preflight
+  alongside the rules; without it the property would be assembled from
+  undefined variables.
+
+- **`object-fit` / `object-position` are part of the `includeExtraRules` set**
+  (`objectRules`, shipped in `@feugene/unocss-mini-extra-rules` 0.7.0). Same
+  silent failure: `object-cover` stayed in the markup while the image was
+  stretched instead of cropped.
+
 - **`granular doctor` now reports token keys declared with the `--` prefix**
   (`token-prefix`, level `warn`). The generator adds the prefix itself, so
   `'--brand'` emits a valid but useless `----brand` custom property and the

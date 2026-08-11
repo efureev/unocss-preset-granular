@@ -54,6 +54,19 @@ const stripe = `data:image/svg+xml,${encodeURIComponent(
         <span>кадрирование / вписывание / позиция → objectRules</span>
       </div>
 
+      <!-- numericRules + numericPreflights: tabular-nums видно только на
+           колонке цифр разной ширины — моноширинные фигуры держат разряды на
+           месте, пропорциональные съезжают при смене значения. Рядом ordinal
+           и slashed-zero: они задают другие аспекты того же свойства и обязаны
+           пережить tabular-nums — ради этого оно и собирается из переменных. -->
+      <div class="flex items-center gap-6 p-4">
+        <span class="tabular-nums">1 234 567,89</span>
+        <span class="tabular-nums ordinal slashed-zero">1st 0</span>
+        <span class="diagonal-fractions">1/2</span>
+        <span class="normal-nums">1 234 567,89</span>
+        <span>цифры фиксированной ширины → numericRules + numericPreflights</span>
+      </div>
+
       <!-- accessibilityRules: пара sr-only / not-sr-only в её обычном виде —
            ссылка, видимая только при навигации с клавиатуры. -->
       <div class="p-4">

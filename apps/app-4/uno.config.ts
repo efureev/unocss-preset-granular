@@ -6,6 +6,8 @@ import {
     animationRules,
     colorOpacityRules,
     filterRules,
+    numericPreflights,
+    numericRules,
     objectRules,
     spacingRules,
     spacingVariants,
@@ -39,10 +41,10 @@ export default defineConfig({
         }),
         presetGranularNode(granularOptions),
     ],
-    // Полный набор правил из `@feugene/unocss-mini-extra-rules` — все семь
+    // Полный набор правил из `@feugene/unocss-mini-extra-rules` — все восемь
     // семейств, а не подмножество: spinner-анимация, bracket‑color с `/NN`
-    // opacity, расширенные filter/backdrop‑filter утилиты, `object-fit` и
-    // `object-position`,
+    // opacity, расширенные filter/backdrop‑filter утилиты, `font-variant-numeric`
+    // (`tabular-nums` и соседи), `object-fit` и `object-position`,
     // Tailwind‑совместимые `space-*` / `divide-*`, `text-transform` и
     // `sr-only`/`not-sr-only`.
     // Раз `includeExtraRules: false` выше отключил внутреннюю копию пресета,
@@ -53,6 +55,7 @@ export default defineConfig({
         ...animationRules,
         ...colorOpacityRules,
         ...filterRules,
+        ...numericRules,
         ...objectRules,
         ...spacingRules,
         ...typographyRules,
@@ -62,6 +65,9 @@ export default defineConfig({
     ],
     preflights: [
         ...animationPreflights,
+        // Без него `tabular-nums` и соседи соберут `font-variant-numeric` из
+        // необъявленных переменных — CSS сгенерируется, свойство не применится.
+        ...numericPreflights,
     ],
     // `@unocss/vite` читает `content.filesystem` только из top-level user-config,
     // поэтому подключаем хелпер `granularContent` — он автоматически соберёт

@@ -2,6 +2,7 @@ import { symbols, type CSSValueInput, type Rule, type RuleContext } from '@unocs
 import type { Theme } from '@unocss/preset-mini'
 
 import { getStringComponents } from '@unocss/rule-utils'
+import { resolveVarNames } from '../internal/vars'
 import {
   colorResolver,
   colorableShadows,
@@ -47,7 +48,6 @@ const filterBaseKeys = [
   'drop-shadow',
 ]
 
-const filterProperties = filterBaseKeys.map(key => defineProperty(`--un-${key}`))
 const filterCss = filterBaseKeys.map(key => `var(--un-${key},)`).join(' ')
 
 const backdropBaseKeys = [
@@ -62,8 +62,39 @@ const backdropBaseKeys = [
   'backdrop-sepia',
 ]
 
-const backdropProperties = backdropBaseKeys.map(key => defineProperty(`--un-${key}`))
 const backdropCss = backdropBaseKeys.map(key => `var(--un-${key},)`).join(' ')
+
+/**
+ * `@property`-блоки строятся не на модуле, а по контексту правила: имя
+ * свойства живёт в СЕЛЕКТОРЕ (`@property --un-blur`), а `postprocess`
+ * `presetMini` переименовывает только `entries`. С `variablePrefix: 'ds-'`
+ * утилиты ссылались бы на `--ds-blur`, а зарегистрирована оставалась бы
+ * `--un-blur`: из-за fallback'а в `var(--ds-blur,)` фильтры продолжают
+ * работать, но `inherits: false` теряется — дочерний элемент со своим
+ * фильтром подхватывает родительское значение. `presetWind4` чинит это
+ * собственным `postprocess` (он правит и селектор), но полагаться на его
+ * присутствие нельзя: пакет живёт поверх `presetMini`.
+ */
+const propertiesCache = new WeakMap<object, { filter: CSSValueInput[], backdrop: CSSValueInput[] }>()
+
+function resolveProperties(ctx: RuleContext<FilterTheme>) {
+  const cached = propertiesCache.get(ctx.generator)
+  if (cached)
+    return cached
+
+  const define = (keys: string[]) =>
+    resolveVarNames(ctx.generator, keys.map(key => `--un-${key}`))
+      .map(name => defineProperty(name))
+
+  const properties = {
+    filter: define(filterBaseKeys),
+    backdrop: define(backdropBaseKeys),
+  }
+
+  propertiesCache.set(ctx.generator, properties)
+
+  return properties
+}
 
 function percentWithDefault(input?: string, ctx?: RuleContext<FilterTheme>) {
   const theme = ctx?.theme
@@ -93,6 +124,8 @@ function toFilter(
     if (value === '')
       return undefined
 
+    const properties = resolveProperties(ctx)
+
     if (backdropPrefix) {
       return [
         {
@@ -100,7 +133,7 @@ function toFilter(
           '-webkit-backdrop-filter': backdropCss,
           'backdrop-filter': backdropCss,
         },
-        ...backdropProperties,
+        ...properties.backdrop,
       ]
     }
 
@@ -109,7 +142,7 @@ function toFilter(
         [`--un-${cssVarName}`]: `${cssVarName}(${value})`,
         'filter': filterCss,
       },
-      ...filterProperties,
+      ...properties.filter,
     ]
   }
 }
@@ -137,7 +170,7 @@ function dropShadowResolver(match: string[], ctx: RuleContext<FilterTheme>) {
         '--un-drop-shadow': `drop-shadow(${colorableShadows((value || bracketValue)!, '--un-drop-shadow-color').join(') drop-shadow(')})`,
         'filter': filterCss,
       },
-      ...filterProperties,
+      ...resolveProperties(ctx).filter,
     ]
   }
 
@@ -154,7 +187,7 @@ function dropShadowResolver(match: string[], ctx: RuleContext<FilterTheme>) {
       '--un-drop-shadow': value ? `drop-shadow(${value})` : value,
       'filter': filterCss,
     },
-    ...filterProperties,
+    ...resolveProperties(ctx).filter,
   ]
 }
 
