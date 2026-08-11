@@ -37,7 +37,8 @@ Entries before `0.6.0` were not tracked separately from
   undefined variables.
 
   The defaults land on the selectors `presetMini` uses for its own preflight
-  (`*,::before,::after` and `::backdrop`), and the variable names are run
+  (`theme.preflightRoot`, by default `*,::before,::after` and `::backdrop`),
+  and the variable names are run
   through the generator's `postprocess` — the hook `presetMini` uses to rename
   `--un-*` for a custom `variablePrefix`. Both details are load-bearing: on
   `:root` alone the inherited custom properties would leak a parent's

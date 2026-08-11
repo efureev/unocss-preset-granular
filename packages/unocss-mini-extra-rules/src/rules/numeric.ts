@@ -1,5 +1,7 @@
 import type { Preflight, Rule } from '@unocss/core'
 
+import { toArray } from '@unocss/core'
+
 import { postprocessEntries } from '../internal/vars'
 
 /**
@@ -57,18 +59,27 @@ export const numericRules: Rule[] = [
 ]
 
 /**
- * Селекторы сброса — те же, что у `presetMini` (`preflightRoot` по умолчанию),
- * а не `:root`. Разница не косметическая: кастомные свойства наследуются, и с
- * одним `:root` вложенный `ordinal` внутри `tabular-nums` унаследовал бы чужую
- * `--un-numeric-spacing` и получил `ordinal tabular-nums` — там, где
- * `presetWind*` даёт только `ordinal`. Плюс `:root` имеет ту же специфичность,
- * что и класс утилиты, так что победа утилиты держалась бы на порядке слоёв.
+ * Селекторы сброса — те же, что у `presetMini`, а не `:root`. Разница не
+ * косметическая: кастомные свойства наследуются, и с одним `:root` вложенный
+ * `ordinal` внутри `tabular-nums` унаследовал бы чужую `--un-numeric-spacing`
+ * и получил `ordinal tabular-nums` — там, где `presetWind*` даёт только
+ * `ordinal`. Плюс `:root` имеет ту же специфичность, что и класс утилиты, так
+ * что победа утилиты держалась бы на порядке слоёв.
+ *
+ * Значение — дефолт `presetMini`; приложение переопределяет его через
+ * `theme.preflightRoot`, и тогда наш блок обязан уехать туда же.
  */
-const PREFLIGHT_ROOTS = ['*,::before,::after', '::backdrop'] as const
+const PREFLIGHT_ROOTS = ['*,::before,::after', '::backdrop']
 
 export const numericPreflights: Preflight[] = [
   {
-    getCSS: ({ generator }) => {
+    getCSS: ({ generator, theme }) => {
+      const roots = toArray(
+        (theme as { preflightRoot?: string | string[] }).preflightRoot ?? PREFLIGHT_ROOTS,
+      )
+      if (roots.length === 0)
+        return
+
       // Имена переменных прогоняются через `postprocess` генератора: без этого
       // при `variablePrefix: 'ds-'` утилиты ссылались бы на `--ds-numeric-*`, а
       // preflight объявлял бы `--un-numeric-*` — свойство собралось бы из
@@ -76,11 +87,11 @@ export const numericPreflights: Preflight[] = [
       const entries = postprocessEntries(
         generator,
         NUMERIC_VARS.map(name => [name, VAR_EMPTY]),
-        PREFLIGHT_ROOTS[0],
+        roots[0]!,
       )
       const body = entries.map(([name, value]) => `${name}:${value}`).join(';')
 
-      return PREFLIGHT_ROOTS.map(root => `${root}{${body}}`).join('')
+      return roots.map(root => `${root}{${body}}`).join('')
     },
   },
 ]

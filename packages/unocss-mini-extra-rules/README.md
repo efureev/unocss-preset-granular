@@ -190,7 +190,8 @@ defaults come from `numericPreflights`, so register it alongside the rules —
 without it the property collapses to undefined variables.
 
 The defaults land on the same selectors `presetMini` uses for its own preflight
-(`*,::before,::after` and `::backdrop`), not on `:root` — custom properties
+(`theme.preflightRoot`, by default `*,::before,::after` and `::backdrop`), not
+on `:root` — custom properties
 inherit, so a `:root`‑only declaration would let an `ordinal` nested inside a
 `tabular-nums` element inherit the parent's figure spacing, where `presetWind*`
 gives it `ordinal` alone. Variable names are run through the generator's

@@ -91,3 +91,32 @@ describe('numericPreflights', () => {
     expect(css).not.toContain('--un-numeric-spacing')
   })
 })
+
+describe('preflightRoot', () => {
+  // Селекторы сброса принадлежат конфигу, а не правилу: если приложение
+  // увело базовые переменные presetMini под свой корень, наш блок обязан
+  // уехать туда же, а не остаться прибитым к дефолту.
+  it('едет за theme.preflightRoot приложения', async () => {
+    const uno = await createGenerator({
+      rules: numericRules,
+      preflights: numericPreflights,
+      theme: { preflightRoot: ['#app'] },
+    })
+    const { css } = await uno.generate('tabular-nums')
+
+    expect(css).toContain('#app{--un-ordinal: ')
+    expect(css).toContain('--un-numeric-spacing: ')
+    expect(css).not.toContain('*,::before,::after{')
+  })
+
+  it('пустой preflightRoot — блока нет вовсе, как и у presetMini', async () => {
+    const uno = await createGenerator({
+      rules: numericRules,
+      preflights: numericPreflights,
+      theme: { preflightRoot: [] },
+    })
+    const { css } = await uno.generate('tabular-nums')
+
+    expect(css).not.toContain('--un-numeric-spacing: ')
+  })
+})
