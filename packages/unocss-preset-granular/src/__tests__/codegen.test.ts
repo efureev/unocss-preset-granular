@@ -490,6 +490,80 @@ describe('подкомпоненты', () => {
   })
 })
 
+/**
+ * Групповая раскладка: `src/components/<group>/<Component>/`.
+ *
+ * Документация называет её канонической — так общий SFC группы попадает в
+ * область скана, — а генератор её не видел: один `readdir` по корню. Прогон без
+ * `--check` на таком пакете не просто пропускал компоненты, а вычищал их из всех
+ * четырёх реестров разом, то есть штатная команда ломала пакет.
+ */
+describe('групповая раскладка', () => {
+  async function groupedComponent(group: string, name: string) {
+    await write(`src/components/${group}/${name}/index.ts`, 'export {}\n')
+    await write(
+      `src/components/${group}/${name}/config.ts`,
+      `export const ${name[0].toLowerCase()}${name.slice(1)}Config = defineGranularComponent(import.meta.url, { name: '${name}' })\n`,
+    )
+  }
+
+  it('компонент в группе попадает во все реестры со своим путём', async () => {
+    await component('GrAlert')
+    await groupedComponent('transaction-details', 'GrExpenseModal')
+
+    const result = await runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
+
+    expect(result.components).toEqual(['GrAlert', 'GrExpenseModal'])
+
+    // Имя плоское, путь — с группой: по имени строится subpath и импорт,
+    // путь знает только генератор.
+    expect(await read('src/index.ts')).toContain(`export * from './components/transaction-details/GrExpenseModal'`)
+    expect(await read('vite.config.ts')).toContain(`'components/transaction-details/GrExpenseModal/index'`)
+    expect(await read('src/granular-provider/shared.ts'))
+      .toContain(`from '../components/transaction-details/GrExpenseModal/config'`)
+
+    const pkg = JSON.parse(await read('package.json'))
+    expect(pkg.exports['./components/GrExpenseModal'].import)
+      .toBe('./dist/components/transaction-details/GrExpenseModal/index.js')
+  })
+
+  it('вложенность глубже одного уровня в реестры не тащится', async () => {
+    await component('GrAlert')
+    // `shared/` группы — не компонент: ни `config.ts`, ни префикса в имени.
+    await write('src/components/transaction-details/shared/Header.vue', '<template><div /></template>\n')
+    await write('src/components/transaction-details/GrModal/index.ts', 'export {}\n')
+
+    const result = await runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
+
+    // `GrModal` без `config.ts` публичным не считается — правило то же, что у корня.
+    expect(result.components).toEqual(['GrAlert'])
+  })
+
+  it('два компонента с одним именем — ошибка, а не тихий победитель', async () => {
+    await component('GrModal')
+    await groupedComponent('transaction-details', 'GrModal')
+
+    const failure = runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
+
+    await expect(failure).rejects.toMatchObject({ reason: 'duplicate-component-name' })
+  })
+
+  it('имя конфига проверяется и в группе, с путём в сообщении', async () => {
+    await write('src/components/transaction-details/GrExpenseModal/index.ts', 'export {}\n')
+    await write(
+      'src/components/transaction-details/GrExpenseModal/config.ts',
+      'export const wrongName = defineGranularComponent(import.meta.url, {})\n',
+    )
+
+    const failure = runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
+
+    await expect(failure).rejects.toMatchObject({
+      reason: 'config-export-name-mismatch',
+      file: 'transaction-details/GrExpenseModal/config.ts',
+    })
+  })
+})
+
 describe('свои цели companion-пакета', () => {
   it('markedBlock покрывает whitelist резолвера', async () => {
     await component('GrDatePicker')

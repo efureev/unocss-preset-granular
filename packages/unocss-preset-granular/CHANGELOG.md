@@ -21,6 +21,49 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-23
+
+Not breaking: flat layouts generate exactly as before, and `entryFor` gains a
+second argument that existing implementations simply ignore.
+
+### Fixed
+
+- **`/codegen` now sees the grouped layout it prescribes itself.** The docs call
+  `src/components/<group>/<Component>/` canonical — that is how a group's shared SFC
+  lands inside the scan area — while the collector did a single `readdir` over the
+  root. A run *without* `--check` therefore did not merely skip grouped components:
+  it stripped them from all four registries at once — barrel, `exports`, build
+  entries and the provider registry. A destructive result from the standard command.
+
+  A directory whose name does not start with the prefix is now treated as a group
+  and walked one level deep. Deliberately one: the canon describes exactly one level,
+  and recursion would drag `shared/` and `__tests__/` into the registries.
+
+### Added
+
+- **`collectGranularComponentEntries`** returns `{ name, dir }`: the name stays flat —
+  subpaths and config imports are keyed by it — while the path carries the group.
+  `GranularCodegenContext` gains `componentPath`, so a provider's own target can build
+  the same paths.
+
+- **`duplicate-component-name`** — a new `GranularCodegenError` reason. Registry entries
+  are keyed by name, so two components sharing one would have let one silently win.
+
+### Changed
+
+- `packageExports` passes the component's path to `entryFor` as a second argument; the
+  built-in default now uses it. A one-argument implementation keeps working.
+
+### Documentation
+
+- **The advice to build `packageBaseUrl` by runtime concatenation is gone.** Three pages
+  carried it — scanning, troubleshooting and the authoring checklist — while a fourth
+  documented `resolvePackageBaseUrl`, available since 0.5.0. All of them now name the
+  helper and add the reason the consumer actually needs: it must be called from the
+  **entry file**, because a shared module is placed at whatever depth the bundler
+  chooses, and the base then drifts a level with the scan silently emptying.
+
+
 ## [0.10.1] - 2026-08-22
 
 ### Fixed

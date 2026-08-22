@@ -16,6 +16,12 @@ export interface GranularCodegenContext {
   /** Пространство имён маркеров. */
   namespace: string
   /**
+   * Путь компонента относительно `src/components` — `GrButton` у плоской
+   * раскладки, `transaction-details/FtExpenseModal` у групповой. Имя остаётся
+   * плоским: по нему строятся subpath и импорт, путь знает только генератор.
+   */
+  componentPath: (component: string) => string
+  /**
    * Подкомпоненты: имя → компонент-владелец. Публичными компонентами они не
    * считаются и в реестры не попадают — но subpath у них быть обязан, иначе
    * гранулярный импорт части составного компонента невозможен вовсе.
@@ -53,7 +59,7 @@ export function markedBlock(options: {
 export function barrel(file = 'src/index.ts'): GranularCodegenTarget {
   return markedBlock({
     file,
-    lines: components => components.map(component => `export * from './components/${component}'`),
+    lines: (components, context) => components.map(component => `export * from './components/${context.componentPath(component)}'`),
   })
 }
 
@@ -61,9 +67,9 @@ export function barrel(file = 'src/index.ts'): GranularCodegenTarget {
 export function viteEntries(file = 'vite.config.ts'): GranularCodegenTarget {
   return markedBlock({
     file,
-    lines: components => components.flatMap(component => [
-      `'components/${component}/index': fileURLToPath(`,
-      `  new URL('./src/components/${component}/index.ts', import.meta.url),`,
+    lines: (components, context) => components.flatMap(component => [
+      `'components/${context.componentPath(component)}/index': fileURLToPath(`,
+      `  new URL('./src/components/${context.componentPath(component)}/index.ts', import.meta.url),`,
       '),',
     ]),
   })
@@ -79,7 +85,7 @@ export function providerRegistry(file = 'src/granular-provider/shared.ts'): Gran
       file,
       blockId: 'imports',
       lines: (components, context) => components.map(component => (
-        `import { ${context.configExportName(component)} } from '../components/${component}/config'`
+        `import { ${context.configExportName(component)} } from '../components/${context.componentPath(component)}/config'`
       )),
     }),
     markedBlock({
@@ -133,16 +139,23 @@ export function packageExports(options: {
   file?: string
   /** Префикс ключа. По умолчанию `./components/`. */
   keyPrefix?: string
-  /** Значение экспорта. По умолчанию — пара `types` + `import` в `dist`. */
-  entryFor?: (component: string) => unknown
+  /**
+   * Значение экспорта. По умолчанию — пара `types` + `import` в `dist`.
+   *
+   * Вторым аргументом приходит путь компонента относительно `src/components`:
+   * у плоской раскладки он равен имени, у групповой несёт группу. Ключ при этом
+   * строится по имени — потребитель импортирует компонент, а не его место в
+   * дереве исходников.
+   */
+  entryFor?: (component: string, path: string) => unknown
   /** Добавлять ли алиасы на подкомпоненты. По умолчанию `false`. */
   subcomponents?: boolean
 } = {}): GranularCodegenTarget {
   const file = options.file ?? 'package.json'
   const keyPrefix = options.keyPrefix ?? './components/'
-  const entryFor = options.entryFor ?? ((component: string) => ({
-    types: `./dist/types/src/components/${component}/index.d.ts`,
-    import: `./dist/components/${component}/index.js`,
+  const entryFor = options.entryFor ?? ((_component: string, path: string) => ({
+    types: `./dist/types/src/components/${path}/index.d.ts`,
+    import: `./dist/components/${path}/index.js`,
   }))
 
   return {
@@ -156,7 +169,11 @@ export function packageExports(options: {
         keyFor: name => `${keyPrefix}${name}`,
         // Ключ строится по имени части, значение — по её владельцу: свой модуль
         // существует только у него.
-        entryFor: name => entryFor(subcomponents[name] ?? name),
+        entryFor: (name) => {
+          const owner = subcomponents[name] ?? name
+
+          return entryFor(owner, context.componentPath(owner))
+        },
       })
     },
   }

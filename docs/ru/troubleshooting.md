@@ -21,7 +21,9 @@
 
 3. **`packageBaseUrl` провайдера собран как `new URL('..', import.meta.url)`.**
    Rolldown подменит литерал на `data:`‑URL — scan‑globs схлопнутся.
-   Используйте runtime‑конкатенацию (см. `authoring-providers.md`).
+   Возьмите `resolvePackageBaseUrl(import.meta.url)` из `/contract` и зовите его
+   из **entry‑файла**: у общего модуля глубину выбирает бандлер
+   (см. `authoring-providers.md`).
 
 4. **Класс динамический, а не статический** (например, `` :class="`p-${n}`" ``).
    Экстрактор его не увидит. Либо переписать на статический, либо

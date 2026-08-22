@@ -556,8 +556,10 @@ grep -rn "unocss-preset-granular/node" dist/granular-provider.js dist/chunks/*.j
   в собранном коде (короткая, `providerId:Name` или объектная форма).
 - `cssFiles` → component‑local CSS, всегда приезжает как preflight.
 - `packageBaseUrl` → **директория** пакета, не конкретный модуль.
-- При сборке Vite/rolldown — всегда runtime‑конкатенация `packageBaseUrl`:
-  `new URL('..', import.meta.url)` превратится в `data:`‑URL.
+- `packageBaseUrl` считает `resolvePackageBaseUrl(import.meta.url)`, и звать его
+  обязан **entry‑файл**: `new URL('..', import.meta.url)` при сборке превратится
+  в `data:`‑URL, а из общего модуля база уедет на уровень — бандлер волен
+  положить его на любую глубину.
 - Донор cross‑provider зависимостей обязан быть в `peerDependencies`.
 
 ## Чек‑лист перед публикацией

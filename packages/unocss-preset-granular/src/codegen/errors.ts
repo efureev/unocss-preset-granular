@@ -12,6 +12,8 @@ export type GranularCodegenReason
     | 'no-component-exports'
   /** Директории компонентов нет на диске. */
     | 'missing-components-dir'
+  /** Два компонента с одним именем: реестры ключуются именем, один тихо победил бы. */
+    | 'duplicate-component-name'
   /** Имя подкомпонента занято другим компонентом или другой частью. */
     | 'subcomponent-name-clash'
 

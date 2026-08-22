@@ -166,5 +166,9 @@ the preset silently skips it — `group` is opt‑in metadata, never an error.
 - Provider built with flat `dist/chunks/` → same symptom; fix: adopt the
   `chunkFileNames` recipe.
 - `packageBaseUrl` built as `new URL('..', import.meta.url)` → becomes
-  `data:` URL at build; scan dirs collapse to nothing. Fix: build the URL
-  at runtime (see [Authoring providers](./authoring-providers.md)).
+  `data:` URL at build; scan dirs collapse to nothing. Fix:
+  `resolvePackageBaseUrl(import.meta.url)` from `/contract`, called from the
+  provider's **entry file**: its location is fixed by the build config, while a
+  shared module may be placed at any depth by the bundler — the base then shifts
+  a level and the scan silently empties (see
+  [Authoring providers](./authoring-providers.md)).

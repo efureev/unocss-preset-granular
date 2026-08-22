@@ -34,11 +34,12 @@ export { replaceMarkedBlock, replacePackageExports } from './codegen/blocks'
 export type { ReplaceMarkedBlockOptions, ReplacePackageExportsOptions } from './codegen/blocks'
 
 export {
+  collectGranularComponentEntries,
   collectGranularComponents,
   compareComponentNames,
   defaultConfigExportName,
 } from './codegen/collectComponents'
-export type { CollectComponentsOptions } from './codegen/collectComponents'
+export type { CollectComponentsOptions, GranularComponentEntry } from './codegen/collectComponents'
 
 export { GranularCodegenError } from './codegen/errors'
 export type { GranularCodegenReason } from './codegen/errors'

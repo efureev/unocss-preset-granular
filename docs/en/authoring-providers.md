@@ -562,9 +562,10 @@ package. In CI, `--strict`. The limits of the check are listed in
   (same‑provider short name, `providerId:Name`, or object form).
 - `cssFiles` → component‑local CSS that must always ship as preflight.
 - `packageBaseUrl` → must point to the **package directory**, not a module.
-- Always use runtime‑built `packageBaseUrl` if you bundle with
-  Vite/rolldown — `new URL('..', import.meta.url)` is transformed into a
-  `data:` URL at build time.
+- `packageBaseUrl` comes from `resolvePackageBaseUrl(import.meta.url)`, called
+  from the **entry file**: `new URL('..', import.meta.url)` is transformed into a
+  `data:` URL at build time, and from a shared module the base drifts a level —
+  the bundler decides its depth.
 - The donor provider of any cross‑provider `dependencies` must be in
   `peerDependencies`.
 

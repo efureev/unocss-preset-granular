@@ -21,8 +21,10 @@ Likely causes, in order of probability:
 
 3. **`packageBaseUrl` of the provider was built as
    `new URL('..', import.meta.url)`.** Rolldown replaces that literal with
-   a `data:` URL at build time — scan globs resolve to nothing. Switch to
-   runtime string construction (see `authoring-providers.md`).
+   a `data:` URL at build time — scan globs resolve to nothing. Use
+   `resolvePackageBaseUrl(import.meta.url)` from `/contract`, called from the
+   **entry file**: for a shared module the bundler picks the depth
+   (see `authoring-providers.md`).
 
 4. **The class is dynamic, not static** (e.g. `` :class="`p-${n}`" ``).
    Static extraction can't see it. Either refactor to static, or add the
