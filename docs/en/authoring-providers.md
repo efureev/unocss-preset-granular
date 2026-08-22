@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.8.0",
+    "@feugene/unocss-preset-granular": "^0.10.0",
     "vue": "^3"
   }
 }
@@ -362,6 +362,36 @@ export * from './components/GrAlert'
 
 `package.json` cannot carry markers, so the contiguous run of component keys is
 replaced in place, leaving every other export where it was.
+
+### Parts of composite components
+
+`GrTimelineItem`, `GrListItem`, menu items live in the parent's directory and are
+not public components: they have no `index.ts` and no `config.ts` of their own,
+and their code ends up in the parent's chunk anyway. They need no entry of their
+own — but they do need a subpath: without one
+`@feugene/kit/components/GrTimelineItem` fails with
+`ERR_PACKAGE_PATH_NOT_EXPORTED`, so granular imports do not reach these names at
+all, even though a template spells them like any other component.
+
+`packageExports({ subcomponents: true })` puts aliases next to the components:
+the key is the part's own, the module is the parent's. A part is recognised by
+the parent's barrel (`export { default as GrX } from './GrX.vue'`), so a
+re-export under a different name never becomes an alias — the subpath would point
+at a module that holds no such file.
+
+The part may sit in a subdirectory of the parent (`parts/GrTimelineItem.vue`) and
+be quoted either way — the module is the parent's regardless. The name must carry
+the package prefix: a barrel re-exports internals too (`TableCell`), and the
+generator does not widen the package's public API on its own. A name already taken
+— by a component or by another parent's part — is a `subcomponent-name-clash`
+error rather than a silently chosen winner: one subpath cannot serve two modules.
+
+The alias resolves to the parent's module, whose default export is the parent, so
+a part is imported by name: `import { GrTimelineItem } from
+'@feugene/kit/components/GrTimelineItem'`.
+
+Off by default: a provider's `package.json` must not change from a preset upgrade
+alone.
 
 Anything a provider has beyond the four standard registries goes through
 `codegenTargets.markedBlock({ file, lines })` — the resolver whitelist and the

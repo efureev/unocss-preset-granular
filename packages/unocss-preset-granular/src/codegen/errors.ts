@@ -12,6 +12,8 @@ export type GranularCodegenReason
     | 'no-component-exports'
   /** Директории компонентов нет на диске. */
     | 'missing-components-dir'
+  /** Имя подкомпонента занято другим компонентом или другой частью. */
+    | 'subcomponent-name-clash'
 
 /**
  * Генерация реестров провалилась. Отдельный класс, а не голый `Error`: этот

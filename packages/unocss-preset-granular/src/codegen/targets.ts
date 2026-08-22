@@ -1,4 +1,5 @@
 import { replaceMarkedBlock, replacePackageExports } from './blocks'
+import { compareComponentNames } from './collectComponents'
 
 /**
  * Готовые цели генерации.
@@ -14,6 +15,12 @@ export interface GranularCodegenContext {
   configExportName: (component: string) => string
   /** Пространство имён маркеров. */
   namespace: string
+  /**
+   * Подкомпоненты: имя → компонент-владелец. Публичными компонентами они не
+   * считаются и в реестры не попадают — но subpath у них быть обязан, иначе
+   * гранулярный импорт части составного компонента невозможен вовсе.
+   */
+  subcomponents: Readonly<Record<string, string>>
 }
 
 export interface GranularCodegenTarget {
@@ -85,13 +92,25 @@ export function providerRegistry(file = 'src/granular-provider/shared.ts'): Gran
   ]
 }
 
-/** Subpath-экспорт на компонент в `package.json`. */
+/**
+ * Subpath-экспорт на компонент в `package.json`.
+ *
+ * С `subcomponents: true` рядом с компонентами встают алиасы на части
+ * составных: ключ свой, модуль — родительский. Отдельной entry такой алиас не
+ * требует, код части и так лежит в чанке родителя; без него же гранулярный
+ * импорт этой части невозможен (`ERR_PACKAGE_PATH_NOT_EXPORTED`).
+ *
+ * По умолчанию выключено: у провайдера, который до сих пор обходился без
+ * алиасов, `package.json` не должен меняться от одного обновления пресета.
+ */
 export function packageExports(options: {
   file?: string
   /** Префикс ключа. По умолчанию `./components/`. */
   keyPrefix?: string
   /** Значение экспорта. По умолчанию — пара `types` + `import` в `dist`. */
   entryFor?: (component: string) => unknown
+  /** Добавлять ли алиасы на подкомпоненты. По умолчанию `false`. */
+  subcomponents?: boolean
 } = {}): GranularCodegenTarget {
   const file = options.file ?? 'package.json'
   const keyPrefix = options.keyPrefix ?? './components/'
@@ -102,10 +121,17 @@ export function packageExports(options: {
 
   return {
     file,
-    render: (source, components) => replacePackageExports(source, components, {
-      isComponentKey: key => key.startsWith(keyPrefix),
-      keyFor: component => `${keyPrefix}${component}`,
-      entryFor,
-    }),
+    render: (source, components, context) => {
+      const subcomponents = options.subcomponents ? context.subcomponents : {}
+      const names = [...components, ...Object.keys(subcomponents)].sort(compareComponentNames)
+
+      return replacePackageExports(source, names, {
+        isComponentKey: key => key.startsWith(keyPrefix),
+        keyFor: name => `${keyPrefix}${name}`,
+        // Ключ строится по имени части, значение — по её владельцу: свой модуль
+        // существует только у него.
+        entryFor: name => entryFor(subcomponents[name] ?? name),
+      })
+    },
   }
 }

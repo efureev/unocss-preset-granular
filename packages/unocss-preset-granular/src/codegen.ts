@@ -46,6 +46,12 @@ export type { GranularCodegenReason } from './codegen/errors'
 export { runRegistryCodegen } from './codegen/runRegistryCodegen'
 export type { RegistryCodegenResult, RunRegistryCodegenOptions } from './codegen/runRegistryCodegen'
 
+export {
+  collectGranularSubcomponents,
+  parseSubcomponents,
+} from './codegen/subcomponents'
+export type { CollectSubcomponentsOptions } from './codegen/subcomponents'
+
 export type { GranularCodegenContext, GranularCodegenTarget } from './codegen/targets'
 
 /**

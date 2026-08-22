@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { codegenTargets, GranularCodegenError, replaceMarkedBlock, runRegistryCodegen } from '../codegen'
+import { codegenTargets, collectGranularSubcomponents, GranularCodegenError, replaceMarkedBlock, runRegistryCodegen } from '../codegen'
 
 /**
  * Генератор работает с настоящими файлами, поэтому и тесты — на настоящем
@@ -235,6 +235,184 @@ describe('runRegistryCodegen', () => {
     await runRegistryCodegen({ packageDir: pkgDir, targets: standardTargets() })
 
     expect(await read('src/granular-provider/shared.ts')).toBe(first)
+  })
+})
+
+/**
+ * Части составного компонента: свой subpath при общем модуле.
+ *
+ * Публичным компонентом такая часть не считается — ни `config.ts`, ни entry у
+ * неё нет и быть не должно. Но без subpath её нельзя импортировать гранулярно
+ * вовсе, то есть идея пакета на неё не распространяется.
+ */
+describe('подкомпоненты', () => {
+  /** Часть живёт в каталоге родителя и реэкспортируется его баррелем. */
+  async function part(parent: string, name: string, reexport = `export { default as ${name} } from './${name}.vue'`) {
+    await write(`src/components/${parent}/${name}.vue`, '<template><div /></template>\n')
+    await write(`src/components/${parent}/index.ts`, `export { default } from './${parent}.vue'\n${reexport}\n`)
+  }
+
+  it('получают subpath на модуль родителя, но не свою entry', async () => {
+    await component('GrTimeline')
+    await part('GrTimeline', 'GrTimelineItem')
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [
+        codegenTargets.barrel(),
+        codegenTargets.viteEntries(),
+        codegenTargets.packageExports({ subcomponents: true }),
+      ],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrTimelineItem']).toEqual(pkg.exports['./components/GrTimeline'])
+    // Своя entry дублировала бы код: он уже в чанке родителя.
+    expect(await read('vite.config.ts')).not.toContain(`'components/GrTimelineItem/index'`)
+    // В barrel часть тоже не попадает — её отдаёт баррель родителя.
+    expect(await read('src/index.ts')).not.toContain('GrTimelineItem')
+  })
+
+  it('без опции package.json не меняется', async () => {
+    await component('GrTimeline')
+    await part('GrTimeline', 'GrTimelineItem')
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports()],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrTimelineItem']).toBeUndefined()
+  })
+
+  it('реэкспорт под чужим именем алиасом не считается', async () => {
+    await component('GrTimeline')
+    // Имя экспорта и файл разошлись: subpath по имени вёл бы в никуда.
+    await part('GrTimeline', 'GrTimelineItem', `export { default as GrSomethingElse } from './GrTimelineItem.vue'`)
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrSomethingElse']).toBeUndefined()
+    expect(pkg.exports['./components/GrTimelineItem']).toBeUndefined()
+  })
+
+  it('порядок общий с компонентами, а не хвостом', async () => {
+    await component('GrAlert')
+    await component('GrTimeline')
+    await part('GrTimeline', 'GrTimelineItem')
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+    const keys = Object.keys(pkg.exports).filter(key => key.startsWith('./components/'))
+
+    expect(keys).toEqual(['./components/GrAlert', './components/GrTimeline', './components/GrTimelineItem'])
+  })
+
+  it('часть из подкаталога — тот же алиас', async () => {
+    await component('GrNested')
+    // Части часто складывают в `parts/`, а модуль у них всё равно родительский:
+    // вложенность на форму алиаса не влияет, и пропустить её — молча оставить
+    // самый частый вид части без subpath.
+    await write('src/components/GrNested/parts/GrNestedHeader.vue', '<template><div /></template>\n')
+    await write(
+      'src/components/GrNested/index.ts',
+      `export { default } from './GrNested.vue'\nexport { default as GrNestedHeader } from './parts/GrNestedHeader.vue'\n`,
+    )
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrNestedHeader']).toEqual(pkg.exports['./components/GrNested'])
+  })
+
+  it('кавычки реэкспорта — любые', async () => {
+    await component('GrTabs')
+    // Стиль кавычек задаёт линтер провайдера, а не пресет.
+    await part('GrTabs', 'GrTab', `export { default as GrTab } from "./GrTab.vue"`)
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrTab']).toEqual(pkg.exports['./components/GrTabs'])
+  })
+
+  it('имя без префикса subpath не получает', async () => {
+    await component('GrTable')
+    // Служебная часть баррелем отдаётся, но публичным API пакета не является:
+    // расширять его молча генератор не вправе.
+    await part('GrTable', 'TableCell')
+
+    await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/TableCell']).toBeUndefined()
+  })
+
+  it('тёзка публичного компонента — ошибка, а не подмена его subpath', async () => {
+    await component('GrList')
+    await component('GrListItem')
+    // Два модуля на одно имя: баррель провайдера уже даёт дублирующий экспорт,
+    // а subpath у пакета один — тихий выбор победителя увёл бы импорт компонента
+    // в чанк родителя вместе с его собственной entry.
+    await part('GrList', 'GrListItem')
+
+    await expect(runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    }))
+      .rejects
+      .toMatchObject({ reason: 'subcomponent-name-clash' })
+  })
+
+  it('карты нет там, где нет и составных: пустая директория и заготовка', async () => {
+    const componentsDir = join(pkgDir, 'src/components')
+
+    // Отсутствие директории здесь — не ошибка, в отличие от компонентов: там
+    // молчание вычистило бы каждый реестр, здесь оно означает лишь «составных нет».
+    await expect(collectGranularSubcomponents({ componentsDir })).resolves.toEqual({})
+
+    // Заготовка без `index.ts` баррелем не обладает, значит и частей у неё нет.
+    await write('src/components/GrDraft/GrDraftItem.vue', '<template><div /></template>\n')
+
+    await expect(collectGranularSubcomponents({ componentsDir })).resolves.toEqual({})
+  })
+
+  it('одно имя у двух родителей — ошибка, а не порядок обхода ФС', async () => {
+    await component('GrList')
+    await component('GrMenu')
+    await part('GrList', 'GrItem')
+    await part('GrMenu', 'GrItem')
+
+    await expect(runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports({ subcomponents: true })],
+    }))
+      .rejects
+      .toMatchObject({ reason: 'subcomponent-name-clash' })
   })
 })
 

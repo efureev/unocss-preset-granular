@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 
 import { resolve } from 'node:path'
 import { collectGranularComponents, defaultConfigExportName } from './collectComponents'
+import { collectGranularSubcomponents } from './subcomponents'
 
 export interface RunRegistryCodegenOptions {
   /** Корень пакета-провайдера. Обычно `fileURLToPath(new URL('..', import.meta.url))`. */
@@ -46,8 +47,10 @@ export async function runRegistryCodegen(
   const prefix = options.prefix ?? 'Gr'
   const configExportName = options.configExportName ?? (name => defaultConfigExportName(name, prefix))
 
+  const componentsDir = resolve(options.packageDir, options.componentsDir ?? 'src/components')
+
   const components = await collectGranularComponents({
-    componentsDir: resolve(options.packageDir, options.componentsDir ?? 'src/components'),
+    componentsDir,
     prefix,
     configExportName,
   })
@@ -55,6 +58,7 @@ export async function runRegistryCodegen(
   const context: GranularCodegenContext = {
     configExportName,
     namespace: options.namespace ?? 'granularity:components',
+    subcomponents: await collectGranularSubcomponents({ componentsDir, prefix, components }),
   }
 
   const original = new Map<string, string>()

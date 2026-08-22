@@ -21,6 +21,38 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-22
+
+Not breaking: the new option is off by default, so a provider's `package.json`
+does not change from the upgrade alone.
+
+### Added
+
+- **`codegenTargets.packageExports({ subcomponents: true })` — subpath aliases for
+  parts of composite components.** `GrTimelineItem`, `GrListItem`, menu items live in
+  the parent's directory and are not public components: no `index.ts`, no `config.ts`,
+  and their code ships in the parent's chunk. They need no entry of their own — but
+  without a subpath `@feugene/kit/components/GrTimelineItem` fails with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`, so granular imports never reach those names, even
+  though a template spells them like any other component. The alias keeps the part's
+  key and points at the parent's module.
+
+  A part is recognised by the parent's barrel (`export { default as GrX } from
+  './GrX.vue'`) — including from a subdirectory (`parts/GrX.vue`) and under either
+  quote style; a re-export under a different name is not an alias, since the subpath
+  would point at a module that holds no such file. The name must carry the package
+  prefix, so a barrel's internals (`TableCell`) stay out of the public API.
+
+- **`subcomponent-name-clash`** — a new `GranularCodegenError` reason: the name of a
+  part is already taken by a component of its own, or by a part of another parent.
+  One subpath cannot serve two modules, and choosing a winner silently would have
+  re-pointed a component's own subpath at its parent's chunk while leaving its build
+  entry in place.
+
+- `collectGranularSubcomponents` and `parseSubcomponents` are exported from
+  `./codegen`, and `GranularCodegenContext` now carries `subcomponents`: a provider
+  with its own target can build the same map without duplicating the rule.
+
 ## [0.9.1] - 2026-08-12
 
 ### Fixed
