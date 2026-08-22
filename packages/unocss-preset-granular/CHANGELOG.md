@@ -21,6 +21,25 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-22
+
+### Fixed
+
+- **`packageExports` no longer strips a component's neighbouring subpaths.** The run
+  it rewrites was recognised by `key.startsWith(keyPrefix)`, so
+  `./components/GrAlert/styles.css` and the pattern `./components/*/styles.css`
+  counted as component keys: they were swallowed by the run and never written back.
+  The package silently lost a published subpath and the consumer found out at build
+  time, with `ERR_PACKAGE_PATH_NOT_EXPORTED` — the very failure the generator exists
+  to prevent. A component key is now exactly `<keyPrefix><Name>`: one segment, no
+  wildcard. Anything deeper or patterned belongs to the package and stays put, the
+  way `.` and `./contract` do; once the run is rewritten such keys sit after it and
+  stay there on every later run.
+
+  Consequence worth knowing: a `package.json` whose only component-ish key is a
+  nested one now fails with `no-component-exports` instead of anchoring the run to
+  it. The anchor has to be a real component subpath.
+
 ## [0.10.0] - 2026-08-22
 
 Not breaking: the new option is off by default, so a provider's `package.json`

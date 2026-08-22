@@ -361,7 +361,12 @@ export * from './components/GrAlert'
 ```
 
 `package.json` cannot carry markers, so the contiguous run of component keys is
-replaced in place, leaving every other export where it was.
+replaced in place, leaving every other export where it was. A component key is exactly
+`./components/<Name>` — one segment, no wildcard. A deeper subpath of the same
+component (`./components/GrAlert/styles.css`) or a pattern
+(`./components/*/styles.css`) belongs to the package, not to the generator: the
+run leaves it alone, the way it leaves `.` and `./contract` alone. Such keys end
+up after the run once it is rewritten, and stay there on every later run.
 
 ### Parts of composite components
 

@@ -239,6 +239,80 @@ describe('runRegistryCodegen', () => {
 })
 
 /**
+ * Соседние subpath'ы компонента: `./components/GrX/styles.css` и паттерны.
+ *
+ * Ряд, который ведёт генератор, состоит из ключей вида `./components/GrX`.
+ * Всё, что глубже или содержит подстановку, сгенерировать он не умеет — а
+ * значит и вычищать не вправе: пакет молча терял бы опубликованный subpath, и
+ * узнавал бы об этом потребитель, на сборке.
+ */
+describe('чужие ключи в ряду компонентов', () => {
+  /** `exports` с вложенным ключом компонента и паттерном на стили. */
+  async function packageWithStyleKeys() {
+    await write('package.json', `${JSON.stringify({
+      name: '@acme/kit',
+      exports: {
+        '.': { import: './dist/index.js' },
+        './components/GrOld': { import: './dist/components/GrOld/index.js' },
+        './components/GrOld/styles.css': './dist/components/GrOld/styles.css',
+        './components/*/styles.css': './dist/components/*/styles.css',
+        './contract': { import: './dist/contract.js' },
+      },
+    }, null, 2)}\n`)
+  }
+
+  it('вложенный subpath и паттерн переживают прогон', async () => {
+    await component('GrAlert')
+    await packageWithStyleKeys()
+
+    await runRegistryCodegen({ packageDir: pkgDir, targets: [codegenTargets.packageExports()] })
+
+    const pkg = JSON.parse(await read('package.json'))
+
+    expect(pkg.exports['./components/GrOld/styles.css']).toBe('./dist/components/GrOld/styles.css')
+    expect(pkg.exports['./components/*/styles.css']).toBe('./dist/components/*/styles.css')
+    // Ряд самих компонентов при этом переписан: `GrOld` с диска исчез.
+    expect(pkg.exports['./components/GrAlert']).toBeDefined()
+    expect(pkg.exports['./components/GrOld']).toBeUndefined()
+    expect(pkg.exports['./contract']).toEqual({ import: './dist/contract.js' })
+  })
+
+  it('повторный прогон ничего не меняет', async () => {
+    await component('GrAlert')
+    await packageWithStyleKeys()
+
+    await runRegistryCodegen({ packageDir: pkgDir, targets: [codegenTargets.packageExports()] })
+    const first = await read('package.json')
+
+    const result = await runRegistryCodegen({
+      packageDir: pkgDir,
+      targets: [codegenTargets.packageExports()],
+      check: true,
+    })
+
+    expect(result.stale).toEqual([])
+    expect(await read('package.json')).toBe(first)
+  })
+
+  it('якорем ряда служит ключ компонента, а не вложенный', async () => {
+    await component('GrAlert')
+    // Вложенный ключ есть, ключа компонента — нет: вставлять ряд некуда, и
+    // тихо дописать его в конец значило бы решить за пакет, где он живёт.
+    await write('package.json', `${JSON.stringify({
+      name: '@acme/kit',
+      exports: {
+        '.': { import: './dist/index.js' },
+        './components/GrAlert/styles.css': './dist/components/GrAlert/styles.css',
+      },
+    }, null, 2)}\n`)
+
+    await expect(runRegistryCodegen({ packageDir: pkgDir, targets: [codegenTargets.packageExports()] }))
+      .rejects
+      .toMatchObject({ reason: 'no-component-exports' })
+  })
+})
+
+/**
  * Части составного компонента: свой subpath при общем модуле.
  *
  * Публичным компонентом такая часть не считается — ни `config.ts`, ни entry у

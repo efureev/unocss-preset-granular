@@ -93,7 +93,33 @@ export function providerRegistry(file = 'src/granular-provider/shared.ts'): Gran
 }
 
 /**
+ * Ключ компонента — ровно `<keyPrefix><Name>`.
+ *
+ * Ряд, который переписывает генератор, состоит только из таких ключей. Ни
+ * вложенный subpath компонента (`./components/GrX/styles.css`), ни паттерн
+ * (`./components/*`) именем компонента не являются: сгенерировать их генератор
+ * не умеет, а значит и вычищать не вправе.
+ */
+function isComponentKey(keyPrefix: string): (key: string) => boolean {
+  return (key) => {
+    if (!key.startsWith(keyPrefix))
+      return false
+
+    const name = key.slice(keyPrefix.length)
+
+    return name.length > 0 && !name.includes('/') && !name.includes('*')
+  }
+}
+
+/**
  * Subpath-экспорт на компонент в `package.json`.
+ *
+ * Ключом компонента считается ровно `<keyPrefix><Name>` — один сегмент и без
+ * подстановки. Всё, что глубже (`./components/GrX/styles.css`) или является
+ * паттерном (`./components/*`), принадлежит пакету, а не генератору: такие
+ * ключи остаются на месте, как `.` и `./contract`. Иначе пакет молча терял бы
+ * опубликованный subpath, а узнавал бы об этом потребитель — на сборке, с
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED`.
  *
  * С `subcomponents: true` рядом с компонентами встают алиасы на части
  * составных: ключ свой, модуль — родительский. Отдельной entry такой алиас не
@@ -126,7 +152,7 @@ export function packageExports(options: {
       const names = [...components, ...Object.keys(subcomponents)].sort(compareComponentNames)
 
       return replacePackageExports(source, names, {
-        isComponentKey: key => key.startsWith(keyPrefix),
+        isComponentKey: isComponentKey(keyPrefix),
         keyFor: name => `${keyPrefix}${name}`,
         // Ключ строится по имени части, значение — по её владельцу: свой модуль
         // существует только у него.
