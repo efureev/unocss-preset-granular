@@ -21,6 +21,42 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-26
+
+**Breaking: `GranularProvider.i18n` and the string manifest are removed.** A provider
+declaring `i18n` still registers — the field is simply ignored — but
+`getGranularI18nManifest`, `granularI18nPlugin`, `virtual:granular-i18n` and the manifest
+types are gone. Nothing in the ecosystem consumed them: the ring never adopted the field,
+and the one application that read the manifest is migrated below.
+
+### Removed
+
+- **`GranularProvider.i18n`, `GranularI18nContribution`** and the four
+  `invalid-i18n-*` validation reasons.
+- **`getGranularI18nManifest`, `granularI18nPlugin`, `GRANULAR_I18N_MODULE_ID`** and the
+  manifest types exported from `/runtime`.
+- **`i18n-subpath`** doctor diagnostic and the locales column in its provider report.
+- `docs/{en,ru}/strings-and-i18n.md` and SPEC §3.3.
+
+The field answered "which packages ship strings, at which subpaths, in which languages" so
+a framework integration could generate per-locale imports instead of keeping its own
+registry. Measured against a real consumer, that turned out to be **convenience rather
+than capability**: a block name lives inside the loader collection as its second-level key,
+so an integration derives it from data it has already imported, and the package list is one
+line the application writes anyway. The preset was answering a question its callers could
+answer themselves — while introducing a model that does not hold: a block is an open
+namespace, and an application may add a language to a package's block without the package
+knowing. `manifest.unserved` reported such a language as unserved, which is the opposite of
+the truth.
+
+### Kept
+
+- **`@feugene/simple-package` still ships four locales** (`en`, `ru`, `pt-BR`, `es`) and
+  `apps/app-5` still imports three of them by name. `verify:apps` still asserts that the
+  fourth is **absent** from the bundle. That check never depended on the contract, and it
+  is the only place where per-locale tree-shaking is proven by a build rather than by
+  documentation.
+
 ## [0.12.0] - 2026-08-26
 
 Not breaking: `i18n` is an optional field, so `GRANULAR_CONTRACT_VERSION` stays
