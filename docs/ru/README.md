@@ -42,15 +42,13 @@
 7. [Темы и токены](./themes-and-tokens.md) — плоская карта тем, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`, компонентный слой
    `component.tokenDefinitions`, цепочка приоритетов.
-8. [Строки и i18n](./strings-and-i18n.md) — манифест локалей, теги против
-   имён импортов, отсечение языков, что обязан экспортировать пакет.
-9. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
+8. [Архитектура](./architecture.md) — два entry (`.` browser / `./node`
    build‑time), пайплайн резолвинга, layers, preflights.
-10. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
-    values, dev в монорепо, HMR, `@apply` внутри preflight‑CSS.
-11. [CLI `granular`](./cli.md) — `granular doctor`: как читать отчёт,
+9. [Рецепты и отладка](./troubleshooting.md) — частые грабли, arbitrary
+   values, dev в монорепо, HMR, `@apply` внутри preflight‑CSS.
+10. [CLI `granular`](./cli.md) — `granular doctor`: как читать отчёт,
     коды выхода, использование в CI, программный доступ.
-12. [Миграция `0.4.0` → `0.5.0`](./migration-0.5.md) — ломающие изменения,
+11. [Миграция `0.4.0` → `0.5.0`](./migration-0.5.md) — ломающие изменения,
     новые возможности, пошаговый план для приложений и провайдеров.
 
 ## Что делает пресет, в одном абзаце

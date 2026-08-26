@@ -194,10 +194,9 @@ Scan globs (0):
 | `layout-contract` | `error` | Компонент не попал в скан — его классы молча исчезают из CSS. |
 | `theme-warning` | `warn` | Предупреждение резолва тем: `defaultThemes` без источника, частичная тема, оборванный `extends`, несколько тем по умолчанию. |
 | `token-conflict` | `warn` | Токен задаётся несколькими слоями. |
-| `unused-provider` | `warn` | Провайдер не дал сборке ничего: ни выбранных компонентов, ни `theme`, ни `unocss`, ни `i18n`. |
+| `unused-provider` | `warn` | Провайдер не дал сборке ничего: ни выбранных компонентов, ни `theme`, ни `unocss`. |
 | `undeclared-dependency` | `warn` | Собранный компонент импортирует другой, не объявив его — у того, кто выберет его отдельно, классы исчезнут. |
 | `token-prefix` | `warn` | Ключ токена объявлен **с** префиксом `--` — генератор дописывает его сам, в CSS уедет валидный, но бесполезный `----x`, и тема молча останется без значения. |
-| `i18n-subpath` | `warn` | Пакет объявил подпуть строк, которого нет в его собственных `exports`, — упадёт сборка *потребителя*, и в ошибке будет его приложение, а не этот пакет. |
 
 `ok` в отчёте — это «нет ни одной `error`», `clean` — «нет вообще ничего».
 По умолчанию `doctor` падает только на `error`; `--strict` роняет его и на
@@ -219,7 +218,7 @@ Diagnostics summary (errors: 0, warnings: 2):
 
 ```json
 {
-  "providers": [{ "id": "@your/pkg", "components": 7, "hasTheme": false, "hasUnocss": false, "i18nLocales": ["en", "ru"] }],
+  "providers": [{ "id": "@your/pkg", "components": 7, "hasTheme": false, "hasUnocss": false }],
   "diagnostics": [{ "level": "warn", "code": "unused-provider", "subject": "@other/pkg", "message": "…" }],
   "ok": true,
   "clean": false

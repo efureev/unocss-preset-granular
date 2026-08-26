@@ -1,45 +1,30 @@
-import manifest from 'virtual:granular-i18n'
 import {en, ptBR, ru} from '@feugene/simple-package/i18n'
 
 /**
- * Строки пакетов, собранные из манифеста сборки.
+ * Строки пакета — **именованными** импортами, по одному на язык.
  *
- * Импорты здесь написаны РУКАМИ — ровно те, что назвал манифест. Пресет отдаёт
- * адреса и имена экспортов, а не готовый код: сгенерировать `import { en }`
- * может только тот, кто знает, каким бандлером это собирается. Приложение —
- * знает.
+ * Приложению нужны три языка из четырёх, что объявляет пакет. Агрегат
+ * `@feugene/simple-package/i18n/all` привёл бы и четвёртый: `verify:apps`
+ * проверяет, что словаря `es` в бандле нет, и это единственное место, где
+ * отсечение языков доказано сборкой, а не документацией.
  *
- * Сверка ниже — не украшение: она ловит расхождение между тем, что решила
- * сборка, и тем, что реально импортировано. Без неё забытый импорт нового
- * пакета выглядел бы как «у него просто нет строк».
+ * `pt-BR` импортируется как `ptBR`: тег локали идентификатором быть не может,
+ * и у каждого регионального языка эти две строки расходятся.
  */
-const imported: Record<string, unknown> = {
-    '@feugene/simple-package:en': en,
-    '@feugene/simple-package:ru': ru,
-    '@feugene/simple-package:ptBR': ptBR,
-}
-
-const missing = manifest.entries.flatMap(entry =>
-    entry.bindings
-        .filter(binding => imported[`${entry.providerId}:${binding.exportName}`] === undefined)
-        .map(binding => `${entry.providerId} → ${binding.exportName} (${binding.locale})`),
-)
-
-if (missing.length > 0)
-    throw new Error(`manifest promises loaders nobody imported: ${missing.join(', ')}`)
-
-/**
- * То, что ушло бы в `createFintI18n({ loaders })`.
- *
- * Порядок — из манифеста: доноры раньше зависимых, а мердж лоадеров в
- * `fint-i18n` идёт слева направо, так что порядок это семантика, а не вкус.
- */
-export const loaders = manifest.entries.flatMap(entry =>
-    entry.bindings.map(binding => imported[`${entry.providerId}:${binding.exportName}`]),
-)
+export const loaders = [en, ru, ptBR]
 
 /** Языки, доступные приложению, — вход для `negotiateLocale`. */
-export const availableLocales = manifest.locales
+export const availableLocales = ['en', 'ru', 'pt-BR']
 
-/** Запрошенные языки, которых не отдаёт ни один пакет. */
-export const unservedLocales = manifest.unserved
+/**
+ * Лоадеры вызываются, а не только импортируются.
+ *
+ * Без вызова динамический `import()` внутри них недостижим, и Rollup
+ * выбрасывает словари целиком — вместе с проверкой, ради которой они здесь.
+ * Настоящее приложение делает то же самое через `loadBlock` своего i18n-слоя.
+ */
+export const dictionaries = Promise.all(
+    loaders.flatMap(collection =>
+        Object.values(collection).flatMap(byBlock => Object.values(byBlock).map(load => load())),
+    ),
+)

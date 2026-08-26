@@ -48,12 +48,6 @@ export {
 } from './fs/resolveScanDirs'
 export * from './index'
 export {
-  getGranularI18nManifest,
-  GRANULAR_I18N_MODULE_ID,
-  type GranularI18nManifestOptions,
-  granularI18nPlugin,
-} from './node-utils/i18nManifest'
-export {
   GranularTokenRefError,
   materializeGranularOptions,
 } from './node-utils/materializeRefs'
@@ -91,11 +85,6 @@ export {
   resolveGranularNode,
   resolvePresetGranularNodePreflights,
 } from './preset.node'
-export {
-  type GranularI18nBinding,
-  type GranularI18nEntry,
-  type GranularI18nManifest,
-} from './runtime/i18nManifest'
 export {
   type GranularThemeActivation,
   type GranularThemeEntry,

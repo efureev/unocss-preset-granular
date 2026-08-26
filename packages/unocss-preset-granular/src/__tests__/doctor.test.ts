@@ -217,43 +217,6 @@ describe('doctor: уровни диагностики', () => {
     ])
   })
 
-  it('провайдер без компонентов, но со строками, — не предупреждение', () => {
-    // Спутник, чей единственный вклад — словари. До появления `i18n` такой
-    // пакет был бы объявлен бесполезным, и совет «убери из providers» стоил
-    // бы приложению всех его строк.
-    const strings = defineGranularProvider({
-      id: 'strings',
-      contractVersion: 1,
-      packageBaseUrl: 'file:///strings/',
-      components: [],
-      i18n: { locales: ['en'] },
-    })
-
-    const report = granularDoctor({
-      providers: [strings],
-      components: [],
-      scan: { enabled: false },
-    })
-
-    expect(report.diagnostics.map(d => d.code)).not.toContain('unused-provider')
-  })
-
-  it('несуществующий package.json не даёт ложной диагностики подпутей', () => {
-    // `packageBaseUrl` фикстур указывает в никуда — судить об `exports` нельзя,
-    // и молчание здесь важнее полноты: warn роняет CI через --strict.
-    const p = defineGranularProvider({
-      id: 'nowhere',
-      contractVersion: 1,
-      packageBaseUrl: 'file:///nowhere/dist/',
-      components: [],
-      i18n: { locales: ['en'] },
-    })
-
-    const report = granularDoctor({ providers: [p], components: [], scan: { enabled: false } })
-
-    expect(report.diagnostics.map(d => d.code)).not.toContain('i18n-subpath')
-  })
-
   it('провайдер без выбранных компонентов, но с unocss-вкладом, — не предупреждение', () => {
     const rulesOnly = defineGranularProvider({
       id: 'rules',

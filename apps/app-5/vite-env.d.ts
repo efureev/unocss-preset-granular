@@ -10,15 +10,3 @@ declare module 'virtual:granular-themes' {
   const manifest: GranularThemeManifest
   export default manifest
 }
-
-/**
- * Виртуальный модуль плагина `granularI18nPlugin` — манифест строк из той же
- * резолюции. Тип берётся из `/runtime`, а не из `/node`: это браузерный код,
- * и импорт node-входа ради типа утащил бы `node:fs` в клиентский бандл.
- */
-declare module 'virtual:granular-i18n' {
-  import type { GranularI18nManifest } from '@feugene/unocss-preset-granular/runtime'
-
-  const manifest: GranularI18nManifest
-  export default manifest
-}
