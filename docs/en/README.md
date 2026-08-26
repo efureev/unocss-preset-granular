@@ -41,13 +41,15 @@ which components and themes to pull in; providers declare what they ship.
 7. [Themes and tokens](./themes-and-tokens.md) — flat theme map, base/tokens
    CSS, `tokenDefinitionsFromCss*`, `strictTokens`, component‑level
    `component.tokenDefinitions`, priority chain.
-8. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
+8. [Strings and i18n](./strings-and-i18n.md) — the locale manifest, tags
+   versus import names, per-locale tree-shaking, what a package must export.
+9. [Architecture](./architecture.md) — two entries (`.` browser / `./node`
    build‑time), resolution pipeline, layers, preflights.
-9. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
-   arbitrary values, monorepo dev, HMR, `@apply` inside preflight CSS.
-10. [The `granular` CLI](./cli.md) — `granular doctor`: reading the
+10. [Troubleshooting & recipes](./troubleshooting.md) — common pitfalls,
+    arbitrary values, monorepo dev, HMR, `@apply` inside preflight CSS.
+11. [The `granular` CLI](./cli.md) — `granular doctor`: reading the
     diagnostic report, exit codes, use in CI, programmatic access.
-11. [Migrating `0.4.0` → `0.5.0`](./migration-0.5.md) — breaking changes, new
+12. [Migrating `0.4.0` → `0.5.0`](./migration-0.5.md) — breaking changes, new
     capabilities, a step-by-step plan for apps and providers.
 
 ## What this preset does, in one paragraph

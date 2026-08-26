@@ -57,6 +57,21 @@ export default defineConfig({
         'components/XGroupATwo/index': fileURLToPath(
           new URL('./src/components/groupA/XGroupATwo/index.ts', import.meta.url),
         ),
+        // Строки. Барель и агрегат — отдельные подпути (`./i18n`, `./i18n/all`),
+        // а КАЖДАЯ локаль — отдельный entry. Без этого rolldown складывает
+        // мелкие модули локалей в один общий чанк, и `import { en }` тянет за
+        // собой все языки: отсечение, которое обещает контракт, перестаёт
+        // работать молча — сборка при этом зелёная.
+        'i18n/index': fileURLToPath(
+          new URL('./src/i18n/index.ts', import.meta.url),
+        ),
+        'i18n/all': fileURLToPath(
+          new URL('./src/i18n/all.ts', import.meta.url),
+        ),
+        'i18n/en': fileURLToPath(new URL('./src/i18n/en.ts', import.meta.url)),
+        'i18n/ru': fileURLToPath(new URL('./src/i18n/ru.ts', import.meta.url)),
+        'i18n/ptBR': fileURLToPath(new URL('./src/i18n/ptBR.ts', import.meta.url)),
+        'i18n/es': fileURLToPath(new URL('./src/i18n/es.ts', import.meta.url)),
         'granular-provider': fileURLToPath(
           new URL('./src/granular-provider/index.ts', import.meta.url),
         ),

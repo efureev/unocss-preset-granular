@@ -75,6 +75,16 @@
       "types": "./dist/types/src/components/groupA/XGroupATwo/index.d.ts",
       "import": "./dist/components/XGroupATwo/index.js"
     },
+    "./i18n": {
+      "types": "./dist/types/src/i18n/index.d.ts",
+      "import": "./dist/i18n/index.js",
+      "default": "./dist/i18n/index.js"
+    },
+    "./i18n/all": {
+      "types": "./dist/types/src/i18n/all.d.ts",
+      "import": "./dist/i18n/all.js",
+      "default": "./dist/i18n/all.js"
+    },
     "./granular-provider": {
       "types": "./dist/types/src/granular-provider/index.d.ts",
       "import": "./dist/granular-provider.js",
@@ -87,11 +97,11 @@
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.10.0",
+    "@feugene/unocss-preset-granular": "^0.12.0",
     "vue": "^3.5.32"
   },
   "devDependencies": {
-    "@feugene/unocss-preset-granular": "^0.10.0",
+    "@feugene/unocss-preset-granular": "^0.12.0",
     "@types/node": "^26.1.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "typescript": "^6.0.3",

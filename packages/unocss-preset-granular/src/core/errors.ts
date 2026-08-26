@@ -125,6 +125,14 @@ export type InvalidProviderReason
     | 'invalid-components'
   /** Длины `cssFiles` и `cssFileAssetNames` не совпадают. */
     | 'css-files-length-mismatch'
+  /** `i18n` задан, но не является объектом. */
+    | 'invalid-i18n-contribution'
+  /** `i18n.locales` не массив, пуст, содержит не-строки или повторы. */
+    | 'invalid-i18n-locales'
+  /** `i18n.entry` или `i18n.allEntry` заданы, но не являются непустой строкой. */
+    | 'invalid-i18n-entry'
+  /** Имя экспорта локали не является идентификатором или объявлено не для той локали. */
+    | 'invalid-i18n-export-name'
 
 /**
  * Провайдер объявлен некорректно. Бросается на РЕГИСТРАЦИИ (`expandProviders`),

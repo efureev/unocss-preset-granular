@@ -1,6 +1,7 @@
 import type { GranularComponentDependency, GranularProvider } from './contract'
 import type { ResolvedThemeWarning, ThemeNamesSource } from './core/resolveThemes'
 import type { EmittedImportEdge } from './fs/emittedImports'
+import type { DoctorI18nSubpath } from './fs/i18nSubpaths'
 import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
 import type { PresetGranularResolution, resolvePresetGranular } from './preset'
 
@@ -8,6 +9,7 @@ import type { PresetGranularNodeOptions } from './preset.node'
 import { buildRegistry } from './core/registry'
 import { collectDependencyClosure } from './core/resolveSelection'
 import { inspectEmittedComponentImports } from './fs/emittedImports'
+import { inspectI18nSubpaths } from './fs/i18nSubpaths'
 import { inspectGranularScanDirs, resolveGranularFilesystemGlobs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -21,6 +23,15 @@ export interface DoctorProviderInfo {
   hasTheme: boolean
   /** Провайдер отдаёт `unocss`-вклад (rules/variants/preflights). */
   hasUnocss: boolean
+  /**
+   * Локали блока строк, если пакет его объявил.
+   *
+   * Имён блоков здесь нет и быть не может: контракт их не несёт — имя лежит
+   * внутри коллекции лоадеров, а импортировать её doctor не станет. Поэтому
+   * столкновение блоков двух пакетов отсюда не видно; в `fint-i18n` оно и не
+   * ошибка, а штатный мердж.
+   */
+  i18nLocales?: string[]
 }
 
 export interface DoctorComponentInfo {
@@ -81,6 +92,8 @@ export type DoctorDiagnosticLevel = 'error' | 'warn'
  *     не объявив его в `dependencies`;
  *   - `token-prefix` — ключ токена объявлен С префиксом `--`: генератор
  *     дописывает префикс сам, в CSS уедет валидный, но бесполезный `----x`.
+ *   - `i18n-subpath` — подпуть строк объявлен, но пакет его не экспортирует:
+ *     упадёт ЧУЖАЯ сборка, и искать причину будут в приложении.
  */
 export type DoctorDiagnosticCode
   = | 'layout-contract'
@@ -89,6 +102,7 @@ export type DoctorDiagnosticCode
     | 'unused-provider'
     | 'undeclared-dependency'
     | 'token-prefix'
+    | 'i18n-subpath'
 
 /**
  * Одна проблема с уровнем.
@@ -350,6 +364,7 @@ function collectDiagnostics(
   tokenConflicts: readonly DoctorTokenConflict[],
   undeclared: readonly DoctorUndeclaredDependency[],
   dashTokens: readonly DashPrefixedToken[],
+  i18nSubpaths: readonly DoctorI18nSubpath[],
 ): DoctorDiagnostic[] {
   const errors: DoctorDiagnostic[] = missing.map(m => ({
     level: 'error' as const,
@@ -400,18 +415,29 @@ function collectDiagnostics(
     })
   }
 
+  for (const subpath of i18nSubpaths) {
+    warns.push({
+      level: 'warn',
+      code: 'i18n-subpath',
+      subject: `${subpath.providerId}:${subpath.field}`,
+      message: `'i18n.${subpath.field}' points at ${subpath.specifier}, but '${subpath.subpath}' is not `
+        + `in the package's exports (${subpath.packageJson}) — the consumer's build will fail to `
+        + 'resolve it, and the error will name their application, not this package',
+    })
+  }
+
   // Провайдер, который не дал сборке НИЧЕГО: ни одного выбранного компонента,
-  // ни темы, ни unocss-вклада. Обычно это опечатка в `components` или
-  // провайдер, оставшийся в конфиге после рефакторинга.
+  // ни темы, ни unocss-вклада, ни строк. Обычно это опечатка в `components`
+  // или провайдер, оставшийся в конфиге после рефакторинга.
   const withSelected = new Set(components.map(c => c.providerId))
   for (const provider of providers) {
-    if (withSelected.has(provider.id) || provider.theme || provider.unocss)
+    if (withSelected.has(provider.id) || provider.theme || provider.unocss || provider.i18n)
       continue
     warns.push({
       level: 'warn',
       code: 'unused-provider',
       subject: provider.id,
-      message: 'the provider contributes nothing to the build: no selected components, no theme, no unocss',
+      message: 'the provider contributes nothing to the build: no selected components, no theme, no unocss, no strings',
     })
   }
 
@@ -434,6 +460,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
     components: p.components.length,
     hasTheme: !!p.theme,
     hasUnocss: !!p.unocss,
+    ...(p.i18n ? { i18nLocales: [...p.i18n.locales] } : {}),
   }))
 
   const components: DoctorComponentInfo[] = resolution.resolved.entries.map(({ provider, descriptor }) => ({
@@ -467,6 +494,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
     tokenConflicts,
     undeclaredDependencies,
     computeDashPrefixedTokens(resolution, options.themes),
+    inspectI18nSubpaths(resolution.providers),
   )
 
   return {
@@ -548,7 +576,8 @@ export function formatDoctorReport(report: DoctorReport): string {
   push(`Providers (${report.providers.length}):`)
   for (const p of report.providers) {
     push(`  • ${p.id} — components: ${p.components}`
-      + `${p.hasTheme ? ', theme: yes' : ''}${p.hasUnocss ? ', unocss: yes' : ''}`)
+      + `${p.hasTheme ? ', theme: yes' : ''}${p.hasUnocss ? ', unocss: yes' : ''}`
+      + `${p.i18nLocales ? `, i18n: ${p.i18nLocales.join('/')}` : ''}`)
   }
   push()
 

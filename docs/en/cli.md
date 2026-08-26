@@ -202,9 +202,10 @@ with two levels. The criterion is one: **must this break the build**.
 | `layout-contract` | `error` | A component is out of the scan — its classes silently vanish from the CSS. |
 | `theme-warning` | `warn` | A theme-resolution warning: `defaultThemes` without a source, a partial theme, a broken `extends`, several default themes at once. |
 | `token-conflict` | `warn` | A token is written by more than one layer. |
-| `unused-provider` | `warn` | A provider contributed nothing: no selected components, no `theme`, no `unocss`. |
+| `unused-provider` | `warn` | A provider contributed nothing: no selected components, no `theme`, no `unocss`, no `i18n`. |
 | `undeclared-dependency` | `warn` | A built component imports another one without declaring it — its classes vanish for anyone who selects it alone. |
 | `token-prefix` | `warn` | A token key is declared **with** the `--` prefix — the generator adds it itself, so the CSS gets a valid but useless `----x` and the theme silently loses the value. |
+| `i18n-subpath` | `warn` | A package declares an `i18n` subpath its own `exports` do not expose — the *consumer's* build fails to resolve it, naming their application rather than this package. |
 
 `ok` in the report means "no `error` at all", `clean` means "nothing at all".
 By default `doctor` only fails on an `error`; `--strict` makes it fail on
@@ -226,7 +227,7 @@ you never have to parse the text. The shape is exactly `DoctorReport` /
 
 ```json
 {
-  "providers": [{ "id": "@your/pkg", "components": 7, "hasTheme": false, "hasUnocss": false }],
+  "providers": [{ "id": "@your/pkg", "components": 7, "hasTheme": false, "hasUnocss": false, "i18nLocales": ["en", "ru"] }],
   "diagnostics": [{ "level": "warn", "code": "unused-provider", "subject": "@other/pkg", "message": "…" }],
   "ok": true,
   "clean": false

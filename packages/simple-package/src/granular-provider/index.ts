@@ -36,6 +36,20 @@ export const PROVIDER_ID = '@feugene/simple-package'
  */
 export const PACKAGE_BASE_URL = resolvePackageBaseUrl(import.meta.url)
 
+/**
+ * Строки пакета: адреса и состав, без единого лоадера.
+ *
+ * Подпути не заданы — работают дефолты (`<id>/i18n` и `<id>/i18n/all`), и это
+ * часть проверки: приложение обязано срезолвить их, не зная ничего, кроме `id`.
+ *
+ * `pt-BR` объявлен ТЕГОМ, а экспортируется как `ptBR` — имя выводит конвенция,
+ * `exportNames` здесь не нужен. `es` объявлен, но ни одним приложением не
+ * запрашивается: на нём `verify:apps` доказывает отсечение языков.
+ */
+export const I18N_CONTRIBUTION = {
+    locales: ['en', 'ru', 'pt-BR', 'es'],
+} as const
+
 /** Браузерные конфиги компонентов — без единого FS-импорта. */
 export const browserComponents = [
     xTest1Config,
@@ -57,6 +71,7 @@ export function createSimpleProvider(components: typeof browserComponents): Gran
         contractVersion: 1,
         packageBaseUrl: PACKAGE_BASE_URL,
         components,
+        i18n: I18N_CONTRIBUTION,
     })
 }
 

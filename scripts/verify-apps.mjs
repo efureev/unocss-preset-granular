@@ -26,18 +26,18 @@ function listApps() {
   return readdirSync(appsDir).filter(name => statSync(join(appsDir, name)).isDirectory())
 }
 
-/** Весь CSS, который приложение эмитит в `dist/assets`, одной строкой. */
-function readBuiltCss(app) {
+/** Всё, что приложение эмитит в `dist/assets` с данным расширением, одной строкой. */
+function readBuiltAssets(app, ext) {
   const assetsDir = join(appsDir, app, 'dist/assets')
   let files
   try {
-    files = readdirSync(assetsDir).filter(f => f.endsWith('.css'))
+    files = readdirSync(assetsDir).filter(f => f.endsWith(ext))
   }
   catch {
     throw new Error(`нет '${assetsDir}'. Сначала: yarn build:all`)
   }
   if (files.length === 0)
-    throw new Error(`в '${assetsDir}' нет ни одного .css`)
+    throw new Error(`в '${assetsDir}' нет ни одного ${ext}`)
 
   return files.map(f => readFileSync(join(assetsDir, f), 'utf8')).join('\n')
 }
@@ -55,6 +55,41 @@ async function loadExpectations(app) {
   }
 }
 
+/**
+ * Сборка минифицирована, и стиль кавычек выбирает бандлер: один и тот же
+ * манифест выглядит как `{"entry":"x"}` в исходнике и как `{entry:`x`}` в
+ * бандле. Кавычки — не факт о сборке, поэтому из сравнения они выкидываются,
+ * и ожидание можно писать в читаемом JSON-виде.
+ */
+function stripQuotes(text) {
+  return text.replace(/["'`]/g, '')
+}
+
+/**
+ * Сверяет один корпус (CSS или JS) со списками `present` / `absent`.
+ *
+ * Возвращает найденные расхождения и число выполненных проверок.
+ */
+function matchExpectations(rawHaystack, { present = [], absent = [] }, field) {
+  const failures = []
+  const normalize = field === 'js' ? stripQuotes : text => text
+  const haystack = normalize(rawHaystack)
+
+  for (const item of present) {
+    const needle = normalize(item[field])
+    if (!haystack.includes(needle))
+      failures.push(`ОЖИДАЛОСЬ, но нет: ${item.what}\n      искали: ${JSON.stringify(needle)}`)
+  }
+
+  for (const item of absent) {
+    const needle = normalize(item[field])
+    if (haystack.includes(needle))
+      failures.push(`НЕ ДОЛЖНО БЫТЬ, но есть: ${item.what}\n      нашли: ${JSON.stringify(needle)}`)
+  }
+
+  return { failures, checked: present.length + absent.length }
+}
+
 async function verifyApp(app) {
   const expectations = await loadExpectations(app)
   if (!expectations) {
@@ -62,20 +97,18 @@ async function verifyApp(app) {
     return { skipped: true, failures: [] }
   }
 
-  const css = readBuiltCss(app)
-  const failures = []
+  const css = matchExpectations(readBuiltAssets(app, '.css'), expectations, 'css')
+  const failures = [...css.failures]
+  let total = css.checked
 
-  for (const { what, css: needle } of expectations.present ?? []) {
-    if (!css.includes(needle))
-      failures.push(`ОЖИДАЛОСЬ, но нет: ${what}\n      искали: ${JSON.stringify(needle)}`)
+  // Секция `js` — для того, что CSS доказать не может: манифесты сборки,
+  // отсечённые локали, содержимое ленивых чанков. Необязательна: приложения,
+  // которые проверяют только стили, её не объявляют.
+  if (expectations.js) {
+    const js = matchExpectations(readBuiltAssets(app, '.js'), expectations.js, 'js')
+    failures.push(...js.failures)
+    total += js.checked
   }
-
-  for (const { what, css: needle } of expectations.absent ?? []) {
-    if (css.includes(needle))
-      failures.push(`НЕ ДОЛЖНО БЫТЬ, но есть: ${what}\n      нашли: ${JSON.stringify(needle)}`)
-  }
-
-  const total = (expectations.present?.length ?? 0) + (expectations.absent?.length ?? 0)
   if (failures.length === 0)
     console.log(`  ✓ ${app}: ${total} проверок — ${expectations.purpose}`)
   else
@@ -90,7 +123,7 @@ async function verifyApp(app) {
 const requested = process.argv.slice(2)
 const apps = requested.length > 0 ? requested : listApps()
 
-console.log(`Проверка собранного CSS (${apps.length} прил.):`)
+console.log(`Проверка собранной сборки (${apps.length} прил.):`)
 
 let failed = 0
 for (const app of apps) {

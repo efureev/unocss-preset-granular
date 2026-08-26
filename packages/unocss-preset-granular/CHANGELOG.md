@@ -21,6 +21,106 @@ they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-26
+
+Not breaking: `i18n` is an optional field, so `GRANULAR_CONTRACT_VERSION` stays
+`1` — per §2, adding an optional field does not bump it. Raising the version
+would have been worse than useless: `expandProviders` compares it by strict
+equality, so a provider declaring `2` would be rejected outright by every
+released preset.
+
+### Added
+
+- **`GranularProvider.i18n`** — the subpaths, locale tags and export names a
+  package publishes its strings under. This closes a gap that forced every
+  framework integration to keep its own hardcoded registry of "which package
+  ships strings, and where": the application already declares its package set
+  once, in `providers`, and now that declaration answers the question. The
+  hand-written `loaders: [appEn, appRu, granularityEn, granularityRu]` of the
+  `fint-i18n` installation guide is exactly that second registry.
+
+  The contribution carries **addresses only**. Loader functions must not go in:
+  the provider module is evaluated inside the consumer's config, so a function
+  would drag every locale JSON into that graph and would resolve relative to the
+  provider rather than to the application bundle.
+
+  `locales` holds **tags, not import names**. The two are not the same string
+  for regions — `pt-BR` cannot be an identifier and is exported as `ptBR` — so
+  the name is derived from the tag and `exportNames` overrides the derivation
+  where a package departs from the convention. A tag from which no identifier
+  can be derived is rejected at registration rather than becoming a broken
+  import in someone else's build.
+
+  **Block names are deliberately absent.** A block name already lives inside the
+  loader collection as its second-level key, so a field here would be a second
+  source of truth for one value and would drift. The consequence is stated
+  rather than hidden: two packages claiming the same block cannot be detected at
+  build time — which is fine, because `fint-i18n` treats a shared block as an
+  ordinary left-to-right loader merge, not an error.
+
+- **`getGranularI18nManifest(options, { locales?, onlySelected? })`** and the
+  matching **`granularI18nPlugin`** serving `virtual:granular-i18n`. Built from
+  the same memoised resolution that emits the CSS, so the manifest cannot drift
+  from the build. Modelled on the theme manifest, including the structural
+  `GranularVitePlugin` type that keeps Vite out of the dependencies.
+
+  Each entry carries **bindings** rather than a flat locale list: what to import
+  (`exportName`), which declared tag it is (`locale`), which requested tags it
+  covers (`serves`) and how it was found (`via`). A flat list could not be both
+  "what the app asked for" and "what to import", and could return `ru` and
+  `ru-RU` at once — two imports of one dictionary. Bindings cannot: the cascade
+  stops at the first hit, and bindings collapse by declared tag.
+
+  The cascade mirrors `negotiateLocale` — exact, then base language, then the
+  **reverse step** (`ru` requested, only `ru-RU` declared). The reverse step is
+  the one `LoaderRegistry.resolve` does not do, and it belongs here because the
+  manifest decides *availability*: without it the package drops out of the
+  bundle and runtime negotiation cannot pick what it otherwise would. An
+  ambiguous reverse step (`ru-RU` and `ru-BY` both qualifying) picks the first
+  in declaration order and says so through `console.warn` — at build time an
+  arbitrary region is a decision, not a detail.
+
+  `manifest.unserved` lists requested tags no package serves at all. Nowhere
+  else is that visible: at runtime `negotiateLocale` simply falls back.
+
+- Manifest types are exported from **`/runtime`** as well, for
+  `declare module 'virtual:granular-i18n'` in the application. Types only —
+  matching is precomputed at build time, so a browser bundle never needs to
+  import `/node` (and `node:fs` with it) to reason about locales.
+
+- `InvalidProviderError` reasons `invalid-i18n-contribution`,
+  `invalid-i18n-locales`, `invalid-i18n-entry` and `invalid-i18n-export-name`,
+  raised at registration. These defects otherwise surface in the *consumer's*
+  build and in the wrong package: an empty `locales` silently loses per-locale
+  tree-shaking, a repeated tag doubles an import, a padded specifier resolves to
+  nothing, and a broken subpath reads as `Failed to resolve import` in an
+  application whose author did not write it.
+
+- `granular doctor` now reports the locales of each provider's contribution and
+  gains the `i18n-subpath` diagnostic: a package declaring a subpath its own
+  `exports` do not expose fails the *consumer's* build with `Failed to resolve
+  import`, naming an application whose author wrote none of it. Registration
+  cannot check this — resolving modules is the bundler's job — but `doctor` has
+  the filesystem and the package identity, so it can. It stays silent wherever
+  certainty is impossible (non-`file:` base URL, unmatched `package.json`,
+  absent `exports`, pattern keys), because a false positive fails CI under
+  `--strict`.
+
+- `unused-provider` no longer fires for a package whose only contribution is
+  strings. Previously such a satellite was declared useless, and acting on that
+  advice would have cost the application every dictionary it shipped.
+
+### Verified
+
+- `@feugene/simple-package` now ships strings — four locales including `pt-BR`
+  (tag and export name differ) and one, `es`, that no application requests.
+  `apps/app-5` consumes the manifest, and `verify:apps` gained a `js` section:
+  it asserts the manifest reached the bundle, that the `ru-RU` request bound to
+  the package's `ru`, and that the `es` dictionary is **absent**. Per-locale
+  tree-shaking was documentation until now; it is a check that fails when
+  broken.
+
+
 ## [0.11.0] - 2026-08-23
 
 Not breaking: flat layouts generate exactly as before, and `entryFor` gains a

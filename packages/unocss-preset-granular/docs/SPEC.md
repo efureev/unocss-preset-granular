@@ -58,6 +58,7 @@ interface GranularProvider {
   components: readonly GranularComponentDescriptor[]
   theme?: GranularThemeContribution
   unocss?: GranularUnocssContribution
+  i18n?: GranularI18nContribution
   dependencies?: readonly (GranularProvider | string)[]
 }
 ```
@@ -70,6 +71,7 @@ interface GranularProvider {
 | `components` | **MUST** be an array. Names within one provider **MUST** be unique. |
 | `theme` | See §6. |
 | `unocss` | `rules`, `variants` and FS-free inline `preflights`, merged into the consumer's UnoCSS config. |
+| `i18n` | Locale-loader subpaths and locale list; see §3.3. Absence means the package ships no strings — there is no separate flag for that. |
 | `dependencies` | Package-level composition; see §3.2. |
 
 Violations of the `id`, `packageBaseUrl`, `components` and
@@ -115,6 +117,77 @@ components. Component selection remains the consumer's (§5).
 A provider that references another provider's components in
 `component.dependencies` **MUST** declare that donor in its own
 `peerDependencies`.
+
+### 3.3 `GranularI18nContribution`
+
+```ts
+interface GranularI18nContribution {
+  locales: readonly string[]
+  exportNames?: Readonly<Record<string, string>>
+  entry?: string
+  allEntry?: string
+}
+```
+
+| Field | Requirement |
+|---|---|
+| `locales` | **MUST** be a non-empty array of distinct, non-empty BCP 47 tags, each a top-level key of a collection in `entry`. Tags are compared case-insensitively, so `en` and `EN` are a duplicate. |
+| `exportNames` | If present, **MUST** be an object whose keys are a subset of `locales` and whose values are valid identifiers. |
+| `entry` | **MUST** be a non-empty module specifier without surrounding whitespace if present. Defaults to `` `${id}/i18n` ``. |
+| `allEntry` | Same rule. Defaults to `` `${entry}/all` ``. |
+
+The contribution carries **addresses and composition only**. Loader functions
+**MUST NOT** be placed here: the provider module is evaluated inside the
+consumer's config, so a function would drag every locale JSON into that graph
+and would resolve relative to the provider rather than to the application
+bundle. The preset publishes addresses; the consumer writes the imports.
+
+**`locales` holds tags, not import names.** The two are not always the same
+string: `pt-BR` cannot be an identifier, and packages export it as `ptBR`
+(`fint-i18n`, *Authoring localization packages*, Package contract §1). The name
+is derived from the tag — hyphen dropped, next segment capitalised — and
+`exportNames` overrides that derivation for the tags where a package departs
+from the convention. It is a sparse override, never a second list of locales.
+A tag from which no valid identifier can be derived and which carries no
+override is rejected at registration: the alternative is a syntactically broken
+import generated in someone else's application.
+
+**Block names are deliberately absent.** A block name already lives inside the
+loader collection as its second-level key (`{ en: { gr: () => import(...) } }`),
+so a field here would be a second source of truth for one value and would drift.
+The consequence is stated rather than hidden: two packages claiming the same
+block cannot be detected at build time. That is acceptable — `fint-i18n` treats
+a shared block as an ordinary left-to-right loader merge, not an error.
+
+`entry` and `allEntry` have **different shapes**, and consumers must not treat
+them alike: `entry` exposes named per-locale collections, `allEntry` a
+**default export of an array** of them. `entry` is also not a pure loader
+namespace — ecosystem packages re-export their block constant and adapter from
+the same subpath, so imports from it **MUST** be named, and whatever else lives
+there **MUST** be side-effect free: the barrel is pulled by everyone who writes
+`import { en }`.
+
+Locale coverage **MUST NOT** be decided by string equality. The manifest layer
+resolves each requested tag through a three-step cascade that mirrors
+`negotiateLocale`, stopping at the first hit — so exactly one declared tag is
+selected per requested tag, and one dictionary can never be imported twice:
+
+1. **exact** — case-insensitive match; the package's own spelling is returned;
+2. **base** — the requested tag's base language (`ru-RU` served by `ru`);
+3. **region** — the reverse step (`ru` requested, only `ru-RU` declared).
+
+The third step exists because the manifest decides what enters the bundle, and
+that is a question of *availability*: without it a package silently drops out of
+the build and `negotiateLocale` cannot pick at runtime what it otherwise would.
+When more than one regional variant qualifies, the first in declaration order is
+taken and a `console.warn` names the alternatives — at build time an arbitrary
+region is a decision, not a detail.
+
+Violations raise `InvalidProviderError` with reason `invalid-i18n-contribution`,
+`invalid-i18n-locales`, `invalid-i18n-entry` or `invalid-i18n-export-name` at
+registration time. Whether a subpath *resolves* is not checked there — that is
+the bundler's knowledge, not the preset's — but `granular doctor` does check it
+against the package's own `exports` (§10).
 
 ## 4. `GranularComponentDescriptor`
 
@@ -431,6 +504,16 @@ it reads the text of the bundle, not an AST — so its level is `warn`: it moves
 serve as sources. Its limits are listed in
 [The `granular` CLI](../../../docs/en/cli.md).
 
+It also verifies that the `i18n` subpaths of §3.3 are actually exposed by the
+declaring package's own `exports`, reporting `i18n-subpath` otherwise. This is
+the one place the check can live: registration cannot resolve modules, and the
+failure it prevents surfaces in the *consumer's* build as `Failed to resolve
+import`, naming an application whose author wrote none of it. The check is
+deliberately silent wherever certainty is impossible — a non-`file:`
+`packageBaseUrl`, a `package.json` that cannot be matched to the provider `id`,
+an absent `exports`, or any pattern key in it — because a false positive fails
+CI under `--strict`.
+
 `doctor` does **not** verify that declared CSS files exist (§4.2), that the
 browser/node boundary is intact (§9), or that `safelist` is minimal. Those
 require the checks described in their own sections.
@@ -447,6 +530,10 @@ Every rejection is a typed error class from `core/errors.ts` (or
 | `packageBaseUrl` not an absolute URL | `InvalidProviderError` (`invalid-package-base-url`) | registration |
 | `packageBaseUrl` without trailing `/` | `InvalidProviderError` (`package-base-url-not-a-directory`) | registration |
 | `components` not an array | `InvalidProviderError` (`invalid-components`) | registration |
+| `i18n` present but not an object | `InvalidProviderError` (`invalid-i18n-contribution`) | registration |
+| `i18n.locales` empty, not an array, containing non-strings or repeating a tag | `InvalidProviderError` (`invalid-i18n-locales`) | registration |
+| `i18n.entry` / `i18n.allEntry` present but not a clean non-empty specifier | `InvalidProviderError` (`invalid-i18n-entry`) | registration |
+| Locale tag yields no identifier, or `exportNames` names a tag outside `locales` | `InvalidProviderError` (`invalid-i18n-export-name`) | registration |
 | `cssFiles` / `cssFileAssetNames` length mismatch | `InvalidProviderError` (`css-files-length-mismatch`) | registration |
 | Two different instances with one `id` | `DuplicateProviderIdError` | registration |
 | Two components with one name in a provider | `DuplicateComponentNameError` | registration |
@@ -485,6 +572,13 @@ that was simply absent.
 - [ ] Token keys carry no `--` prefix.
 - [ ] Browser entry free of `./node` and `./vite` imports, verified on the bundle.
 - [ ] Cross-provider donors listed in `peerDependencies`.
+- [ ] If the package ships strings: `i18n.locales` lists exactly the tags
+      exported from `entry`, hyphenated tags either follow the `ptBR`
+      convention or declare `exportNames`, both `./i18n` and `./i18n/all` are
+      **separate** `exports` entries with paired `types` (plus a
+      `typesVersions` fallback for `moduleResolution: node10`), and
+      `sideEffects` does not cover the locale modules — otherwise per-locale
+      tree-shaking is silently lost.
 - [ ] `granular doctor --strict` exits `0` with all components selected — in
       particular, no `undeclared-dependency`.
 - [ ] Smoke test: install into a fresh app, select one component, build, and

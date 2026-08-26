@@ -1,4 +1,4 @@
-import type { GranularProvider } from '../contract'
+import type { GranularI18nContribution, GranularProvider } from '../contract'
 import { GRANULAR_CONTRACT_VERSION } from '../contract'
 import {
   CircularProviderDependencyError,
@@ -7,6 +7,7 @@ import {
   UnresolvedProviderDependencyError,
   UnsupportedContractVersionError,
 } from './errors'
+import { isValidExportName, localeExportName } from './i18nLocales'
 
 /**
  * Рекурсивно разворачивает `roots` + транзитивный граф `provider.dependencies`
@@ -143,6 +144,167 @@ function validateProvider(provider: GranularProvider): void {
         `'cssFiles' (${files.length}) and 'cssFileAssetNames' (${assets.length}) are matched by position, `
         + `so their lengths must be equal — otherwise the read fallback is silently disabled for the extra entries.`,
         descriptor.name,
+      )
+    }
+  }
+
+  validateI18n(provider)
+}
+
+/**
+ * Проверяет вклад строк.
+ *
+ * Все дефекты иначе всплывают у ПОТРЕБИТЕЛЯ и не в том пакете: пустой
+ * `locales` оставляет генератору только агрегат — молча теряется tree-shaking
+ * языков; кривой подпуть даёт `Failed to resolve import` на чужой сборке, где
+ * причину будут искать в приложении; тег, из которого не выводится
+ * идентификатор, ломает уже сам сгенерированный импорт.
+ *
+ * Существование подпути отсюда НЕ проверяется: это знание резолвера бандлера,
+ * а не пресета, и ложное срабатывание было бы хуже пропуска.
+ */
+function validateI18n(provider: GranularProvider): void {
+  const i18n = provider.i18n
+  if (i18n === undefined)
+    return
+
+  if (typeof i18n !== 'object' || i18n === null || Array.isArray(i18n)) {
+    throw new InvalidProviderError(
+      provider.id,
+      'invalid-i18n-contribution',
+      `'i18n' must be an object with a 'locales' array (got ${JSON.stringify(i18n)}). `
+      + `Omit the whole 'i18n' field if the package ships no strings.`,
+    )
+  }
+
+  const entry = typeof i18n.entry === 'string' && i18n.entry.trim().length > 0
+    ? i18n.entry.trim()
+    : `${provider.id}/i18n`
+
+  validateI18nSpecifiers(provider, i18n, entry)
+  validateI18nLocales(provider, i18n, entry)
+  validateI18nExportNames(provider, i18n, entry)
+}
+
+/** `entry` / `allEntry`: непустые спецификаторы без обрамляющих пробелов. */
+function validateI18nSpecifiers(
+  provider: GranularProvider,
+  i18n: GranularI18nContribution,
+  entry: string,
+): void {
+  for (const key of ['entry', 'allEntry'] as const) {
+    const value = i18n[key]
+    if (value === undefined)
+      continue
+
+    // Пробелы по краям отвергаются, а не тримятся: спецификатор уезжает в
+    // манифест как есть, и `' pkg/i18n '` дал бы `' pkg/i18n /all'`.
+    if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
+      const fallback = key === 'entry' ? `${provider.id}/i18n` : `${entry}/all`
+      throw new InvalidProviderError(
+        provider.id,
+        'invalid-i18n-entry',
+        `'i18n.${key}' must be a non-empty module specifier without surrounding whitespace `
+        + `(got ${JSON.stringify(value)}); omit it to use the default '${fallback}'.`,
+      )
+    }
+  }
+}
+
+/** `locales`: непустой массив непустых тегов без повторов. */
+function validateI18nLocales(
+  provider: GranularProvider,
+  i18n: GranularI18nContribution,
+  entry: string,
+): void {
+  if (!Array.isArray(i18n.locales) || i18n.locales.length === 0) {
+    throw new InvalidProviderError(
+      provider.id,
+      'invalid-i18n-locales',
+      `'i18n.locales' must be a non-empty array of BCP 47 tags exported from '${entry}'. `
+      + `Omit the whole 'i18n' field if the package ships no strings.`,
+    )
+  }
+
+  const seen = new Set<string>()
+  for (const locale of i18n.locales) {
+    if (typeof locale !== 'string' || locale.trim().length === 0 || locale.trim() !== locale) {
+      throw new InvalidProviderError(
+        provider.id,
+        'invalid-i18n-locales',
+        `'i18n.locales' must contain non-empty BCP 47 tags without surrounding whitespace `
+        + `(got ${JSON.stringify(locale)}) — each one is a top-level key of a collection in '${entry}'.`,
+      )
+    }
+
+    // Сравнение без учёта регистра: теги BCP 47 регистронезависимы, и `RU`
+    // рядом с `ru` — не два языка, а один импорт, посчитанный дважды.
+    const key = locale.toLowerCase()
+    if (seen.has(key)) {
+      throw new InvalidProviderError(
+        provider.id,
+        'invalid-i18n-locales',
+        `'i18n.locales' lists '${locale}' twice (tags are compared case-insensitively). `
+        + `A repeated tag becomes a duplicate named import of one and the same collection.`,
+      )
+    }
+    seen.add(key)
+  }
+}
+
+/**
+ * Имена экспортов: выводимые по конвенции — идентификаторы, объявленные
+ * вручную — тоже, и только для тегов из `locales`.
+ */
+function validateI18nExportNames(
+  provider: GranularProvider,
+  i18n: GranularI18nContribution,
+  entry: string,
+): void {
+  const overrides = i18n.exportNames
+
+  if (overrides !== undefined) {
+    if (typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
+      throw new InvalidProviderError(
+        provider.id,
+        'invalid-i18n-export-name',
+        `'i18n.exportNames' must be an object mapping a tag from 'i18n.locales' to its export name `
+        + `(got ${JSON.stringify(overrides)}).`,
+      )
+    }
+
+    for (const [locale, name] of Object.entries(overrides)) {
+      if (!i18n.locales.includes(locale)) {
+        throw new InvalidProviderError(
+          provider.id,
+          'invalid-i18n-export-name',
+          `'i18n.exportNames' declares '${locale}', which is not listed in 'i18n.locales'. `
+          + `It is a sparse override over the tags, not a second list of them.`,
+        )
+      }
+
+      if (typeof name !== 'string' || !isValidExportName(name)) {
+        throw new InvalidProviderError(
+          provider.id,
+          'invalid-i18n-export-name',
+          `'i18n.exportNames.${locale}' must be a valid identifier — it is written into `
+          + `\`import { <name> } from '${entry}'\` (got ${JSON.stringify(name)}).`,
+        )
+      }
+    }
+  }
+
+  for (const locale of i18n.locales) {
+    if (overrides?.[locale] !== undefined)
+      continue
+
+    const derived = localeExportName(locale)
+    if (!isValidExportName(derived)) {
+      throw new InvalidProviderError(
+        provider.id,
+        'invalid-i18n-export-name',
+        `'${locale}' yields '${derived}', which is not a valid identifier, so no named import `
+        + `can be generated from '${entry}'. Declare the real export name in 'i18n.exportNames'.`,
       )
     }
   }
