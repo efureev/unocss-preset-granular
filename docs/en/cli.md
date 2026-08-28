@@ -364,8 +364,8 @@ the order of the groups *is* the answer to "which are mine and which are shared"
 |---|---|---|
 | declared by this component | `own` | The component publishes it via `tokenDefinitions` and consumes it. |
 | declared by another component | `component` | An implicit link through a token: someone else publishes it. |
-| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions` — the shared palette. |
-| from the application | `app` | `themes.define` or `themes.tokenOverrides`. |
+| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions`, or its inlined `tokensCssUrl` / `baseCssUrl` / theme file — the shared palette. |
+| from the application | `app` | `themes.define`, `themes.tokenOverrides`, or a file substituted through `themes.tokensFile` / `baseFile` / `themeFiles`. |
 | not defined by any granular layer | `none` | Nobody defines it. See the caveat below. |
 
 `also used by` lists the **other selected components** consuming the same token
@@ -381,6 +381,7 @@ so it is visible not just *what* the value is but *who* set it:
 |---|---|
 | `provider:@your/pkg #ccc → app-override #02f8fa` | the provider's default, overridden by the app |
 | `component:XTokenized red` | a single layer — the component's own value |
+| `provider '@your/pkg' 6px` (no arrows) | declared in an inlined CSS file, not by a structural layer |
 | `app-override 8px (dropped by strictTokens) — not in the CSS` | the override was written but `strictTokens` discarded it |
 
 The chain comes from the same function that emits the CSS, so it cannot report a
@@ -404,6 +405,11 @@ tokens stay `own`.
 Consumption is found through three channels — `safelist` (pure resolution
 data), `component-css` (declared `cssFiles`) and `source-scan` (component
 sources in `content.filesystem`). The parsing is textual, so the limits are:
+
+A token declared in inlined CSS (`tokensCssUrl`, `baseCssUrl`, a theme file)
+carries a value but no layer chain: `tokenOverrides` will not reach it until the
+provider promotes it with `tokenDefinitionsFromCss`. The report prints such a
+value on its own line, without arrows.
 
 - **Tokens in shared chunks outside the component directory.** If the component
   declares its classes in `safelist`, they are found there; if it does not, the

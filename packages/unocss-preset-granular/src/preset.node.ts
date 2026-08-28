@@ -9,6 +9,7 @@ import { collectTokenLayers } from './core/tokenLayers'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
+import { resolveInlinedCssSources } from './node-utils/inlinedCss'
 import { materializeGranularOptions } from './node-utils/materializeRefs'
 import {
   presetGranular,
@@ -189,65 +190,6 @@ async function computeComponentCssFiles(
   return files.filter(f => !seen.has(f.filePath) && seen.add(f.filePath))
 }
 
-/** Resolve base/tokens/theme URL с учётом override'а из ThemesOptions. */
-function pickThemeUrl(
-  providerId: string,
-  providerUrl: string | undefined,
-  override: string | Partial<Record<string, string>> | undefined,
-): string | undefined {
-  if (typeof override === 'string')
-    return override
-  if (override && typeof override === 'object') {
-    const byProvider = override[providerId]
-    if (byProvider !== undefined)
-      return byProvider
-  }
-  return providerUrl
-}
-
-/**
- * Собирает URL'ы base/tokens.css в порядке «все tokens → все base».
- *
- * Глобальный строковый override (`baseFile`/`tokensFile` — строка) эмитится
- * ОДИН раз и НЕ зависит от того, есть ли у провайдеров `theme` (иначе для
- * провайдера без темы глобальный base не подключался вовсе). Per-providerId
- * override и провайдерские значения по-прежнему берутся по провайдеру, но
- * дедуплицируются по итоговому URL.
- */
-function resolveBaseTokenUrls(
-  providers: readonly GranularProvider[],
-  themes: PresetGranularNodeOptions['themes'],
-): Array<{ url: string, origin: string }> {
-  const urls: Array<{ url: string, origin: string }> = []
-  const seen = new Set<string>()
-  const add = (url: string | undefined, origin: string): void => {
-    if (url && !seen.has(url)) {
-      seen.add(url)
-      urls.push({ url, origin })
-    }
-  }
-
-  const tokensFile = themes?.tokensFile
-  if (typeof tokensFile === 'string') {
-    add(tokensFile, 'app-override (themes.tokensFile)')
-  }
-  else {
-    for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.tokensCssUrl, tokensFile), `provider '${p.id}'`)
-  }
-
-  const baseFile = themes?.baseFile
-  if (typeof baseFile === 'string') {
-    add(baseFile, 'app-override (themes.baseFile)')
-  }
-  else {
-    for (const p of providers)
-      add(pickThemeUrl(p.id, p.theme?.baseCssUrl, baseFile), `provider '${p.id}'`)
-  }
-
-  return urls
-}
-
 /**
  * Сериализует один блок токенов темы в CSS.
  *
@@ -295,10 +237,13 @@ async function collectNodeCssSections(
 ): Promise<NodeCssSections> {
   const resolution = resolveGranularNode(options)
 
+  // Раскладка инлайнимых файлов — из общей функции, той же, из которой её
+  // читает диагностика. Порядок внутри неё: tokens → base → файлы тем.
+  const inlined = resolveInlinedCssSources(resolution.providers, resolution.themes.items, options.themes)
+
   // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
-  const baseTokenUrls = resolveBaseTokenUrls(resolution.providers, options.themes)
   const baseTokens = await Promise.all(
-    baseTokenUrls.map(({ url, origin }) => readCssFrom(
+    inlined.filter(src => src.theme === undefined).map(({ url, origin }) => readCssFrom(
       resolveCssFilePath(url),
       { origin, section: 'base/tokens' },
     )),
@@ -321,33 +266,15 @@ async function collectNodeCssSections(
   }
 
   // 3. Theme files (level-1 override).
-  // Дедуп по ИТОГОВОМУ url: несколько провайдеров одного дизайн-системного
-  // семейства могут ссылаться на один и тот же файл темы (или быть сведены к
-  // нему через `themes.themeFiles`), и без дедупа он читается и инлайнится
-  // столько раз, сколько провайдеров на него сослалось.
-  const themeFileUrls: Array<{ url: string, providerId: string, themeName: string }> = []
-  const seenThemeUrls = new Set<string>()
-  for (const { providerId, themeName, cssUrl, tokenDefinition } of resolution.themes.items) {
-    // Если есть tokenDefinition у ЭТОГО провайдера для ЭТОЙ темы — файл темы уже
-    // не используется (токены эмитятся структурно). Иначе берём cssUrl + override.
-    if (tokenDefinition)
-      continue
-
-    if (cssUrl) {
-      const override = options.themes?.themeFiles?.[themeName]
-      const finalUrl = pickThemeUrl(providerId, cssUrl, override as string | Partial<Record<string, string>> | undefined)
-      if (finalUrl && !seenThemeUrls.has(finalUrl)) {
-        seenThemeUrls.add(finalUrl)
-        themeFileUrls.push({ url: finalUrl, providerId, themeName })
-      }
-    }
-  }
-  // Параллельно, как и соседние секции: список URL уже дедуплицирован выше,
-  // порядок сохраняет `Promise.all`.
+  // Дедуп по ИТОГОВОМУ url и разведение структурных/файловых тем сделаны в
+  // `resolveInlinedCssSources`: несколько провайдеров одного дизайн-системного
+  // семейства могут ссылаться на один файл темы (или быть сведены к нему через
+  // `themes.themeFiles`), и без дедупа он инлайнился бы столько раз, сколько
+  // провайдеров на него сослалось.
   const themeFiles = await Promise.all(
-    themeFileUrls.map(({ url, providerId, themeName }) => readCssFrom(
+    inlined.filter(src => src.theme !== undefined).map(({ url, origin, theme }) => readCssFrom(
       resolveCssFilePath(url),
-      { origin: `provider '${providerId}'`, section: 'theme', subject: themeName },
+      { origin, section: 'theme', subject: theme },
     )),
   )
 

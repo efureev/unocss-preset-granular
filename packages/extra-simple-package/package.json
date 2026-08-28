@@ -69,12 +69,12 @@
   },
   "peerDependencies": {
     "@feugene/simple-package": "^0.1.0",
-    "@feugene/unocss-preset-granular": "^0.14.1",
+    "@feugene/unocss-preset-granular": "^0.15.0",
     "vue": "^3.5.40"
   },
   "devDependencies": {
     "@feugene/simple-package": "^0.1.0",
-    "@feugene/unocss-preset-granular": "^0.14.1",
+    "@feugene/unocss-preset-granular": "^0.15.0",
     "@types/node": "^26.1.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "typescript": "^6.0.3",

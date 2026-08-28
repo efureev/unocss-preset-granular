@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { granularDoctor } from '../doctor'
 import { formatTokensReport, granularTokens } from '../tokens'
 
 let root: string
@@ -170,6 +171,61 @@ describe('granularTokens: регрессии code-review', () => {
     expect(nobody.origin).toBe('none')
     expect(report.undefinedCount).toBe(1)
     expect(nobody.values[0].effective).toBeUndefined()
+  })
+})
+
+describe('granularTokens: токены из инлайнимого CSS', () => {
+  const inlinedProvider: GranularProvider = {
+    id: 'inl',
+    contractVersion: 1,
+    packageBaseUrl: 'file:///inl/',
+    components: [{ name: 'Btn', safelist: ['rounded-[var(--x-radius)]', 'text-[var(--x-fg)]'] }],
+    theme: {
+      tokensCssUrl: `data:text/css,${encodeURIComponent(':root{--x-radius:6px}')}`,
+      themes: { light: `data:text/css,${encodeURIComponent(':root{--x-fg:#111}')}` },
+      defaultThemes: ['light'],
+    },
+  }
+
+  it('провайдерский tokens.css даёт origin provider, а не «ничей»', () => {
+    // Провайдер вправе отдать всю палитру обычным CSS — тогда структурных
+    // слоёв у него нет вовсе, и до фикса ВЕСЬ его набор попадал в группу
+    // «not defined by any granular layer».
+    const report = granularTokens({ providers: [inlinedProvider], components: 'all' }, 'inl:Btn')
+    const radius = report.uses.find(u => u.token === 'x-radius')!
+
+    expect(radius.origin).toBe('provider')
+    expect(radius.inlined).toEqual([{ source: `provider 'inl'`, selector: ':root', value: '6px' }])
+    expect(report.undefinedCount).toBe(0)
+  })
+
+  it('файл темы помечается своей темой', () => {
+    const report = granularTokens({ providers: [inlinedProvider], components: 'all' }, 'inl:Btn')
+    expect(report.uses.find(u => u.token === 'x-fg')!.inlined![0].theme).toBe('light')
+  })
+
+  it('подменённый приложением файл даёт origin app', () => {
+    const report = granularTokens(
+      {
+        providers: [inlinedProvider],
+        components: 'all',
+        themes: { tokensFile: `data:text/css,${encodeURIComponent(':root{--x-radius:9px}')}` },
+      },
+      'inl:Btn',
+    )
+    const radius = report.uses.find(u => u.token === 'x-radius')!
+    expect(radius.origin).toBe('app')
+    expect(radius.inlined![0].value).toBe('9px')
+  })
+
+  it('doctor и granularTokens согласованы на одном и том же токене', () => {
+    // Одна конфигурация, один токен — два отчёта обязаны отвечать одинаково.
+    const opts = { providers: [inlinedProvider], components: 'all' as const }
+    const undefinedInDoctor = granularDoctor(opts).undefinedTokens.some(t => t.token === 'x-radius')
+    const undefinedInTokens = granularTokens(opts, 'inl:Btn').uses.some(u => u.token === 'x-radius' && u.origin === 'none')
+
+    expect(undefinedInDoctor).toBe(false)
+    expect(undefinedInTokens).toBe(false)
   })
 })
 

@@ -329,6 +329,43 @@ describe('doctor: token-undefined', () => {
     expect(report.undefinedTokens.map(t => t.token)).not.toContain('from-css')
   })
 
+  it('подмена tokensFile ВЫТЕСНЯЕТ провайдерский файл — токен становится неопределённым', () => {
+    // Главный баг 0.14.x: эмиссия заменяет провайдерский `tokens.css`, а
+    // диагностика складывала оба файла в одно множество «заданного». Токен,
+    // который приложение снесло подменой, оставался для неё заданным — и она
+    // молчала ровно в том случае, ради которого заведена.
+    const report = granularDoctor({
+      ...optionsWith({ tokensCssUrl: new URL('tokens.css', baseUrl).href }),
+      themes: { tokensFile: `data:text/css,${encodeURIComponent(':root{--other:1}')}` },
+    })
+
+    expect(report.undefinedTokens.map(t => t.token)).toContain('from-css')
+  })
+
+  it('пообъектная подмена вытесняет только своего провайдера', () => {
+    const report = granularDoctor({
+      ...optionsWith({ tokensCssUrl: new URL('tokens.css', baseUrl).href }),
+      themes: { tokensFile: { other: `data:text/css,${encodeURIComponent(':root{--x:1}')}` } },
+    })
+    // `pkg` в объекте нет — его файл остаётся, токен по-прежнему задан.
+    expect(report.undefinedTokens.map(t => t.token)).not.toContain('from-css')
+  })
+
+  it('структурная тема вытесняет файловую: файл темы не читается', () => {
+    // `resolveThemes` разводит их через `else if`, и файл в CSS не уезжает.
+    // Доктор, читавший `theme.themes[name]` напрямую, добавлял его токены в
+    // «заданные» — ложноотрицательные находки на ровном месте.
+    const report = granularDoctor({
+      ...optionsWith({
+        themes: { light: new URL('tokens.css', baseUrl).href },
+        tokenDefinitions: { light: { selector: ':root', tokens: { structural: '1px' } } },
+      }),
+      themes: { names: ['light'] },
+    })
+
+    expect(report.undefinedTokens.map(t => t.token)).toContain('from-css')
+  })
+
   it('токен, заданный через tokenOverrides, неопределённым не считается', () => {
     const report = granularDoctor({
       ...optionsWith(),

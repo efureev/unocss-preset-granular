@@ -11,7 +11,7 @@ import { collectDependencyClosure } from './core/resolveSelection'
 import { collectTokenLayers } from './core/tokenLayers'
 import { inspectEmittedComponentImports } from './fs/emittedImports'
 import { inspectGranularTokenUsage } from './fs/tokenUsage'
-import { parseCssCustomPropertyBlocksSync } from './node-utils/tokenDefinitionsFromCss'
+import { collectInlinedTokens } from './node-utils/inlinedCss'
 import { inspectGranularScanDirs, resolveGranularFilesystemGlobs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -346,51 +346,13 @@ function computeUndefinedTokens(
   }
 
   // CSS, который пресет инлайнит целиком: его токены granular тоже «задаёт».
-  const inlined: string[] = []
-  for (const provider of resolution.providers) {
-    const theme = provider.theme
-    if (!theme)
-      continue
-    if (theme.tokensCssUrl)
-      inlined.push(theme.tokensCssUrl)
-    if (theme.baseCssUrl)
-      inlined.push(theme.baseCssUrl)
-    for (const name of resolution.themes.names) {
-      const url = theme.themes?.[name]
-      if (url)
-        inlined.push(url)
-    }
-  }
-  // App-подмены инлайнимых файлов. `themeFiles` обязателен наравне с
-  // остальными: именно он решает, какой файл темы реально уедет в CSS, и без
-  // него доктор разбирал бы провайдерский оригинал, а ругался на подменённый.
-  for (const key of ['baseFile', 'tokensFile', 'themeFiles'] as const) {
-    const value = options.themes?.[key]
-    if (typeof value === 'string') {
-      inlined.push(value)
-      continue
-    }
-    if (!value)
-      continue
-    for (const nested of Object.values(value)) {
-      if (typeof nested === 'string')
-        inlined.push(nested)
-      else if (nested)
-        inlined.push(...Object.values(nested).filter((v): v is string => typeof v === 'string'))
-    }
-  }
-  for (const url of inlined) {
-    try {
-      for (const block of parseCssCustomPropertyBlocksSync(url)) {
-        for (const token of Object.keys(block.tokens))
-          defined.add(token)
-      }
-    }
-    catch {
-      // Нечитаемый или нестандартный CSS — не повод падать в диагностике;
-      // о нечитаемом CSS сообщает сборка через `GranularCssReadError`.
-    }
-  }
+  //
+  // Список файлов берётся из ТОЙ ЖЕ раскладки, из которой их читает эмиссия.
+  // Собирать его вторым проходом нельзя: app-override ЗАМЕНЯЕТ провайдерский
+  // файл, а не добавляется к нему, и диагностика, складывавшая оба, считала
+  // заданным токен, который приложение как раз снесло подменой.
+  for (const token of collectInlinedTokens(options, resolution).keys())
+    defined.add(token)
 
   const usage = inspectGranularTokenUsage(options, resolution, scanDirs)
   const found: DoctorUndefinedToken[] = []

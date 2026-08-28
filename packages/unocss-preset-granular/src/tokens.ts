@@ -8,6 +8,7 @@ import { buildRegistry, resolveComponentTarget, splitComponentKey } from './core
 import { collectDependencyClosure } from './core/resolveSelection'
 import { collectTokenLayers } from './core/tokenLayers'
 import { inspectGranularTokenUsage } from './fs/tokenUsage'
+import { collectInlinedTokens } from './node-utils/inlinedCss'
 import { inspectGranularScanDirs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -53,8 +54,18 @@ export interface TokensUsage {
   via: TokenUsageVia[]
   files: string[]
   hasFallback: boolean
-  /** Пусто ⇔ `origin === 'none'`. */
+  /** Цепочки структурных слоёв. Пусто, если токен объявлен только файлом. */
   values: TokensValueChain[]
+  /**
+   * Значения, пришедшие из CSS, который пресет инлайнит целиком
+   * (`tokensCssUrl`, `baseCssUrl`, файл темы).
+   *
+   * Отдельным полем, а не слоем в `values`: слоя такой файл не образует —
+   * `tokenOverrides` на его токен не подействует, пока провайдер не поднимет
+   * его до структурного через `tokenDefinitionsFromCss`. Смешать их значило бы
+   * завести ещё одно понятие «значения по умолчанию» рядом с настоящими слоями.
+   */
+  inlined?: Array<{ source: string, selector: string, value: string, theme?: string }>
 }
 
 /** Токен, который компонент ОБЪЯВЛЯЕТ. */
@@ -196,6 +207,11 @@ export function granularTokens(
     resolution,
     inspectGranularScanDirs(options).dirs,
   )
+  // Токены инлайнимого CSS — вторая половина пространства: провайдер вправе
+  // отдать всю палитру обычным `tokens.css`, и тогда структурных слоёв у него
+  // нет вовсе. Без этого источника весь его набор попадал в группу «ничьих»,
+  // расходясь с `doctor`, который такие токены из кандидатов вычитает.
+  const inlinedTokens = collectInlinedTokens(options, resolution)
 
   // --- Потребление -------------------------------------------------------
   const uses: TokensUsage[] = []
@@ -252,6 +268,15 @@ export function granularTokens(
       }
     }
 
+    // Токен без структурных слоёв мог прийти инлайнимым файлом. Владелец
+    // файла и определяет группу: провайдерский `tokens.css` — общий токен
+    // дизайн-системы, подменённый приложением — токен приложения.
+    const inlined = origin === 'none' ? inlinedTokens.get(token) : undefined
+    if (inlined) {
+      origin = inlined.owner === 'app' ? 'app' : 'provider'
+      declaredBy = inlined.origin
+    }
+
     uses.push({
       token,
       origin,
@@ -262,6 +287,16 @@ export function granularTokens(
       files,
       hasFallback,
       values,
+      ...(inlined
+        ? {
+            inlined: [{
+              source: inlined.origin,
+              selector: inlined.selector,
+              value: inlined.value,
+              ...(inlined.theme !== undefined ? { theme: inlined.theme } : {}),
+            }],
+          }
+        : {}),
     })
   }
   uses.sort((a, b) => ORIGIN_RANK[a.origin] - ORIGIN_RANK[b.origin] || a.token.localeCompare(b.token))
@@ -394,6 +429,13 @@ export function formatTokensReport(report: TokensReport, cwd: string): string {
     for (const value of use.values)
       push(`        [${value.theme}] ${value.selector}  ${formatChain(value.layers, value.effective)}`)
 
+    // Значения из инлайнимого CSS печатаются той же строкой, что и цепочки, но
+    // без стрелок: слоёв у них нет — это одно объявление в одном файле.
+    for (const value of use.inlined ?? []) {
+      push(`        ${value.theme !== undefined ? `[${value.theme}] ` : ''}${value.selector}  `
+        + `${value.source} ${value.value}`)
+    }
+
     if (use.alsoUsedBy.length)
       push(`        also used by (${use.alsoUsedBy.length}): ${use.alsoUsedBy.join(', ')}`)
     if (report.scope === 'deep' && use.usedBy.length > 1)
@@ -414,8 +456,9 @@ export function formatTokensReport(report: TokensReport, cwd: string): string {
   if (report.undefinedCount > 0) {
     push()
     push('Tokens in the last group may still be defined outside granular: by rules or')
-    push('shortcuts of UnoCSS itself or of a provider (provider.unocss), by base/tokens/')
-    push('theme CSS, or by the application — granular does not track those.')
+    push('shortcuts of UnoCSS itself or of a provider (provider.unocss), or by the')
+    push('application\'s own CSS — granular does not track those. Inlined base/tokens/')
+    push('theme CSS it does track, so tokens declared there are not in this group.')
   }
 
   return lines.join('\n')

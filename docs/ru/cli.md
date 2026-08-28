@@ -354,8 +354,8 @@ Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ie
 |---|---|---|
 | declared by this component | `own` | Компонент публикует токен через `tokenDefinitions` и сам его потребляет. |
 | declared by another component | `component` | Неявная связь через токен: публикует его кто-то другой. |
-| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions` — общая палитра. |
-| from the application | `app` | `themes.define` или `themes.tokenOverrides`. |
+| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions` либо его инлайнимый `tokensCssUrl` / `baseCssUrl` / файл темы — общая палитра. |
+| from the application | `app` | `themes.define`, `themes.tokenOverrides` либо файл, подменённый через `themes.tokensFile` / `baseFile` / `themeFiles`. |
 | not defined by any granular layer | `none` | Не задаёт никто. См. оговорку ниже. |
 
 `also used by` перечисляет **другие выбранные компоненты**, потребляющие тот же
@@ -372,6 +372,7 @@ Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ie
 |---|---|
 | `provider:@your/pkg #ccc → app-override #02f8fa` | дефолт провайдера, перебитый приложением |
 | `component:XTokenized red` | один слой — собственное значение компонента |
+| `provider '@your/pkg' 6px` (без стрелок) | объявлено в инлайнимом CSS-файле, а не структурным слоем |
 | `app-override 8px (dropped by strictTokens) — not in the CSS` | override написан, но `strictTokens` его отбросил |
 
 Цепочка приходит из той же функции, из которой эмитится CSS, поэтому показать
@@ -394,6 +395,11 @@ Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ie
 Потребление ищется тремя каналами — `safelist` (чистые данные резолюции),
 `component-css` (объявленные `cssFiles`) и `source-scan` (исходники компонента
 в `content.filesystem`). Разбор текстовый, отсюда границы:
+
+Токен, объявленный в инлайнимом CSS (`tokensCssUrl`, `baseCssUrl`, файл темы),
+несёт значение, но не цепочку слоёв: `tokenOverrides` до него не дотянется, пока
+провайдер не поднимет его через `tokenDefinitionsFromCss`. Такое значение
+печатается отдельной строкой, без стрелок.
 
 - **Токены в общих чанках вне директории компонента.** Если компонент объявил
   свои классы в `safelist`, они находятся там; если не объявил — их не видит и
