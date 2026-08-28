@@ -309,9 +309,24 @@ describe('doctor: token-undefined', () => {
     expect(report.undefinedTokens.map(t => t.token)).not.toContain('from-css')
   })
 
-  it('fallback в var(--x, …) отмечается — это не дефект', () => {
-    const found = granularDoctor(optionsWith()).undefinedTokens.find(t => t.token === 'with-fb')!
-    expect(found.hasFallback).toBe(true)
+  it('fallback в var(--x, …) отмечается и НЕ даёт диагностики', () => {
+    // `var(--x, 8px)` рисует корректно без единого слоя, поэтому дефектом не
+    // является. Запись в отчёте остаётся, диагностика — нет: иначе
+    // `doctor --strict` краснел бы в CI на исправном коде.
+    const report = granularDoctor(optionsWith())
+    expect(report.undefinedTokens.find(t => t.token === 'with-fb')!.hasFallback).toBe(true)
+    expect(report.diagnostics.some(d => d.subject.endsWith(':with-fb'))).toBe(false)
+  })
+
+  it('токены из подменённого themeFiles не считаются неопределёнными', () => {
+    // `themes.themeFiles` решает, какой файл темы реально уедет в CSS.
+    // Без его учёта доктор разбирал бы провайдерский оригинал, а ругался на
+    // подменённый — красный CI на верной конфигурации.
+    const report = granularDoctor({
+      ...optionsWith({ themes: { light: new URL('provider-light.css', baseUrl).href } }),
+      themes: { names: ['light'], themeFiles: { light: new URL('tokens.css', baseUrl).href } },
+    })
+    expect(report.undefinedTokens.map(t => t.token)).not.toContain('from-css')
   })
 
   it('токен, заданный через tokenOverrides, неопределённым не считается', () => {

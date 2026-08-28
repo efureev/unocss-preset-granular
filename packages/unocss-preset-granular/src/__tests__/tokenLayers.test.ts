@@ -42,7 +42,9 @@ describe('collectTokenLayers: цепочки слоёв', () => {
 
     expect(chain.layers).toEqual([
       { source: 'provider:p', value: '#aaa' },
-      { source: 'component:Card', value: '#bbb' },
+      // `componentKey` квалифицирован: имена компонентов уникальны только
+      // внутри провайдера, и по одному `source` автора не опознать.
+      { source: 'component:Card', value: '#bbb', componentKey: 'p:Card' },
       { source: 'app-override', value: '#ccc' },
     ])
     expect(chain.effective).toBe('#ccc')

@@ -25,6 +25,17 @@ export interface TokenLayerValue {
   source: string
   value: string
   /**
+   * Квалифицированный ключ компонента-автора (`<providerId>:<Name>`) — только
+   * у слоёв с `source: 'component:<Name>'`.
+   *
+   * Существует потому, что `source` несёт лишь ИМЯ компонента, а имена
+   * уникальны только внутри провайдера: два пакета вправе объявить свой
+   * `Button`. Восстанавливать ключ, приклеивая providerId читателя, значит
+   * приписать чужое объявление себе. `source` при этом не трогаем — его
+   * формат зафиксирован в `DoctorTokenConflict.sources` и в доках.
+   */
+  componentKey?: string
+  /**
    * Слой БЫЛ написан, но в CSS не уехал. Единственная нынешняя причина —
    * `strictTokens` отбросил override токена, которого не объявил ни один
    * пакетный слой.
@@ -72,11 +83,13 @@ export interface CollectTokenLayersOptions {
   onSkippedOverride?: (theme: string, token: string) => void
 }
 
-/** Метка источника вклада, пришедшего из резолюции тем. */
-function sourceOf(item: ResolvedThemeItem): string {
+/** Метка источника вклада и, для компонентов, его квалифицированный ключ. */
+function sourceOf(item: ResolvedThemeItem): { source: string, componentKey?: string } {
   if (item.appDefined)
-    return 'app-theme'
-  return item.componentName ? `component:${item.componentName}` : `provider:${item.providerId}`
+    return { source: 'app-theme' }
+  if (item.componentName)
+    return { source: `component:${item.componentName}`, componentKey: `${item.providerId}:${item.componentName}` }
+  return { source: `provider:${item.providerId}` }
 }
 
 /**
@@ -123,9 +136,11 @@ export function collectTokenLayers(
       if (item.themeName !== themeName || !item.tokenDefinition)
         continue
       const selector = item.tokenDefinition.selector ?? primarySelector
-      const source = sourceOf(item)
+      const { source, componentKey } = sourceOf(item)
       for (const [token, value] of Object.entries(item.tokenDefinition.tokens)) {
-        const layer: TokenLayerValue = { source, value }
+        const layer: TokenLayerValue = componentKey === undefined
+          ? { source, value }
+          : { source, value, componentKey }
         const key = `${selector}\0${token}`
         const list = bySelectorToken.get(key)
         if (list)

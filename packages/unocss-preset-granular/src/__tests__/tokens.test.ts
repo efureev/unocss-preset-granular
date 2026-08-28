@@ -131,6 +131,48 @@ describe('granularTokens: неизвестное имя', () => {
   })
 })
 
+describe('granularTokens: регрессии code-review', () => {
+  it('одноимённый компонент другого провайдера не считается своим', () => {
+    // `source` слоя — это `component:<Name>`, а имена уникальны лишь внутри
+    // провайдера. Склейка ключа из providerId читателя приписывала чужое
+    // объявление цели — с вердиктом `own`.
+    const donor: GranularProvider = {
+      id: 'other',
+      contractVersion: 1,
+      packageBaseUrl: baseUrl,
+      components: [{
+        name: 'Card',
+        // Объявляет ровно тот токен, который потребляет `pkg:Card`.
+        tokenDefinitions: { light: { selector: ':root', tokens: { nobody: '#111' } } },
+      }],
+    }
+    const report = granularTokens(
+      { providers: [provider(), donor], components: 'all', themes: { names: ['light'] } },
+      'pkg:Card',
+    )
+
+    const found = report.uses.find(u => u.token === 'nobody')!
+    // До фикса ключ собирался как `<providerId цели>:<имя из source>` и давал
+    // `pkg:Card` — то есть чужое объявление приписывалось цели как своё.
+    expect(found.origin).toBe('component')
+    expect(found.declaredBy).toBe('other:Card')
+  })
+
+  it('токен из одних лишь отброшенных strictTokens слоёв — origin none', () => {
+    // Иначе `granular tokens` называл бы его пришедшим от приложения, а
+    // `doctor` — неопределённым: два ответа про один токен.
+    const report = granularTokens(
+      options({ names: ['light'], strictTokens: true, tokenOverrides: { light: { nobody: 'red' } } }),
+      'pkg:Card',
+    )
+    const nobody = report.uses.find(u => u.token === 'nobody')!
+
+    expect(nobody.origin).toBe('none')
+    expect(report.undefinedCount).toBe(1)
+    expect(nobody.values[0].effective).toBeUndefined()
+  })
+})
+
 describe('formatTokensReport', () => {
   it('группирует по происхождению и печатает оговорку про открытость', () => {
     const text = formatTokensReport(granularTokens(options(), 'pkg:Card'), root)

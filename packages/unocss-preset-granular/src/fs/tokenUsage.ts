@@ -31,6 +31,19 @@ export interface ComponentTokenUsage {
   hasFallback: boolean
 }
 
+/**
+ * Внутренняя форма записи: множества вместо массивов.
+ *
+ * Дедуп через `Array.includes` делал построение индекса квадратичным по числу
+ * файлов, в которых встречается токен, — а частотный токен дизайн-системы
+ * попадает в тысячи файлов, и всё это внутри синхронного `doctor`.
+ */
+interface UsageAccumulator {
+  via: Set<TokenUsageVia>
+  files: Set<string>
+  hasFallback: boolean
+}
+
 export interface TokenUsageIndex {
   /** Токен (без `--`) → ключ компонента → как найдено. */
   usage: Map<string, Map<string, ComponentTokenUsage>>
@@ -117,24 +130,23 @@ export function inspectGranularTokenUsage(
   if (cached)
     return cached
 
-  const usage = new Map<string, Map<string, ComponentTokenUsage>>()
+  const acc = new Map<string, Map<string, UsageAccumulator>>()
   const scanned = { safelist: 0, cssFiles: 0, sourceFiles: 0, dirs: 0 }
 
   const record = (token: string, componentKey: string, via: TokenUsageVia, file: string | undefined, hasFallback: boolean): void => {
-    let byComponent = usage.get(token)
+    let byComponent = acc.get(token)
     if (!byComponent) {
       byComponent = new Map()
-      usage.set(token, byComponent)
+      acc.set(token, byComponent)
     }
     let entry = byComponent.get(componentKey)
     if (!entry) {
-      entry = { via: [], files: [], hasFallback: false }
+      entry = { via: new Set(), files: new Set(), hasFallback: false }
       byComponent.set(componentKey, entry)
     }
-    if (!entry.via.includes(via))
-      entry.via.push(via)
-    if (file !== undefined && !entry.files.includes(file))
-      entry.files.push(file)
+    entry.via.add(via)
+    if (file !== undefined)
+      entry.files.add(file)
     entry.hasFallback = entry.hasFallback || hasFallback
   }
 
@@ -156,7 +168,24 @@ export function inspectGranularTokenUsage(
   }
 
   // 2. Объявленные CSS-файлы компонентов.
-  for (const { providerId, componentName, url, assetName } of resolution.cssFiles) {
+  //
+  // `resolution.cssFiles` дедуплицирован по URL и хранит только ПЕРВОГО
+  // объявителя, поэтому владельцев файла восстанавливаем по дескрипторам: файл,
+  // объявленный двумя компонентами, принадлежит обоим, и приписать его одному
+  // значило бы скрыть потребление второго.
+  const cssOwners = new Map<string, string[]>()
+  for (const { provider, descriptor } of resolution.resolved.entries) {
+    for (const url of descriptor.cssFiles ?? []) {
+      const owners = cssOwners.get(url)
+      const key = `${provider.id}:${descriptor.name}`
+      if (owners)
+        owners.push(key)
+      else
+        cssOwners.set(url, [key])
+    }
+  }
+
+  for (const { providerId, url, assetName } of resolution.cssFiles) {
     const provider = providerById.get(providerId)
     if (!provider)
       continue
@@ -164,8 +193,11 @@ export function inspectGranularTokenUsage(
       const file = resolveComponentCssFileSync(url, provider.packageBaseUrl, assetName)
       const css = unescapeCss(readCssSync(file))
       scanned.cssFiles++
-      for (const [token, hasFallback] of extractTokenUses(css))
-        record(token, `${providerId}:${componentName}`, 'component-css', file, hasFallback)
+      const uses = extractTokenUses(css)
+      for (const owner of cssOwners.get(url) ?? []) {
+        for (const [token, hasFallback] of uses)
+          record(token, owner, 'component-css', file, hasFallback)
+      }
     }
     catch {
       // Нечитаемый CSS — отдельная проблема, её показывает сборка через
@@ -184,7 +216,7 @@ export function inspectGranularTokenUsage(
   // сканировал папку дважды, а не ради принадлежности.
   const scannable = new Set(scanDirs.map(d => d.dir))
   const extensions = resolveScanExtensions(options.scan ?? {})
-  const visited = new Set<string>()
+  const visited = new Map<string, Array<[file: string, uses: Map<string, boolean>]>>()
 
   for (const { provider, descriptor } of resolution.resolved.entries) {
     const key = `${provider.id}:${descriptor.name}`
@@ -209,25 +241,44 @@ export function inspectGranularTokenUsage(
       // компонент не сканируется и здесь.
       if (!scannable.has(dir))
         continue
-      if (!visited.has(dir)) {
-        visited.add(dir)
+
+      // Директория читается ОДИН раз, даже когда её делят несколько
+      // компонентов (`groups/<g>/shared/` входит в код каждого члена группы).
+      // Иначе группа из шести членов перечитывала бы общие файлы шестикратно —
+      // синхронно, внутри `granularDoctor`, — и `scanned.sourceFiles` выдавал
+      // бы больше файлов, чем их существует.
+      let parsed = visited.get(dir)
+      if (!parsed) {
+        parsed = []
+        for (const file of listSourceFilesSync(dir, extensions)) {
+          try {
+            // Намеренно обычное чтение, а не `readCssSync`: тот кэширует, и
+            // исходники компонентов вытеснили бы из LRU реально горячий CSS.
+            parsed.push([file, extractTokenUses(readFileSync(file, 'utf8'))])
+          }
+          catch {
+            continue
+          }
+        }
+        visited.set(dir, parsed)
         scanned.dirs++
+        scanned.sourceFiles += parsed.length
       }
-      for (const file of listSourceFilesSync(dir, extensions)) {
-        let source: string
-        try {
-          // Намеренно обычное чтение, а не `readCssSync`: тот кэширует, и
-          // исходники компонентов вытеснили бы из LRU реально горячий CSS.
-          source = readFileSync(file, 'utf8')
-        }
-        catch {
-          continue
-        }
-        scanned.sourceFiles++
-        for (const [token, hasFallback] of extractTokenUses(source))
+
+      for (const [file, uses] of parsed) {
+        for (const [token, hasFallback] of uses)
           record(token, key, 'source-scan', file, hasFallback)
       }
     }
+  }
+
+  // Множества материализуются в массивы один раз, на выходе.
+  const usage = new Map<string, Map<string, ComponentTokenUsage>>()
+  for (const [token, byComponent] of acc) {
+    const out = new Map<string, ComponentTokenUsage>()
+    for (const [component, entry] of byComponent)
+      out.set(component, { via: [...entry.via], files: [...entry.files], hasFallback: entry.hasFallback })
+    usage.set(token, out)
   }
 
   const index: TokenUsageIndex = {

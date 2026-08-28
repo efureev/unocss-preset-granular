@@ -92,21 +92,32 @@ export interface TokensReport {
   undefinedCount: number
   /** Заполнено, если имя не резолвится: что вообще объявлено. */
   available?: string[]
+  /**
+   * Почему имя не резолвится. `ambiguous` — компонент с таким именем есть у
+   * НЕСКОЛЬКИХ провайдеров, и его надо квалифицировать; `unknown` — нет ни у
+   * кого. Без этого различия отчёт на однозначно существующее имя писал бы
+   * «такого компонента никто не объявляет» и отправлял искать опечатку.
+   */
+  unresolved?: 'ambiguous' | 'unknown'
 }
 
 // ---------------------------------------------------------------------------
 // Collector
 // ---------------------------------------------------------------------------
 
-/** Происхождение по метке нижнего слоя цепочки. */
-function originOf(source: string, targetKey: string, providerId: string): { origin: TokenOrigin, declaredBy: string } {
-  if (source === 'app-theme' || source === 'app-override')
-    return { origin: 'app', declaredBy: source }
-  if (source.startsWith('component:')) {
-    const key = `${providerId}:${source.slice('component:'.length)}`
-    return { origin: key === targetKey ? 'own' : 'component', declaredBy: key }
-  }
-  return { origin: 'provider', declaredBy: source }
+/**
+ * Происхождение по нижнему слою цепочки.
+ *
+ * Ключ компонента берётся из `layer.componentKey`, а не собирается из
+ * providerId читателя: имена компонентов уникальны лишь внутри провайдера, и
+ * склейка приписала бы чужое объявление целевому пакету.
+ */
+function originOf(layer: TokenLayerValue, targetKey: string): { origin: TokenOrigin, declaredBy: string } {
+  if (layer.source === 'app-theme' || layer.source === 'app-override')
+    return { origin: 'app', declaredBy: layer.source }
+  if (layer.componentKey !== undefined)
+    return { origin: layer.componentKey === targetKey ? 'own' : 'component', declaredBy: layer.componentKey }
+  return { origin: 'provider', declaredBy: layer.source }
 }
 
 const ORIGIN_RANK: Record<TokenOrigin, number> = {
@@ -117,7 +128,7 @@ const ORIGIN_RANK: Record<TokenOrigin, number> = {
   none: 4,
 }
 
-function emptyReport(key: string, available: string[]): TokensReport {
+function emptyReport(key: string, available: string[], unresolved: 'ambiguous' | 'unknown'): TokensReport {
   const [providerId, name] = key.includes(':') ? splitComponentKey(key) : ['', key]
   return {
     key,
@@ -132,6 +143,7 @@ function emptyReport(key: string, available: string[]): TokensReport {
     sourceScanActive: false,
     undefinedCount: 0,
     available,
+    unresolved,
   }
 }
 
@@ -154,10 +166,9 @@ export function granularTokens(
 
   const resolved = resolveComponentTarget(target, registry)
   if ('ambiguous' in resolved) {
-    return emptyReport(
-      target,
-      resolved.ambiguous.length ? resolved.ambiguous : [...registry.components.keys()],
-    )
+    return resolved.ambiguous.length
+      ? emptyReport(target, resolved.ambiguous, 'ambiguous')
+      : emptyReport(target, [...registry.components.keys()], 'unknown')
   }
 
   const key = resolved.key
@@ -166,7 +177,7 @@ export function granularTokens(
   if (!entry) {
     return emptyReport(key, registry.providers.has(providerId)
       ? registry.getComponentsOfProvider(providerId).map(d => `${providerId}:${d.name}`)
-      : [...registry.components.keys()])
+      : [...registry.components.keys()], 'unknown')
   }
 
   const included = resolution.resolved.order.includes(key)
@@ -224,9 +235,13 @@ export function granularTokens(
           layers: chain.layers,
           ...(chain.effective !== undefined ? { effective: chain.effective } : {}),
         })
-        const bottom = chain.layers[0]
+        // Нижний РЕАЛЬНО применённый слой. Цепочка, состоящая из одних
+        // отброшенных `strictTokens` слоёв, происхождения не даёт: токена в
+        // CSS нет, и назвать его «пришедшим от приложения» значило бы
+        // разойтись с `doctor`, который считает такой токен неопределённым.
+        const bottom = chain.layers.find(l => l.skipped === undefined)
         if (bottom) {
-          const candidate = originOf(bottom.source, key, providerId)
+          const candidate = originOf(bottom, key)
           // Из нескольких тем берём «самое своё» происхождение; полные
           // цепочки остаются в `values`, так что расхождение видно.
           if (ORIGIN_RANK[candidate.origin] < ORIGIN_RANK[origin]) {
@@ -329,9 +344,11 @@ export function formatTokensReport(report: TokensReport, cwd: string): string {
   push()
 
   if (report.available) {
-    push('Status: no provider declares such a component')
+    push(report.unresolved === 'ambiguous'
+      ? 'Status: several providers declare a component with this name — qualify it as providerId:Name'
+      : 'Status: no provider declares such a component')
     push()
-    push(`Known components (${report.available.length}):`)
+    push(`${report.unresolved === 'ambiguous' ? 'Matching' : 'Known'} components (${report.available.length}):`)
     for (const key of report.available)
       push(`  • ${key}`)
     return lines.join('\n')
@@ -356,12 +373,17 @@ export function formatTokensReport(report: TokensReport, cwd: string): string {
   // --- Uses, grouped by origin ---
   push()
   push(`Uses (${report.uses.length}):${report.uses.length ? '' : ' —'}`)
+  // Размеры групп — одним проходом: `uses` уже отсортирован по происхождению,
+  // а пересчёт `filter` на каждом заголовке перечитывал бы весь список пять раз.
+  const groupSize = new Map<TokenOrigin, number>()
+  for (const use of report.uses)
+    groupSize.set(use.origin, (groupSize.get(use.origin) ?? 0) + 1)
+
   let currentOrigin: TokenOrigin | undefined
   for (const use of report.uses) {
     if (use.origin !== currentOrigin) {
       currentOrigin = use.origin
-      const count = report.uses.filter(u => u.origin === use.origin).length
-      push(`  ${ORIGIN_TITLE[use.origin]} (${count}):`)
+      push(`  ${ORIGIN_TITLE[use.origin]} (${groupSize.get(use.origin)}):`)
     }
 
     const marker = use.origin === 'none' ? '⚠' : '•'

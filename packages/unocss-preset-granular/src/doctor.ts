@@ -168,13 +168,8 @@ function depToString(dep: GranularComponentDependency): string {
 }
 
 function computeTokenConflicts(
-  resolution: ReturnType<typeof resolvePresetGranular>,
-  themesOpts: PresetGranularNodeOptions['themes'],
+  layers: ReturnType<typeof collectTokenLayers>,
 ): DoctorTokenConflict[] {
-  const layers = collectTokenLayers(resolution.themes, themesOpts?.tokenOverrides, {
-    strictTokens: themesOpts?.strictTokens,
-  })
-
   const conflicts: DoctorTokenConflict[] = []
   for (const blocks of layers.values()) {
     for (const block of blocks) {
@@ -337,12 +332,10 @@ function computeUndefinedTokens(
   options: PresetGranularNodeOptions,
   resolution: ReturnType<typeof resolvePresetGranular>,
   scanDirs: readonly DoctorScanDir[],
+  layers: ReturnType<typeof collectTokenLayers>,
 ): DoctorUndefinedToken[] {
   const defined = new Set<string>()
 
-  const layers = collectTokenLayers(resolution.themes, options.themes?.tokenOverrides, {
-    strictTokens: options.themes?.strictTokens,
-  })
   for (const blocks of layers.values()) {
     for (const block of blocks) {
       for (const chain of block.tokens.values()) {
@@ -368,12 +361,23 @@ function computeUndefinedTokens(
         inlined.push(url)
     }
   }
-  for (const key of ['baseFile', 'tokensFile'] as const) {
+  // App-подмены инлайнимых файлов. `themeFiles` обязателен наравне с
+  // остальными: именно он решает, какой файл темы реально уедет в CSS, и без
+  // него доктор разбирал бы провайдерский оригинал, а ругался на подменённый.
+  for (const key of ['baseFile', 'tokensFile', 'themeFiles'] as const) {
     const value = options.themes?.[key]
-    if (typeof value === 'string')
+    if (typeof value === 'string') {
       inlined.push(value)
-    else if (value)
-      inlined.push(...Object.values(value).filter((v): v is string => typeof v === 'string'))
+      continue
+    }
+    if (!value)
+      continue
+    for (const nested of Object.values(value)) {
+      if (typeof nested === 'string')
+        inlined.push(nested)
+      else if (nested)
+        inlined.push(...Object.values(nested).filter((v): v is string => typeof v === 'string'))
+    }
   }
   for (const url of inlined) {
     try {
@@ -491,6 +495,12 @@ function collectDiagnostics(
   }
 
   for (const t of undefinedTokens) {
+    // Потребление с fallback (`var(--x, 8px)`) самодостаточно: оно рисует
+    // корректно и без единого слоя, поэтому дефектом не является и в
+    // диагностику не идёт. В `undefinedTokens` запись остаётся — «слоя нет,
+    // но есть запасное значение» это факт, который отчёт обязан показать.
+    if (t.hasFallback)
+      continue
     warns.push({
       level: 'warn',
       code: 'token-undefined',
@@ -498,7 +508,7 @@ function collectDiagnostics(
       message: `token '--${t.token}' is used by ${t.component} (${t.via.join(', ')}) but no granular layer `
         + 'defines it for any active theme — it may still come from rules/shortcuts of UnoCSS itself or of a '
         + 'provider (provider.unocss), from base/tokens/theme CSS, or from the application; granular does not '
-        + `track those${t.hasFallback ? ' (the usage declares a fallback)' : ''}`,
+        + 'track those',
     })
   }
 
@@ -554,13 +564,18 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
       blocks.push({ theme, selector: block.selector, tokens: Object.keys(block.tokens).length })
   }
 
-  const tokenConflicts = computeTokenConflicts(resolution, options.themes)
+  // Раскладка слоёв считается ОДИН раз на прогон и раздаётся потребителям:
+  // конфликты и неопределённые токены читают одно и то же.
+  const tokenLayers = collectTokenLayers(resolution.themes, options.themes?.tokenOverrides, {
+    strictTokens: options.themes?.strictTokens,
+  })
+  const tokenConflicts = computeTokenConflicts(tokenLayers)
   const globs = resolveGranularFilesystemGlobs(options)
   // Тот же (мемоизированный) результат, из которого построены globs выше.
   const { dirs, skipped } = inspectGranularScanDirs(options)
 
   const undeclaredDependencies = computeUndeclaredDependencies(resolution)
-  const undefinedTokens = computeUndefinedTokens(options, resolution, dirs)
+  const undefinedTokens = computeUndefinedTokens(options, resolution, dirs, tokenLayers)
 
   const diagnostics = collectDiagnostics(
     resolution.providers,

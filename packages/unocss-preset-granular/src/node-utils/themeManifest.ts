@@ -50,15 +50,21 @@ export function getGranularThemeManifest(
   // содержит `themes.tokenOverrides`, и манифест с `includeTokens` отдавал бы
   // до-override значения, разъезжаясь с эмитируемым CSS при совпадающих
   // селекторах.
-  const tokenLayers = manifestOptions.includeTokens
-    ? collectTokenLayers(themes, options.themes?.tokenOverrides, {
-        strictTokens: options.themes?.strictTokens,
-      })
-    : undefined
+  // Считается ВСЕГДА, а не только под `includeTokens`: из этой же раскладки
+  // берутся СЕЛЕКТОРЫ. Вложенная форма `tokenOverrides` создаёт блок под новым
+  // селектором, и он попадает в эмитируемый CSS — манифест, читающий селекторы
+  // из `tokenRegistry`, о таком блоке не знал бы, и переключатель тем не смог
+  // бы активировать то, что в стилях есть.
+  const tokenLayers = collectTokenLayers(themes, options.themes?.tokenOverrides, {
+    strictTokens: options.themes?.strictTokens,
+  })
 
   const entries: GranularThemeEntry[] = themes.names.map((name) => {
     const registry = themes.tokenRegistry[name]
-    const selectors = registry?.blocks.map(block => block.selector) ?? []
+    const blocks = tokenLayers.get(name)
+    const selectors = blocks?.length
+      ? blocks.map(block => block.selector)
+      : registry?.blocks.map(block => block.selector) ?? []
     const activation = overrides[name] ?? resolveThemeActivation(selectors)
 
     // Метаданные берутся из ТОЙ ЖЕ резолюции, что и селекторы, — не из
@@ -74,9 +80,11 @@ export function getGranularThemeManifest(
       ...(meta?.colorScheme !== undefined ? { colorScheme: meta.colorScheme } : {}),
     }
 
-    if (manifestOptions.includeTokens && registry) {
+    // Без `&& registry`: тему, собранную одними лишь `tokenOverrides`, реестр
+    // не содержит, а CSS для неё эмитится — значения обязаны попасть в манифест.
+    if (manifestOptions.includeTokens) {
       entry.tokens = Object.fromEntries(
-        (tokenLayers?.get(name) ?? []).map(block => [
+        (blocks ?? []).map(block => [
           block.selector,
           Object.fromEntries(
             [...block.tokens.values()]

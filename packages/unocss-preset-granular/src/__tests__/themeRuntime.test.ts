@@ -105,6 +105,30 @@ describe('манифест собирается из той же резолюц�
     expect(manifest.themes[0].tokens).toEqual({ ':root': { brd: '#000' } })
   })
 
+  it('селектор, созданный вложенным tokenOverrides, попадает в манифест', () => {
+    // Вложенная форма создаёт блок под новым селектором, и он эмитится в CSS.
+    // Манифест, читавший селекторы из `tokenRegistry`, о нём не знал —
+    // переключатель не мог активировать то, что в стилях есть.
+    const manifest = getGranularThemeManifest(
+      {
+        providers: [provider],
+        themes: { names: ['dark'], tokenOverrides: { dark: { '[data-mode="hc"]': { brd: '#000' } } } },
+      },
+      { includeTokens: true },
+    )
+    const dark = manifest.themes.find(t => t.name === 'dark')!
+    expect(dark.selectors).toContain('[data-mode="hc"]')
+    expect(dark.tokens!['[data-mode="hc"]']).toEqual({ brd: '#000' })
+  })
+
+  it('тема, собранная одними overrides, всё равно несёт токены', () => {
+    const manifest = getGranularThemeManifest(
+      { providers: [provider], themes: { names: ['brand'], tokenOverrides: { brand: { accent: '#f0f' } } } },
+      { includeTokens: true },
+    )
+    expect(manifest.themes[0].tokens).toEqual({ ':root': { accent: '#f0f' } })
+  })
+
   it('тема из CSS-файла даёт unknown, но чинится явной активацией', () => {
     const fileThemed = defineGranularProvider({
       id: 'file',
