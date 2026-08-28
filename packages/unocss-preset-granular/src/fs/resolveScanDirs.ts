@@ -91,7 +91,24 @@ function isExistingFile(path: string): boolean {
   }
 }
 
-function canonicalize(path: string): string {
+/**
+ * Путь к директории компонента по layout-контракту: `components/<Name>/`
+ * от `packageBaseUrl`. Бросает, если база не резолвится.
+ *
+ * Экспортируется, чтобы формула контракта существовала в ОДНОМ месте:
+ * её же использует сканер потребления токенов.
+ */
+export function componentDirPath(packageBaseUrl: string, componentName: string): string {
+  return fileURLToPath(new URL(`components/${componentName}/`, packageBaseUrl))
+}
+
+/** Путь к общей директории группы: `groups/<group>/shared/` от `packageBaseUrl`. */
+export function groupSharedDirPath(packageBaseUrl: string, group: string): string {
+  return fileURLToPath(new URL(`groups/${group}/shared/`, packageBaseUrl))
+}
+
+/** Канонический путь (realpath), чтобы symlink не считался другой директорией. */
+export function canonicalize(path: string): string {
   try {
     return realpathSync(path)
   }
@@ -125,7 +142,7 @@ export function resolveComponentScanDirs(
   for (const { provider, descriptor } of resolution.resolved.entries) {
     let dir: string
     try {
-      dir = fileURLToPath(new URL(`components/${descriptor.name}/`, provider.packageBaseUrl))
+      dir = componentDirPath(provider.packageBaseUrl, descriptor.name)
     }
     catch {
       if (strict) {
@@ -196,7 +213,7 @@ export function resolveComponentScanDirs(
 
     let sharedDir: string
     try {
-      sharedDir = fileURLToPath(new URL(`groups/${group}/shared/`, provider.packageBaseUrl))
+      sharedDir = groupSharedDirPath(provider.packageBaseUrl, group)
     }
     catch {
       // Invalid packageBaseUrl is already reported above for the

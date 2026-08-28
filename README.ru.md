@@ -119,18 +119,20 @@ export default defineConfig({
 
 ## CLI — `granular`
 
-Пакет ставит бинарь `granular` с тремя диагностическими командами. `doctor`
+Пакет ставит бинарь `granular` с четырьмя диагностическими командами. `doctor`
 печатает резолвнутую конфигурацию: провайдеров, транзитивный граф компонентов,
 имена тем (и откуда они взялись), конфликты токенов между слоями, итоговые
 скан‑globs и директории компонентов, нарушающие layout‑контракт; `explain`
 объясняет, почему компонент в сборке; `why-css` — какой компонент притащил
-класс в CSS:
+класс в CSS; `tokens` — какие токены тем компонент объявляет и потребляет и
+откуда берётся каждое значение:
 
 ```bash
 # granular.options.mjs — тот же объект опций, что уходит в пресет
 npx granular doctor  ./granular.options.mjs --strict
 npx granular explain ./granular.options.mjs '@feugene/simple-package:XTokenized'
 npx granular why-css ./granular.options.mjs 'rounded-3xl'
+npx granular tokens  ./granular.options.mjs XTokenized --deep
 ```
 
 Код выхода `1` — найдены нарушения layout‑контракта (с `--strict` — и

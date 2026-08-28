@@ -115,18 +115,20 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 
 ## CLI — `granular`
 
-The package ships a `granular` binary with three diagnostic commands. `doctor`
+The package ships a `granular` binary with four diagnostic commands. `doctor`
 prints the resolved configuration — providers, the transitive component graph,
 theme names (and where they came from), token conflicts between layers, the
 scan globs, and any component directory that violates the layout contract;
 `explain` says why a component is in the build; `why-css` says which component
-pulled a class into the CSS:
+pulled a class into the CSS; `tokens` says which theme tokens a component
+declares and consumes, and where each value comes from:
 
 ```bash
 # granular.options.mjs — the same options object you pass to the preset
 npx granular doctor  ./granular.options.mjs --strict
 npx granular explain ./granular.options.mjs '@feugene/simple-package:XTokenized'
 npx granular why-css ./granular.options.mjs 'rounded-3xl'
+npx granular tokens  ./granular.options.mjs XTokenized --deep
 ```
 
 Exit code `1` means layout‑contract violations were found (with `--strict`,

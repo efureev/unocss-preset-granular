@@ -1,11 +1,12 @@
 # The `granular` CLI
 
 The preset ships one executable, `granular`, declared as `bin` in
-`@feugene/unocss-preset-granular`. It has three subcommands: `doctor` prints
+`@feugene/unocss-preset-granular`. It has four subcommands: `doctor` prints
 what the preset actually sees (providers, the transitive component graph, theme
 token blocks, token conflicts, scan globs and layout-contract violations),
 `explain` answers why a particular component ended up in the build, and
-`why-css` answers which component pulled a particular class into the CSS.
+`why-css` answers which component pulled a particular class into the CSS,
+and `tokens` answers which theme tokens a component declares and consumes.
 
 > 🇷🇺 Русская версия: [`../ru/cli.md`](../ru/cli.md).
 
@@ -15,6 +16,7 @@ Run it through the package manager (no global install needed):
 npx granular doctor  ./granular.options.mjs [--json] [--strict]
 npx granular explain ./granular.options.mjs '@your/pkg:XButton' [--json]
 npx granular why-css ./granular.options.mjs 'text-red-500' [--json]
+npx granular tokens  ./granular.options.mjs 'XButton' [--deep] [--json]
 ```
 
 ## The options file
@@ -205,6 +207,7 @@ with two levels. The criterion is one: **must this break the build**.
 | `unused-provider` | `warn` | A provider contributed nothing: no selected components, no `theme`, no `unocss`. |
 | `undeclared-dependency` | `warn` | A built component imports another one without declaring it — its classes vanish for anyone who selects it alone. |
 | `token-prefix` | `warn` | A token key is declared **with** the `--` prefix — the generator adds it itself, so the CSS gets a valid but useless `----x` and the theme silently loses the value. |
+| `token-undefined` | `warn` | A component consumes a token no granular layer defines. Heuristic in the same way `undeclared-dependency` is: the token may still come from outside granular. |
 
 `ok` in the report means "no `error` at all", `clean` means "nothing at all".
 By default `doctor` only fails on an `error`; `--strict` makes it fail on
@@ -220,9 +223,9 @@ Diagnostics summary (errors: 0, warnings: 2):
 
 ### `--json`
 
-All three commands take the flag: it prints the same report as a structure, so
+All four commands take the flag: it prints the same report as a structure, so
 you never have to parse the text. The shape is exactly `DoctorReport` /
-`ExplainReport` / `WhyCssReport` from `/node`:
+`ExplainReport` / `WhyCssReport` / `TokensReport` from `/node`:
 
 ```json
 {
@@ -319,6 +322,97 @@ theme CSS file, or from your application code — those sources are invisible to
 the command. As a CI assertion ("this class no longer comes from the package")
 the exit code does the job.
 
+## `tokens` — which tokens a component needs
+
+`explain` answers where a component came from; `tokens` answers what it needs in
+order to look right. It separates the component's **own** tokens from the
+**shared** ones it merely consumes, shows the full chain of layers behind every
+value, and names the tokens nobody defines.
+
+```bash
+npx granular tokens ./granular.options.mjs XTestStyled [--deep] [--json]
+```
+
+```text
+granular tokens @feugene/simple-package:XTestStyled
+===================================================
+
+Status: in the build; scope: this component only (--deep adds sub-components)
+
+Declares (0): —
+
+Uses (4):
+  from the application (2):
+    • --brd  [safelist]
+        [light] :root  app-override #02f8fa
+        also used by (1): @feugene/simple-package:XTest1
+    • --card-fg  [safelist]
+        [light] :root  app-override #af172a
+  not defined by any granular layer (2):
+    ⚠ --card  [safelist] (no fallback)
+    ⚠ --ds-radius-lg  [safelist] (no fallback)
+
+Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ies).
+```
+
+### Own tokens versus shared ones
+
+`Uses` is grouped by **origin** — the bottom layer of the token's chain — and
+the order of the groups *is* the answer to "which are mine and which are shared":
+
+| Group | Origin | What it means |
+|---|---|---|
+| declared by this component | `own` | The component publishes it via `tokenDefinitions` and consumes it. |
+| declared by another component | `component` | An implicit link through a token: someone else publishes it. |
+| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions` — the shared palette. |
+| from the application | `app` | `themes.define` or `themes.tokenOverrides`. |
+| not defined by any granular layer | `none` | Nobody defines it. See the caveat below. |
+
+`also used by` lists the **other selected components** consuming the same token
+— that is, who else a change to it would touch. It is always computed: the scan
+walks every selected component in one pass anyway, so the marginal cost is zero.
+
+### Values, layer by layer
+
+Every value is printed as the chain that produced it, in application order,
+so it is visible not just *what* the value is but *who* set it:
+
+| Chain | Reading |
+|---|---|
+| `provider:@your/pkg #ccc → app-override #02f8fa` | the provider's default, overridden by the app |
+| `component:XTokenized red` | a single layer — the component's own value |
+| `app-override 8px (dropped by strictTokens) — not in the CSS` | the override was written but `strictTokens` discarded it |
+
+The chain comes from the same function that emits the CSS, so it cannot report a
+value the build does not produce.
+
+### `--deep` — tokens of sub-components
+
+Without the flag the report covers the component alone. `--deep` adds its
+transitive `dependencies`, which answers "what does this component need
+*including* everything it pulls in". Origin is always computed **relative to the
+target**: a token published by a sub-component shows up as
+`declared by another component`, which is exactly what the flag exists to
+surface.
+
+Parts living inside the component's own directory (`parts/`) are not
+dependencies and never were — they are the component's own code, so their
+tokens stay `own`.
+
+### What the check cannot see
+
+Consumption is found through three channels — `safelist` (pure resolution
+data), `component-css` (declared `cssFiles`) and `source-scan` (component
+sources in `content.filesystem`). The parsing is textual, so the limits are:
+
+- **Tokens in shared chunks outside the component directory.** If the component
+  declares its classes in `safelist`, they are found there; if it does not, the
+  UnoCSS extractor does not see them either, so the gap coincides with the CSS
+  actually being absent.
+- **Dynamically built names** (`` var(--${name}) ``) — unknown until runtime.
+- **`var(--x)` inside a data string or a comment** counts as consumption.
+- **`.cjs`** is not read, exactly as in the dependency check.
+
 ## Exit codes
 
 | Invocation | Output | Exit code |
@@ -330,6 +424,8 @@ the exit code does the job.
 | `granular explain <file> <component>` — name unknown or ambiguous | report with the known names | `1` |
 | `granular why-css <file> <class>` — a source was found | report on stdout | `0` |
 | `granular why-css <file> <class>` — no source | report on stdout | `1` |
+| `granular tokens <file> <component>` — component known | report on stdout | `0` |
+| `granular tokens <file> <component>` — name unknown or ambiguous | report with the known names | `1` |
 | any command — file missing, unimportable, or exporting no options | message on stderr | `1` |
 | `granular help` / `--help` / `-h` | usage on stdout | `0` |
 | `granular` with no arguments | usage on stdout | `1` |
@@ -354,6 +450,7 @@ import {
   formatDoctorReport,
   granularDoctor,
   granularExplain,
+  granularTokens,
   granularWhyCss,
 } from '@feugene/unocss-preset-granular/node'
 import granularOptions from './granular.options.mjs'
@@ -366,6 +463,7 @@ if (!report.ok)
 
 granularExplain(granularOptions, '@your/pkg:XButton') // ExplainReport
 await granularWhyCss(granularOptions, 'text-red-500') // WhyCssReport (reads files)
+granularTokens(granularOptions, '@your/pkg:XButton', 'deep') // TokensReport
 ```
 
 `granularDoctor` and `granularExplain` resolve through the same memoized
@@ -376,10 +474,11 @@ resolved one.
 
 The types (exported from `/node`): `DoctorReport` has `providers`,
 `components`, `themes` (`names`, `namesSource`, `blocks`, `warnings`),
-`tokenConflicts`, `undeclaredDependencies`, `scan` (`globs`, `dirs`, `missing`),
+`tokenConflicts`, `undefinedTokens`, `undeclaredDependencies`, `scan` (`globs`, `dirs`, `missing`),
 `diagnostics` and the booleans `ok` / `clean`; `ExplainReport` has `reason`, `chain`, `requiredBy`,
 `safelist`, `cssFiles`, `tokens`, `scanDirs`; `WhyCssReport` has `hits`,
-`scanned`, `found`.
+`scanned`, `found`; `TokensReport` has `scope`, `components`, `declares`, `uses`,
+`scanned`, `sourceScanActive`, `undefinedCount`.
 
 ### Report stability
 

@@ -1,11 +1,12 @@
 # CLI `granular`
 
 Пресет ставит один исполняемый файл — `granular`, объявленный как `bin` в
-`@feugene/unocss-preset-granular`. У него три подкоманды: `doctor` печатает то,
+`@feugene/unocss-preset-granular`. У него четыре подкоманды: `doctor` печатает то,
 что пресет видит на самом деле (провайдеров, транзитивный граф компонентов,
 блоки токенов тем, конфликты токенов, скан-globs и нарушения
 layout-контракта), `explain` отвечает, почему в сборке оказался конкретный
-компонент, а `why-css` — какой компонент притащил в CSS конкретный класс.
+компонент, `why-css` — какой компонент притащил в CSS конкретный класс,
+а `tokens` — какие токены тем компонент объявляет и потребляет.
 
 > 🇬🇧 English version: [`../en/cli.md`](../en/cli.md).
 
@@ -15,6 +16,7 @@ layout-контракта), `explain` отвечает, почему в сбор
 npx granular doctor  ./granular.options.mjs [--json] [--strict]
 npx granular explain ./granular.options.mjs '@your/pkg:XButton' [--json]
 npx granular why-css ./granular.options.mjs 'text-red-500' [--json]
+npx granular tokens  ./granular.options.mjs 'XButton' [--deep] [--json]
 ```
 
 ## Файл опций
@@ -197,6 +199,7 @@ Scan globs (0):
 | `unused-provider` | `warn` | Провайдер не дал сборке ничего: ни выбранных компонентов, ни `theme`, ни `unocss`. |
 | `undeclared-dependency` | `warn` | Собранный компонент импортирует другой, не объявив его — у того, кто выберет его отдельно, классы исчезнут. |
 | `token-prefix` | `warn` | Ключ токена объявлен **с** префиксом `--` — генератор дописывает его сам, в CSS уедет валидный, но бесполезный `----x`, и тема молча останется без значения. |
+| `token-undefined` | `warn` | Компонент потребляет токен, которого не задаёт ни один granular-слой. Эвристика ровно в том же смысле, что `undeclared-dependency`: токен может прийти извне granular. |
 
 `ok` в отчёте — это «нет ни одной `error`», `clean` — «нет вообще ничего».
 По умолчанию `doctor` падает только на `error`; `--strict` роняет его и на
@@ -212,9 +215,9 @@ Diagnostics summary (errors: 0, warnings: 2):
 
 ### `--json`
 
-Флаг есть у всех трёх команд: он печатает тот же отчёт структурой, чтобы его
+Флаг есть у всех четырёх команд: он печатает тот же отчёт структурой, чтобы его
 не пришлось разбирать из текста. Форма — ровно `DoctorReport` /
-`ExplainReport` / `WhyCssReport` из `/node`:
+`ExplainReport` / `WhyCssReport` / `TokensReport` из `/node`:
 
 ```json
 {
@@ -309,6 +312,96 @@ Scanned: 0 CSS file(s), 2 source file(s) in 1 director(ies).
 темы либо из кода приложения — эти источники команде не видны. Зато как ассерт
 в CI («этот класс больше не приходит из пакета») код выхода работает.
 
+## `tokens` — какие токены нужны компоненту
+
+`explain` отвечает, откуда компонент взялся; `tokens` — что ему нужно, чтобы
+выглядеть правильно. Команда отделяет **собственные** токены компонента от
+**общих**, которые он лишь потребляет, показывает полную цепочку слоёв за каждым
+значением и называет токены, которых не задаёт никто.
+
+```bash
+npx granular tokens ./granular.options.mjs XTestStyled [--deep] [--json]
+```
+
+```text
+granular tokens @feugene/simple-package:XTestStyled
+===================================================
+
+Status: in the build; scope: this component only (--deep adds sub-components)
+
+Declares (0): —
+
+Uses (4):
+  from the application (2):
+    • --brd  [safelist]
+        [light] :root  app-override #02f8fa
+        also used by (1): @feugene/simple-package:XTest1
+    • --card-fg  [safelist]
+        [light] :root  app-override #af172a
+  not defined by any granular layer (2):
+    ⚠ --card  [safelist] (no fallback)
+    ⚠ --ds-radius-lg  [safelist] (no fallback)
+
+Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ies).
+```
+
+### Свои токены против общих
+
+`Uses` группируется по **происхождению** — нижнему слою цепочки токена, — и сам
+порядок групп есть ответ на вопрос «где мои, а где общие»:
+
+| Группа | Происхождение | Что означает |
+|---|---|---|
+| declared by this component | `own` | Компонент публикует токен через `tokenDefinitions` и сам его потребляет. |
+| declared by another component | `component` | Неявная связь через токен: публикует его кто-то другой. |
+| from the provider — design-system tokens | `provider` | `provider.theme.tokenDefinitions` — общая палитра. |
+| from the application | `app` | `themes.define` или `themes.tokenOverrides`. |
+| not defined by any granular layer | `none` | Не задаёт никто. См. оговорку ниже. |
+
+`also used by` перечисляет **другие выбранные компоненты**, потребляющие тот же
+токен, — то есть кого ещё заденет его правка. Считается всегда: обход всё равно
+идёт по всем выбранным компонентам за один проход, поэтому дополнительная
+стоимость нулевая.
+
+### Значения по слоям
+
+Каждое значение печатается цепочкой, породившей его, в порядке применения —
+поэтому видно не только *какое* значение, но и *кто* его задал:
+
+| Цепочка | Как читать |
+|---|---|
+| `provider:@your/pkg #ccc → app-override #02f8fa` | дефолт провайдера, перебитый приложением |
+| `component:XTokenized red` | один слой — собственное значение компонента |
+| `app-override 8px (dropped by strictTokens) — not in the CSS` | override написан, но `strictTokens` его отбросил |
+
+Цепочка приходит из той же функции, из которой эмитится CSS, поэтому показать
+значение, которого сборка не производит, она не может.
+
+### `--deep` — токены под-компонентов
+
+Без флага отчёт покрывает только сам компонент. `--deep` добавляет его
+транзитивные `dependencies` и отвечает на вопрос «что нужно компоненту
+*вместе* со всем, что он тянет». Происхождение всегда считается
+**относительно цели**: токен, опубликованный под-компонентом, попадает в группу
+`declared by another component` — ровно то, ради чего флаг и нужен.
+
+Части, лежащие внутри директории самого компонента (`parts/`), зависимостями не
+являются и никогда не были — это его собственный код, поэтому их токены
+остаются `own`.
+
+### Чего проверка не видит
+
+Потребление ищется тремя каналами — `safelist` (чистые данные резолюции),
+`component-css` (объявленные `cssFiles`) и `source-scan` (исходники компонента
+в `content.filesystem`). Разбор текстовый, отсюда границы:
+
+- **Токены в общих чанках вне директории компонента.** Если компонент объявил
+  свои классы в `safelist`, они находятся там; если не объявил — их не видит и
+  extractor UnoCSS, так что пропуск совпадает с фактическим отсутствием CSS.
+- **Динамически собранные имена** (`` var(--${name}) ``) — неизвестны до рантайма.
+- **`var(--x)` внутри строки-данных или комментария** засчитается как потребление.
+- **`.cjs`** не читается — ровно как в проверке зависимостей.
+
 ## Коды выхода
 
 | Вызов | Вывод | Код |
@@ -320,6 +413,8 @@ Scanned: 0 CSS file(s), 2 source file(s) in 1 director(ies).
 | `granular explain <file> <component>` — имя неизвестно или неоднозначно | отчёт со списком известных | `1` |
 | `granular why-css <file> <class>` — источник найден | отчёт в stdout | `0` |
 | `granular why-css <file> <class>` — источников нет | отчёт в stdout | `1` |
+| `granular tokens <file> <component>` — компонент известен | отчёт в stdout | `0` |
+| `granular tokens <file> <component>` — имя неизвестно или неоднозначно | отчёт со списком известных | `1` |
 | любая команда — файла нет, не импортируется или не экспортирует опции | сообщение в stderr | `1` |
 | `granular help` / `--help` / `-h` | справка в stdout | `0` |
 | `granular` без аргументов | справка в stdout | `1` |
@@ -344,6 +439,7 @@ import {
   formatDoctorReport,
   granularDoctor,
   granularExplain,
+  granularTokens,
   granularWhyCss,
 } from '@feugene/unocss-preset-granular/node'
 import granularOptions from './granular.options.mjs'
@@ -356,6 +452,7 @@ if (!report.ok)
 
 granularExplain(granularOptions, '@your/pkg:XButton') // ExplainReport
 await granularWhyCss(granularOptions, 'text-red-500') // WhyCssReport (читает файлы)
+granularTokens(granularOptions, '@your/pkg:XButton', 'deep') // TokensReport
 ```
 
 `granularDoctor` и `granularExplain` резолвят через тот же мемоизированный
@@ -366,10 +463,12 @@ await granularWhyCss(granularOptions, 'text-red-500') // WhyCssReport (чита�
 
 Типы (экспортируются из `/node`): `DoctorReport` — `providers`, `components`,
 `themes` (`names`, `namesSource`, `blocks`, `warnings`), `tokenConflicts`,
-`undeclaredDependencies`, `scan` (`globs`, `dirs`, `missing`), `diagnostics`
+`undefinedTokens`, `undeclaredDependencies`, `scan` (`globs`, `dirs`, `missing`), `diagnostics`
 и булевы `ok` / `clean`;
 `ExplainReport` — `reason`, `chain`, `requiredBy`, `safelist`, `cssFiles`,
-`tokens`, `scanDirs`; `WhyCssReport` — `hits`, `scanned`, `found`.
+`tokens`, `scanDirs`; `WhyCssReport` — `hits`, `scanned`, `found`;
+`TokensReport` — `scope`, `components`, `declares`, `uses`, `scanned`,
+`sourceScanActive`, `undefinedCount`.
 
 ### Стабильность отчётов
 

@@ -94,6 +94,17 @@ describe('манифест собирается из той же резолюц�
       .toEqual({ ':root': { brd: '#eee' } })
   })
 
+  it('includeTokens отдаёт значения ПОСЛЕ tokenOverrides', () => {
+    // Регрессия: манифест читал `tokenRegistry`, куда слой `tokenOverrides`
+    // не входит, и отдавал значения, которых в эмитируемом CSS уже нет —
+    // при совпадающих селекторах это молчаливое расхождение.
+    const manifest = getGranularThemeManifest(
+      { providers: [provider], themes: { names: ['light'], tokenOverrides: { light: { brd: '#000' } } } },
+      { includeTokens: true },
+    )
+    expect(manifest.themes[0].tokens).toEqual({ ':root': { brd: '#000' } })
+  })
+
   it('тема из CSS-файла даёт unknown, но чинится явной активацией', () => {
     const fileThemed = defineGranularProvider({
       id: 'file',

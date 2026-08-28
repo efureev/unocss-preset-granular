@@ -1,3 +1,4 @@
+export { type ThemeTokenOverrides, type TokenChain, type TokenLayerValue } from './core/tokenLayers'
 export {
   countDoctorDiagnostics,
   type DoctorComponentInfo,
@@ -11,6 +12,7 @@ export {
   type DoctorThemeBlock,
   type DoctorTokenConflict,
   type DoctorUndeclaredDependency,
+  type DoctorUndefinedToken,
   formatDoctorReport,
   granularDoctor,
 } from './doctor'
@@ -46,6 +48,7 @@ export {
   type ScanDirsInspection,
   type SkippedScanDir,
 } from './fs/resolveScanDirs'
+export { type TokenUsageVia } from './fs/tokenUsage'
 export * from './index'
 export {
   GranularTokenRefError,
@@ -90,6 +93,15 @@ export {
   type GranularThemeEntry,
   type GranularThemeManifest,
 } from './runtime/manifest'
+export {
+  formatTokensReport,
+  granularTokens,
+  type TokenOrigin,
+  type TokensDeclaration,
+  type TokensReport,
+  type TokensUsage,
+  type TokensValueChain,
+} from './tokens'
 export {
   formatWhyCssReport,
   granularWhyCss,

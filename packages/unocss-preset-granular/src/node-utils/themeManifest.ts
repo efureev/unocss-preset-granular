@@ -1,6 +1,7 @@
 import type { PresetGranularNodeOptions } from '../preset.node'
 import type { GranularThemeActivation, GranularThemeEntry, GranularThemeManifest } from '../runtime/manifest'
 
+import { collectTokenLayers } from '../core/tokenLayers'
 import { resolveGranularNode } from '../preset.node'
 import { resolveThemeActivation } from '../runtime/manifest'
 
@@ -45,6 +46,16 @@ export function getGranularThemeManifest(
   const { themes } = resolveGranularNode(options)
   const overrides = manifestOptions.activations ?? {}
 
+  // Значения — из общей раскладки слоёв, а не из `tokenRegistry`: последний не
+  // содержит `themes.tokenOverrides`, и манифест с `includeTokens` отдавал бы
+  // до-override значения, разъезжаясь с эмитируемым CSS при совпадающих
+  // селекторах.
+  const tokenLayers = manifestOptions.includeTokens
+    ? collectTokenLayers(themes, options.themes?.tokenOverrides, {
+        strictTokens: options.themes?.strictTokens,
+      })
+    : undefined
+
   const entries: GranularThemeEntry[] = themes.names.map((name) => {
     const registry = themes.tokenRegistry[name]
     const selectors = registry?.blocks.map(block => block.selector) ?? []
@@ -65,7 +76,14 @@ export function getGranularThemeManifest(
 
     if (manifestOptions.includeTokens && registry) {
       entry.tokens = Object.fromEntries(
-        registry.blocks.map(block => [block.selector, { ...block.tokens }]),
+        (tokenLayers?.get(name) ?? []).map(block => [
+          block.selector,
+          Object.fromEntries(
+            [...block.tokens.values()]
+              .filter(chain => chain.effective !== undefined)
+              .map(chain => [chain.token, chain.effective!]),
+          ),
+        ]),
       )
     }
 

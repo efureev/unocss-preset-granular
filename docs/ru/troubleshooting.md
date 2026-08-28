@@ -74,6 +74,23 @@ npx granular why-css ./granular.options.mjs p-5
 Нужен `@unocss/preset-wind4` (или пресет, включающий arbitrary values (presetMini)).
 `presetWind4()` должен быть в `presets` **перед** `presetGranularNode(...)`.
 
+## «Класс в CSS есть, но свойство ничего не делает»
+
+Утилита сэмичена, селектор совпал, а бордер всё равно без цвета или радиус без
+скругления. Обычная причина — токен, которого не задаёт никто: `var(--card)`
+без fallback это совершенно валидный CSS, который резолвится в ничто — ни
+ошибки, ни предупреждения, сборка зелёная.
+
+```bash
+npx granular tokens ./granular.options.mjs XTestStyled
+```
+
+Отчёт группирует токены компонента по происхождению и перечисляет неопределённые
+в группе `not defined by any granular layer`. `granular doctor` сообщает о том же
+как `token-undefined`, поэтому находку можно поставить в CI через `--strict`.
+Учтите оговорку, печатаемую под группой: токен может задаваться вне granular
+(правила или shortcuts UnoCSS, `provider.unocss`, собственный CSS приложения).
+
 ## «Cross‑provider `dependencies` падают при загрузке конфига»
 
 `ProviderNotRegisteredError` означает, что ваш композитный провайдер

@@ -1,10 +1,11 @@
 import type { Preflight, Preset } from '@unocss/core'
 
 import type { GranularProvider } from './contract'
-import type { ResolvedThemeSelectorBlock } from './core/resolveThemes'
+import type { EffectiveThemeBlock } from './core/tokenLayers'
 import type { ScanDirsInspection } from './fs/resolveScanDirs'
 import type { PresetGranularOptions } from './preset'
 import { resolveGranularLayer } from './core/layer'
+import { collectTokenLayers } from './core/tokenLayers'
 import { buildFilesystemGlobs } from './fs/buildContentFilesystem'
 import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readCss'
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
@@ -247,85 +248,27 @@ function resolveBaseTokenUrls(
   return urls
 }
 
-type ThemeOverride = Readonly<Record<string, string | Readonly<Record<string, string>>>>
-
 /**
- * Генерирует CSS-блоки токенов темы из её `blocks` (по одному на селектор) с
- * учётом `tokenOverrides`.
+ * Сериализует один блок токенов темы в CSS.
  *
- * Overrides:
- *   - плоское значение (строка) → пишется в ПЕРВИЧНЫЙ селектор темы;
- *   - объект → это `{ selector: { token: value } }`, пишется под указанный
- *     селектор (создаётся при необходимости).
+ * Единственное место, где к имени токена дописывается `--`. Токены без
+ * `effective` (override, отброшенный `strictTokens`) не эмитятся, а пустой
+ * блок не эмитится целиком.
  *
- * В `strict`-режиме override неизвестного токена (нет ни в одном блоке темы)
- * пропускается с `console.warn`.
+ * Раскладку по селекторам и приоритет слоёв считает
+ * {@link collectTokenLayers} — та же функция, из которой их берут `doctor`,
+ * `explain`, `granular tokens` и манифест тем.
  */
-function generateThemeBlocks(
-  themeName: string,
-  blocks: readonly ResolvedThemeSelectorBlock[],
-  overrides: ThemeOverride | undefined,
-  strict: boolean,
-): string[] {
-  const order: string[] = []
-  const bySelector = new Map<string, Record<string, string>>()
-  const ensure = (selector: string): Record<string, string> => {
-    let tokens = bySelector.get(selector)
-    if (!tokens) {
-      tokens = {}
-      bySelector.set(selector, tokens)
-      order.push(selector)
-    }
-    return tokens
-  }
+function serializeThemeBlock(block: EffectiveThemeBlock): string | undefined {
+  const lines = [...block.tokens.values()]
+    .filter(chain => chain.effective !== undefined)
+    .sort((a, b) => a.token.localeCompare(b.token))
+    .map(chain => `  --${chain.token}: ${chain.effective};`)
 
-  // Один проход: и раскладываем токены по селекторам, и собираем множество
-  // известных имён для `strictTokens` (раньше по `blocks` шли дважды подряд).
-  const known = new Set<string>()
-  for (const block of blocks) {
-    Object.assign(ensure(block.selector), block.tokens)
-    for (const key of Object.keys(block.tokens))
-      known.add(key)
-  }
+  if (lines.length === 0)
+    return undefined
 
-  const warnUnknown = (token: string): void => {
-    console.warn(`[granular] strictTokens: token "${token}" not found in providers for theme "${themeName}". Skipping.`)
-  }
-
-  if (overrides) {
-    const primarySelector = blocks[0]?.selector ?? ':root'
-    for (const [key, value] of Object.entries(overrides)) {
-      if (typeof value === 'string') {
-        if (strict && !known.has(key)) {
-          warnUnknown(key)
-          continue
-        }
-        ensure(primarySelector)[key] = value
-        continue
-      }
-
-      const target = ensure(key)
-      for (const [token, tokenValue] of Object.entries(value)) {
-        if (strict && !known.has(token)) {
-          warnUnknown(token)
-          continue
-        }
-        target[token] = tokenValue
-      }
-    }
-  }
-
-  const result: string[] = []
-  for (const selector of order) {
-    const tokens = bySelector.get(selector)!
-    const lines = Object.entries(tokens)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `  --${k}: ${v};`)
-    if (lines.length === 0)
-      continue
-    result.push(`${selector || ':root'} {\n${lines.join('\n')}\n}`)
-  }
-  return result
+  return `${block.selector || ':root'} {\n${lines.join('\n')}\n}`
 }
 
 /** Секции node-CSS, вычисленные один раз. См. {@link getGranularNodeCss}. */
@@ -363,16 +306,18 @@ async function collectNodeCssSections(
 
   // 2. Theme token blocks (structural tokenDefinitions + tokenOverrides).
   const themeTokens: string[] = []
+  const tokenLayers = collectTokenLayers(resolution.themes, options.themes?.tokenOverrides, {
+    strictTokens: options.themes?.strictTokens,
+    onSkippedOverride: (theme, token) => {
+      console.warn(`[granular] strictTokens: token "${token}" not found in providers for theme "${theme}". Skipping.`)
+    },
+  })
   for (const themeName of resolution.themes.names) {
-    const entry = resolution.themes.tokenRegistry[themeName]
-    const overrides = options.themes?.tokenOverrides?.[themeName]
-    const strict = !!options.themes?.strictTokens
-
-    if (!entry && !overrides)
-      continue
-
-    for (const block of generateThemeBlocks(themeName, entry?.blocks ?? [], overrides, strict))
-      themeTokens.push(block)
+    for (const block of tokenLayers.get(themeName) ?? []) {
+      const css = serializeThemeBlock(block)
+      if (css !== undefined)
+        themeTokens.push(css)
+    }
   }
 
   // 3. Theme files (level-1 override).

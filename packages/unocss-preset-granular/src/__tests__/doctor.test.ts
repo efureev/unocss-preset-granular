@@ -265,6 +265,107 @@ describe('doctor: уровни диагностики', () => {
   })
 })
 
+describe('doctor: token-undefined', () => {
+  const root = mkdtempSync(join(tmpdir(), 'granular-doctor-undef-'))
+  const baseUrl = pathToFileURL(`${root}/`).href
+
+  for (const name of ['A']) {
+    mkdirSync(join(root, 'components', name), { recursive: true })
+    writeFileSync(join(root, 'components', name, 'index.js'), 'export default 1\n', 'utf8')
+  }
+  writeFileSync(join(root, 'tokens.css'), ':root { --from-css: 1px }\n', 'utf8')
+
+  function optionsWith(theme?: Record<string, unknown>) {
+    return {
+      providers: [{
+        id: 'pkg',
+        contractVersion: 1 as const,
+        packageBaseUrl: baseUrl,
+        components: [{
+          name: 'A',
+          safelist: ['p-[var(--nobody)]', 'm-[var(--from-css)]', 'g-[var(--with-fb,2px)]'],
+        }],
+        ...(theme ? { theme } : {}),
+      }],
+      components: 'all' as const,
+    }
+  }
+
+  it('находит токен, которого не задаёт ни один слой', () => {
+    const report = granularDoctor(optionsWith())
+    expect(report.undefinedTokens.map(t => t.token)).toContain('nobody')
+    expect(report.diagnostics.some(d => d.code === 'token-undefined')).toBe(true)
+  })
+
+  it('меняет clean, но не ok', () => {
+    const report = granularDoctor(optionsWith())
+    expect(report.ok).toBe(true)
+    expect(report.clean).toBe(false)
+  })
+
+  it('токены из инлайнимого tokens.css не считаются неопределёнными', () => {
+    // Иначе диагностика ругалась бы на собственный CSS granular.
+    const report = granularDoctor(optionsWith({ tokensCssUrl: new URL('tokens.css', baseUrl).href }))
+    expect(report.undefinedTokens.map(t => t.token)).not.toContain('from-css')
+  })
+
+  it('fallback в var(--x, …) отмечается — это не дефект', () => {
+    const found = granularDoctor(optionsWith()).undefinedTokens.find(t => t.token === 'with-fb')!
+    expect(found.hasFallback).toBe(true)
+  })
+
+  it('токен, заданный через tokenOverrides, неопределённым не считается', () => {
+    const report = granularDoctor({
+      ...optionsWith(),
+      themes: { names: ['light'], tokenOverrides: { light: { nobody: '#000' } } },
+    })
+    expect(report.undefinedTokens.map(t => t.token)).not.toContain('nobody')
+  })
+})
+
+describe('doctor: конфликты токенов и strictTokens', () => {
+  const provider = defineGranularProvider({
+    id: 'p',
+    contractVersion: 1,
+    packageBaseUrl: 'file:///p/',
+    components: [],
+    theme: { tokenDefinitions: { light: { selector: ':root', tokens: { brd: '#aaa' } } } },
+  })
+
+  it('override, отброшенный strictTokens, конфликта не создаёт', () => {
+    // Регрессия: конфликт считался по числу НАПИСАННЫХ слоёв, а генератор CSS
+    // отбрасывает override неизвестного токена. Отчёт называл финальным
+    // значение, которого в CSS нет.
+    const report = granularDoctor({
+      providers: [provider],
+      components: 'all',
+      themes: {
+        names: ['light'],
+        strictTokens: true,
+        // Обе формы целятся в один ключ карты — два слоя на `nope`.
+        tokenOverrides: { light: { 'nope': '#111', ':root': { nope: '#222' } } },
+      },
+    })
+
+    expect(report.tokenConflicts.filter(c => c.token === 'nope')).toEqual([])
+  })
+
+  it('без strictTokens те же два слоя дают конфликт с реальным значением', () => {
+    const report = granularDoctor({
+      providers: [provider],
+      components: 'all',
+      themes: {
+        names: ['light'],
+        tokenOverrides: { light: { 'nope': '#111', ':root': { nope: '#222' } } },
+      },
+    })
+
+    const conflict = report.tokenConflicts.find(c => c.token === 'nope')!
+    expect(conflict.sources).toEqual(['app-override', 'app-override'])
+    expect(conflict.finalValue).toBe('#222')
+  })
+})
+
 describe('doctor: темы по умолчанию', () => {
   it('показывает источник имён и предупреждения', () => {
     const provider = defineGranularProvider({

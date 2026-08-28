@@ -272,6 +272,10 @@ provider.theme.tokenDefinitions        (lowest)
 - Under `strictTokens`, tokens declared by a **component** are also treated
   as “known”: `tokenOverrides` for such tokens pass without a warning.
 
+To see this chain resolved for a real build — who wrote each layer and which
+value survived — run `npx granular tokens <options-file> <Component>`; see
+[The `granular` CLI](./cli.md).
+
 ### `tokenOverrides` — two forms
 
 The value for a theme accepts either shape (told apart by value type):
@@ -598,6 +602,10 @@ bundle. If the app itself needs them (palette preview, canvas, inline styles):
 granularThemesPlugin(granularOptions, { includeTokens: true })
 // manifest.themes[0].tokens → { ':root': { brd: '#e2e8f0', … } }
 ```
+
+The values are **effective** ones — every layer applied, `themes.tokenOverrides`
+included. They are computed by the same function that emits the CSS, so the
+manifest cannot report a value the stylesheet does not carry.
 
 A working example of all of the above: [`apps/app-5`](../../apps/app-5).
 

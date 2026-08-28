@@ -4,6 +4,7 @@ import type { GranularProvider } from './contract'
 
 import type { ComponentSelection, ResolvedComponents } from './core/resolveSelection'
 import type { ResolvedThemes, ResolveThemesInput } from './core/resolveThemes'
+import type { ThemeTokenOverrides } from './core/tokenLayers'
 import {
   accessibilityRules,
   animationPreflights,
@@ -68,7 +69,7 @@ export interface ThemesOptions extends ResolveThemesInput {
    *
    * Различение — по типу значения: строка ⇒ плоская форма, объект ⇒ вложенная.
    */
-  tokenOverrides?: Partial<Record<string, Readonly<Record<string, string | Readonly<Record<string, string>>>>>>
+  tokenOverrides?: ThemeTokenOverrides
 
   /**
    * Если `true` — override токена, которого нет ни в одном блоке темы

@@ -2,8 +2,9 @@ import type { ComponentKey, ComponentRegistry } from './core/registry'
 import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
 
 import type { PresetGranularNodeOptions } from './preset.node'
-import { buildRegistry } from './core/registry'
+import { buildRegistry, resolveComponentTarget, splitComponentKey } from './core/registry'
 import { normalizeDependency, normalizeSelection } from './core/resolveSelection'
+import { collectTokenLayers } from './core/tokenLayers'
 import { inspectGranularScanDirs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -85,33 +86,6 @@ export interface ExplainReport {
 // Collector
 // ---------------------------------------------------------------------------
 
-function splitKey(key: string): [string, string] {
-  const idx = key.lastIndexOf(':')
-  return [key.slice(0, idx), key.slice(idx + 1)]
-}
-
-/**
- * Приводит пользовательский аргумент к ключу реестра.
- *
- * Полная форма `providerId:Name` берётся как есть. Короткая `Name` (её в
- * `components` не принимают, но в CLI она — самый естественный ввод)
- * резолвится по реестру и разрешена, только если имя однозначно: иначе
- * пришлось бы молча выбрать один из одноимённых компонентов разных
- * провайдеров.
- */
-function resolveTargetKey(
-  input: string,
-  registry: ComponentRegistry,
-): { key: ComponentKey } | { ambiguous: string[] } {
-  if (input.includes(':'))
-    return { key: input as ComponentKey }
-
-  const matches = [...registry.components.keys()].filter(k => splitKey(k)[1] === input)
-  if (matches.length === 1)
-    return { key: matches[0] }
-  return { ambiguous: matches }
-}
-
 /** Прямые зависимости записи реестра в квалифицированной форме. */
 function directDependencies(registry: ComponentRegistry, key: ComponentKey): ComponentKey[] {
   const entry = registry.components.get(key)
@@ -185,7 +159,7 @@ export function granularExplain(
   const resolution = resolveGranularNode(options)
   const registry = buildRegistry(resolution.providers)
 
-  const resolved = resolveTargetKey(target, registry)
+  const resolved = resolveComponentTarget(target, registry)
   if ('ambiguous' in resolved) {
     return {
       key: target,
@@ -207,7 +181,7 @@ export function granularExplain(
   }
 
   const key = resolved.key
-  const [providerId, name] = splitKey(key)
+  const [providerId, name] = splitComponentKey(key)
   const entry = registry.components.get(key)
 
   if (!entry) {
@@ -256,18 +230,27 @@ export function granularExplain(
     }
   })
 
+  // Итоговые значения берутся из общей раскладки слоёв, а не из
+  // `tokenRegistry`: `themes.tokenOverrides` в реестр не входит, он
+  // применяется на эмиссии CSS. Считая по реестру, отчёт показывал бы
+  // до-override значение и `overridden: false` там, где приложение токен
+  // как раз перебило.
+  const layers = collectTokenLayers(resolution.themes, options.themes?.tokenOverrides, {
+    strictTokens: options.themes?.strictTokens,
+  })
+
   const tokens: ExplainTokenContribution[] = []
   for (const item of resolution.themes.items) {
     if (item.componentName !== name || item.providerId !== providerId || !item.tokenDefinition)
       continue
     const registryEntry = resolution.themes.tokenRegistry[item.themeName]
     const selector = item.tokenDefinition.selector ?? registryEntry?.blocks[0]?.selector ?? ':root'
-    const effectiveTokens = registryEntry?.blocks.find(b => b.selector === selector)?.tokens ?? {}
+    const block = layers.get(item.themeName)?.find(b => b.selector === selector)
     tokens.push({
       theme: item.themeName,
       selector,
       tokens: Object.entries(item.tokenDefinition.tokens).map(([tokenName, value]) => {
-        const effective = effectiveTokens[tokenName] ?? value
+        const effective = block?.tokens.get(tokenName)?.effective ?? value
         return { name: tokenName, value, effective, overridden: effective !== value }
       }),
     })

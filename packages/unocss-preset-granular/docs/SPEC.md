@@ -283,6 +283,11 @@ possible.
 A token written by more than one layer is a *conflict*: legal, frequently
 intentional, and reported by `doctor` with its full source chain.
 
+Under `themes.strictTokens`, an override of a token that no package layer
+(1 or 2) declares **MUST** be discarded and **MUST NOT** reach the CSS. The
+emitted value and the value reported by the CLI **MUST** be computed by the
+same function, so a report can never name a value the build does not produce.
+
 If `GranularThemeTokenSet.selector` is omitted, the selector of the first
 provider block for that theme is used.
 
@@ -430,6 +435,15 @@ it reads the text of the bundle, not an AST — so its level is `warn`: it moves
 **SHOULD** run it with every component selected, since only selected components
 serve as sources. Its limits are listed in
 [The `granular` CLI](../../../docs/en/cli.md).
+
+It also reports every CSS custom property a selected component consumes
+(through `safelist`, a declared CSS file, or its scanned sources) that no
+granular layer defines for any active theme, as `token-undefined`. That check
+is heuristic in the same direction as the one above — the token space is open,
+and a value may legitimately come from UnoCSS rules or shortcuts, from
+`provider.unocss`, from the application's own CSS — so its level is `warn`: it
+moves `clean`, not `ok`. Tokens declared by inlined `tokensCssUrl`,
+`baseCssUrl` or theme files are excluded, since the preset emits them itself.
 
 `doctor` does **not** verify that declared CSS files exist (§4.2), that the
 browser/node boundary is intact (§9), or that `safelist` is minimal. Those

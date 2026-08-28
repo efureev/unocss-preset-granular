@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { access, readFile, stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import process from 'node:process'
@@ -177,6 +178,57 @@ export async function resolveComponentCssFile(
 
   const sourcePath = fileURLToPath(new URL(sourceFileUrl))
   if (await fileExists(sourcePath))
+    return sourcePath
+
+  if (!assetName)
+    return sourcePath
+
+  return fileURLToPath(new URL(assetName, packageBaseUrl))
+}
+
+/**
+ * Синхронный близнец {@link readCss} — тот же LRU-кэш и та же инвалидация
+ * по (mtimeMs, size).
+ *
+ * Нужен диагностике: `granularDoctor` синхронна и документирована такой в
+ * публичном API, поэтому сканер потребления токенов не может быть async,
+ * не потянув за собой смену сигнатуры отчёта.
+ */
+export function readCssSync(file: string): string {
+  if (isCssDataUrl(file))
+    return decodeCssDataUrl(file)
+
+  let stats
+  try {
+    stats = statSync(file)
+  }
+  catch {
+    return readFileSync(file, 'utf8')
+  }
+
+  const cached = cssCache.get(file)
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    cssCache.delete(file)
+    cssCache.set(file, cached)
+    return cached.content
+  }
+
+  const content = readFileSync(file, 'utf8')
+  cacheSet(file, { mtimeMs: stats.mtimeMs, size: stats.size, content })
+  return content
+}
+
+/** Синхронный близнец {@link resolveComponentCssFile}. */
+export function resolveComponentCssFileSync(
+  sourceFileUrl: string,
+  packageBaseUrl: string,
+  assetName: string | undefined,
+): string {
+  if (isCssDataUrl(sourceFileUrl))
+    return sourceFileUrl
+
+  const sourcePath = fileURLToPath(new URL(sourceFileUrl))
+  if (existsSync(sourcePath))
     return sourcePath
 
   if (!assetName)

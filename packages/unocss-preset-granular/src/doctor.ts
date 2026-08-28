@@ -2,12 +2,16 @@ import type { GranularComponentDependency, GranularProvider } from './contract'
 import type { ResolvedThemeWarning, ThemeNamesSource } from './core/resolveThemes'
 import type { EmittedImportEdge } from './fs/emittedImports'
 import type { ResolvedScanDir, SkippedScanDir } from './fs/resolveScanDirs'
+import type { TokenUsageVia } from './fs/tokenUsage'
 import type { PresetGranularResolution, resolvePresetGranular } from './preset'
 
 import type { PresetGranularNodeOptions } from './preset.node'
 import { buildRegistry } from './core/registry'
 import { collectDependencyClosure } from './core/resolveSelection'
+import { collectTokenLayers } from './core/tokenLayers'
 import { inspectEmittedComponentImports } from './fs/emittedImports'
+import { inspectGranularTokenUsage } from './fs/tokenUsage'
+import { parseCssCustomPropertyBlocksSync } from './node-utils/tokenDefinitionsFromCss'
 import { inspectGranularScanDirs, resolveGranularFilesystemGlobs, resolveGranularNode } from './preset.node'
 
 // ---------------------------------------------------------------------------
@@ -68,6 +72,21 @@ export type DoctorMissingDir = SkippedScanDir
  */
 export type DoctorUndeclaredDependency = EmittedImportEdge
 
+/**
+ * Токен, который компонент потребляет через `var(--…)`, но которого не задаёт
+ * ни один известный granular слой ни в одной активной теме.
+ */
+export interface DoctorUndefinedToken {
+  /** Имя БЕЗ префикса `--`. */
+  token: string
+  /** Компонент-потребитель, `<providerId>:<Component>`. */
+  component: string
+  /** Каким каналом потребление стало видно. */
+  via: TokenUsageVia[]
+  /** Хотя бы одно потребление записано как `var(--x, …)` — тогда это не дефект. */
+  hasFallback: boolean
+}
+
 /** Уровень диагностики. `error` роняет `doctor`, `warn` — только с `--strict`. */
 export type DoctorDiagnosticLevel = 'error' | 'warn'
 
@@ -80,7 +99,9 @@ export type DoctorDiagnosticLevel = 'error' | 'warn'
  *   - `undeclared-dependency` — собранный компонент импортирует чужой,
  *     не объявив его в `dependencies`;
  *   - `token-prefix` — ключ токена объявлен С префиксом `--`: генератор
- *     дописывает префикс сам, в CSS уедет валидный, но бесполезный `----x`.
+ *     дописывает префикс сам, в CSS уедет валидный, но бесполезный `----x`;
+ *   - `token-undefined` — компонент потребляет токен, которого не задаёт ни
+ *     один granular-слой.
  */
 export type DoctorDiagnosticCode
   = | 'layout-contract'
@@ -89,6 +110,7 @@ export type DoctorDiagnosticCode
     | 'unused-provider'
     | 'undeclared-dependency'
     | 'token-prefix'
+    | 'token-undefined'
 
 /**
  * Одна проблема с уровнем.
@@ -118,6 +140,8 @@ export interface DoctorReport {
     warnings: readonly ResolvedThemeWarning[]
   }
   tokenConflicts: DoctorTokenConflict[]
+  /** Токены, которые потребляются, но не задаются ни одним granular-слоем. */
+  undefinedTokens: DoctorUndefinedToken[]
   /** Рёбра `dist`-импортов, которых нет в объявленном графе зависимостей. */
   undeclaredDependencies: DoctorUndeclaredDependency[]
   scan: {
@@ -147,57 +171,33 @@ function computeTokenConflicts(
   resolution: ReturnType<typeof resolvePresetGranular>,
   themesOpts: PresetGranularNodeOptions['themes'],
 ): DoctorTokenConflict[] {
-  const registry = resolution.themes.tokenRegistry
-  const primaryOf = (theme: string): string => registry[theme]?.blocks[0]?.selector ?? ':root'
+  const layers = collectTokenLayers(resolution.themes, themesOpts?.tokenOverrides, {
+    strictTokens: themesOpts?.strictTokens,
+  })
 
-  const map = new Map<string, { theme: string, selector: string, token: string, sources: string[], value: string }>()
-  const add = (theme: string, selector: string, token: string, value: string, source: string): void => {
-    // NUL как разделитель: он не встречается ни в имени темы, ни в селекторе,
-    // ни в имени токена, поэтому склейка ключа однозначна. Пишется escape'ом
-    // `\0`, а не сырым байтом — иначе git считает файл бинарным.
-    const key = `${theme}\0${selector}\0${token}`
-    let entry = map.get(key)
-    if (!entry) {
-      entry = { theme, selector, token, sources: [], value }
-      map.set(key, entry)
-    }
-    entry.sources.push(source)
-    entry.value = value
-  }
-
-  // Провайдерские и компонентные вклады.
-  for (const item of resolution.themes.items) {
-    if (!item.tokenDefinition)
-      continue
-    const selector = item.tokenDefinition.selector ?? primaryOf(item.themeName)
-    const source = item.appDefined
-      ? 'app-theme'
-      : item.componentName ? `component:${item.componentName}` : `provider:${item.providerId}`
-    for (const [token, value] of Object.entries(item.tokenDefinition.tokens))
-      add(item.themeName, selector, token, value, source)
-  }
-
-  // App-overrides (плоская и вложенная формы).
-  const overrides = themesOpts?.tokenOverrides
-  if (overrides) {
-    for (const [theme, value] of Object.entries(overrides)) {
-      if (!value)
-        continue
-      for (const [key, inner] of Object.entries(value)) {
-        if (typeof inner === 'string') {
-          add(theme, primaryOf(theme), key, inner, 'app-override')
-        }
-        else {
-          for (const [token, tokenValue] of Object.entries(inner))
-            add(theme, key, token, tokenValue, 'app-override')
-        }
+  const conflicts: DoctorTokenConflict[] = []
+  for (const blocks of layers.values()) {
+    for (const block of blocks) {
+      for (const chain of block.tokens.values()) {
+        // Конфликт — это когда значение перезаписывают ДВА И БОЛЕЕ слоя,
+        // реально попавших в CSS. Отброшенный `strictTokens` override ничего
+        // не перезаписывает: до этой правки doctor репортил его финальным
+        // значением, которого в эмитируемом CSS не было.
+        const emitted = chain.layers.filter(layer => layer.skipped === undefined)
+        if (emitted.length < 2)
+          continue
+        conflicts.push({
+          theme: chain.theme,
+          selector: chain.selector,
+          token: chain.token,
+          sources: emitted.map(layer => layer.source),
+          // При двух и более эмитированных слоях `effective` определён всегда.
+          finalValue: chain.effective!,
+        })
       }
     }
   }
-
-  return [...map.values()]
-    .filter(e => e.sources.length > 1)
-    .map(e => ({ theme: e.theme, selector: e.selector, token: e.token, sources: e.sources, finalValue: e.value }))
+  return conflicts
 }
 
 /** Токен, объявленный С префиксом `--`, и кто его объявил. */
@@ -320,6 +320,87 @@ function themeWarningSubject(w: ResolvedThemeWarning): string {
 }
 
 /**
+ * Токены, которые компоненты потребляют, но которых не задаёт ни один
+ * granular-слой ни в одной активной теме.
+ *
+ * Из кандидатов вычитаются не только структурные токены (`tokenDefinitions`,
+ * `tokenOverrides`), но и объявления из CSS, который пресет инлайнит сам:
+ * `tokensCssUrl`, `baseCssUrl`, файлы тем. Иначе диагностика ругалась бы на
+ * собственный CSS granular — то есть врала бы систематически.
+ *
+ * Оставшаяся открытость пространства ЕСТЬ и закрыта быть не может: токен
+ * может прийти из `rules`/`shortcuts` самого UnoCSS или провайдера
+ * (`provider.unocss`), из CSS приложения или из внешней библиотеки. Поэтому
+ * находка — `warn`, а сообщение обязано называть эти источники.
+ */
+function computeUndefinedTokens(
+  options: PresetGranularNodeOptions,
+  resolution: ReturnType<typeof resolvePresetGranular>,
+  scanDirs: readonly DoctorScanDir[],
+): DoctorUndefinedToken[] {
+  const defined = new Set<string>()
+
+  const layers = collectTokenLayers(resolution.themes, options.themes?.tokenOverrides, {
+    strictTokens: options.themes?.strictTokens,
+  })
+  for (const blocks of layers.values()) {
+    for (const block of blocks) {
+      for (const chain of block.tokens.values()) {
+        if (chain.effective !== undefined)
+          defined.add(chain.token)
+      }
+    }
+  }
+
+  // CSS, который пресет инлайнит целиком: его токены granular тоже «задаёт».
+  const inlined: string[] = []
+  for (const provider of resolution.providers) {
+    const theme = provider.theme
+    if (!theme)
+      continue
+    if (theme.tokensCssUrl)
+      inlined.push(theme.tokensCssUrl)
+    if (theme.baseCssUrl)
+      inlined.push(theme.baseCssUrl)
+    for (const name of resolution.themes.names) {
+      const url = theme.themes?.[name]
+      if (url)
+        inlined.push(url)
+    }
+  }
+  for (const key of ['baseFile', 'tokensFile'] as const) {
+    const value = options.themes?.[key]
+    if (typeof value === 'string')
+      inlined.push(value)
+    else if (value)
+      inlined.push(...Object.values(value).filter((v): v is string => typeof v === 'string'))
+  }
+  for (const url of inlined) {
+    try {
+      for (const block of parseCssCustomPropertyBlocksSync(url)) {
+        for (const token of Object.keys(block.tokens))
+          defined.add(token)
+      }
+    }
+    catch {
+      // Нечитаемый или нестандартный CSS — не повод падать в диагностике;
+      // о нечитаемом CSS сообщает сборка через `GranularCssReadError`.
+    }
+  }
+
+  const usage = inspectGranularTokenUsage(options, resolution, scanDirs)
+  const found: DoctorUndefinedToken[] = []
+  for (const [token, byComponent] of usage.usage) {
+    if (defined.has(token))
+      continue
+    for (const [component, entry] of byComponent) {
+      found.push({ token, component, via: entry.via, hasFallback: entry.hasFallback })
+    }
+  }
+  return found.sort((a, b) => a.component.localeCompare(b.component) || a.token.localeCompare(b.token))
+}
+
+/**
  * Сводит все находки отчёта в плоский список с уровнями.
  *
  * Уровни расставлены по одному критерию: **обязано ли это сломать сборку**.
@@ -341,6 +422,14 @@ function themeWarningSubject(w: ResolvedThemeWarning): string {
  * может: `--strict`, который доки предлагают ставить в CI, роняет `warn`
  * ровно так же, как `error`. Разница только в поведении по умолчанию — и в
  * том, что находка меняет `clean`, а не `ok`.
+ *
+ * `token-undefined` — `warn` по той же причине и с той же асимметрией:
+ * ложноположительное срабатывание возможно (токен задаётся вне granular —
+ * правилами UnoCSS, `provider.unocss`, CSS приложения), ложноотрицательное
+ * нет (если его задаёт granular, мы это видим). Пространство имён токенов
+ * открыто по построению, и закрыть его отсевом по префиксу нельзя: префикс
+ * задаётся `presetMini({ variablePrefix })` и пресету не известен, так что
+ * угадывание внесло бы модель, которой нет.
  */
 function collectDiagnostics(
   providers: readonly GranularProvider[],
@@ -350,6 +439,7 @@ function collectDiagnostics(
   tokenConflicts: readonly DoctorTokenConflict[],
   undeclared: readonly DoctorUndeclaredDependency[],
   dashTokens: readonly DashPrefixedToken[],
+  undefinedTokens: readonly DoctorUndefinedToken[],
 ): DoctorDiagnostic[] {
   const errors: DoctorDiagnostic[] = missing.map(m => ({
     level: 'error' as const,
@@ -397,6 +487,18 @@ function collectDiagnostics(
       subject: `${t.theme}:${t.token}`,
       message: `token key is declared with the '--' prefix (${t.source}) — the generator adds the prefix `
         + `itself, so the CSS gets '--${t.token}' and the theme silently loses the value`,
+    })
+  }
+
+  for (const t of undefinedTokens) {
+    warns.push({
+      level: 'warn',
+      code: 'token-undefined',
+      subject: `${t.component}:${t.token}`,
+      message: `token '--${t.token}' is used by ${t.component} (${t.via.join(', ')}) but no granular layer `
+        + 'defines it for any active theme — it may still come from rules/shortcuts of UnoCSS itself or of a '
+        + 'provider (provider.unocss), from base/tokens/theme CSS, or from the application; granular does not '
+        + `track those${t.hasFallback ? ' (the usage declares a fallback)' : ''}`,
     })
   }
 
@@ -458,6 +560,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
   const { dirs, skipped } = inspectGranularScanDirs(options)
 
   const undeclaredDependencies = computeUndeclaredDependencies(resolution)
+  const undefinedTokens = computeUndefinedTokens(options, resolution, dirs)
 
   const diagnostics = collectDiagnostics(
     resolution.providers,
@@ -467,6 +570,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
     tokenConflicts,
     undeclaredDependencies,
     computeDashPrefixedTokens(resolution, options.themes),
+    undefinedTokens,
   )
 
   return {
@@ -479,6 +583,7 @@ export function granularDoctor(options: PresetGranularNodeOptions): DoctorReport
       warnings: resolution.themes.warnings,
     },
     tokenConflicts,
+    undefinedTokens,
     undeclaredDependencies,
     scan: { globs, dirs, missing: skipped },
     diagnostics,
@@ -585,6 +690,17 @@ export function formatDoctorReport(report: DoctorReport): string {
     push(`Undeclared dependencies (${report.undeclaredDependencies.length}) — the import is in dist, not in dependencies:`)
     for (const edge of report.undeclaredDependencies)
       push(`  • ${edge.from} → ${edge.to} ("${edge.specifier}" in ${edge.source})`)
+    push()
+  }
+
+  if (report.undefinedTokens.length) {
+    push(`Undefined tokens (${report.undefinedTokens.length}) — used by a component, defined by no granular layer:`)
+    for (const t of report.undefinedTokens) {
+      push(`  • ${t.component} → --${t.token} (${t.via.join(', ')})`
+        + `${t.hasFallback ? ' — has a fallback' : ''}`)
+    }
+    push('  They may still come from UnoCSS rules/shortcuts, provider.unocss, base/tokens/theme')
+    push('  CSS or the application — granular does not track those.')
     push()
   }
 

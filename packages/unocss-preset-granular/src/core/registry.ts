@@ -59,3 +59,34 @@ export function buildRegistry(
     },
   }
 }
+
+/** Разбивает квалифицированный ключ по ПОСЛЕДНЕМУ двоеточию: `a:b:C` — это провайдер `a:b`. */
+export function splitComponentKey(key: string): [providerId: string, name: string] {
+  const idx = key.lastIndexOf(':')
+  return [key.slice(0, idx), key.slice(idx + 1)]
+}
+
+/**
+ * Приводит пользовательский аргумент CLI к ключу реестра.
+ *
+ * Полная форма `providerId:Name` берётся как есть. Короткая `Name` (её в
+ * `components` не принимают, но в CLI она — самый естественный ввод)
+ * резолвится по реестру и разрешена, только если имя однозначно: иначе
+ * пришлось бы молча выбрать один из одноимённых компонентов разных
+ * провайдеров.
+ *
+ * Экспортируется ради `granular explain` и `granular tokens`: своя копия
+ * правил разбора в каждой команде разъехалась бы с резолвером.
+ */
+export function resolveComponentTarget(
+  input: string,
+  registry: ComponentRegistry,
+): { key: ComponentKey } | { ambiguous: string[] } {
+  if (input.includes(':'))
+    return { key: input as ComponentKey }
+
+  const matches = [...registry.components.keys()].filter(k => splitComponentKey(k)[1] === input)
+  if (matches.length === 1)
+    return { key: matches[0] }
+  return { ambiguous: matches }
+}

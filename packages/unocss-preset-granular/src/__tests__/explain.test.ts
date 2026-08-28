@@ -158,6 +158,24 @@ describe('granularExplain: почему компонент в сборке', () 
   })
 })
 
+describe('granularExplain: итоговые значения токенов', () => {
+  it('tokenOverrides приложения учитываются в effective/overridden', () => {
+    // Регрессия: `effective` считался по `tokenRegistry`, куда
+    // `themes.tokenOverrides` не входит — отчёт показывал до-override
+    // значение и `overridden: false` там, где токен как раз перебит.
+    const report = granularExplain(
+      { ...options(), themes: { names: ['light'], tokenOverrides: { light: { 'x-color': '#f00' } } } },
+      'pkg:Card',
+    )
+    const light = report.tokens.find(t => t.theme === 'light')!
+    const token = light.tokens.find(t => t.name === 'x-color')!
+
+    expect(token.value).toBe('#fff')
+    expect(token.effective).toBe('#f00')
+    expect(token.overridden).toBe(true)
+  })
+})
+
 describe('formatExplainReport', () => {
   it('рендерит цепочку, вклад и скан-директории', () => {
     const text = formatExplainReport(granularExplain(options(), 'pkg:Base'))

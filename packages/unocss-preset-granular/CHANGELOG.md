@@ -12,7 +12,8 @@ What "breaking" means here, in decreasing order of blast radius:
    — breaks other people's packages. Guarded by `GRANULAR_CONTRACT_VERSION`,
    still `1` since the beginning.
 2. **The preset options** (`PresetGranularOptions`) — breaks applications.
-3. **The CLI report types** (`DoctorReport`, `ExplainReport`, `WhyCssReport`)
+3. **The CLI report types** (`DoctorReport`, `ExplainReport`, `WhyCssReport`,
+   `TokensReport`)
    — breaks tooling that reads them. These grow in minor versions by design;
    see [Report stability](https://github.com/efureev/unocss-preset-granular/blob/main/docs/en/cli.md).
 
@@ -20,6 +21,50 @@ Entries before `0.7.0` were reconstructed from git history and release tags —
 they summarise what shipped, not what was written down at the time.
 
 ## [Unreleased]
+
+## [0.14.0] - 2026-08-28
+
+### Added
+
+- **`granular tokens <options-file> <Component> [--deep]`** — which theme tokens a
+  component needs. It separates the component's own tokens from the shared ones it
+  merely consumes, groups them by origin (`own` / `component` / `provider` / `app` /
+  `none`), prints the full layer chain behind every value, and lists which other
+  selected components use the same token. `--deep` extends the scope to the
+  component's transitive `dependencies`, so a token published by a sub-component
+  shows up as `declared by another component`.
+
+  Consumption is found through three channels: `safelist` (pure resolution data),
+  declared `cssFiles`, and the component's scanned sources. The `safelist` channel
+  is not an optimisation — classes assembled outside the component's directory land
+  in a shared chunk that neither the extractor nor a directory scan can see, which
+  is exactly why such components declare a `safelist` in the first place.
+
+- **`token-undefined` diagnostic** (`warn`) and `DoctorReport.undefinedTokens` — a
+  component consumes a token no granular layer defines for any active theme.
+  `var(--x)` without a fallback is valid CSS that silently paints nothing. The level
+  is `warn` for the same reason `undeclared-dependency` is: the token space is open,
+  and the value may legitimately come from UnoCSS rules, `provider.unocss` or the
+  application's CSS. Tokens declared by inlined `tokensCssUrl` / `baseCssUrl` /
+  theme files are excluded.
+
+- `granularTokens` / `formatTokensReport` and their report types are exported from
+  `/node`.
+
+### Fixed
+
+Three separate answers to "what is this token's value" collapsed into one. The
+preset now computes the emitted CSS, every report and the theme manifest from the
+same layer resolution, so a report cannot name a value the build does not produce.
+
+- `ExplainReport.tokens[].effective` ignored `themes.tokenOverrides`: it read
+  `tokenRegistry`, which the fourth layer never enters. On any app that overrode a
+  component token, `explain` printed the pre-override value and `overridden: false`.
+- `getGranularThemeManifest(…, { includeTokens: true })` had the same defect, and it
+  broke the manifest's stated invariant — selectors agreed with the CSS, values did not.
+- `doctor` reported token conflicts without accounting for `strictTokens`, so an
+  override the generator had discarded could still be named as the final value.
+  Discarded layers are now visible as such instead of silently winning.
 
 ## [0.13.0] - 2026-08-26
 

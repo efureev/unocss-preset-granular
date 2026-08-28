@@ -259,6 +259,43 @@ describe('granular CLI: why-css', () => {
   })
 })
 
+describe('granular CLI: tokens', () => {
+  it('печатает отчёт и выходит с 0', async () => {
+    const { io, out } = createIo()
+    const code = await runGranularCli(['tokens', okOptionsFile, 'pkg:Btn'], io)
+
+    expect(code).toBe(0)
+    expect(out.join('')).toContain('granular tokens pkg:Btn')
+    expect(out.join('')).toContain('Uses (')
+  })
+
+  it('короткая форма имени резолвится', async () => {
+    const { io, out } = createIo()
+    expect(await runGranularCli(['tokens', okOptionsFile, 'Btn', '--json'], io)).toBe(0)
+    expect(JSON.parse(out.join('')).key).toBe('pkg:Btn')
+  })
+
+  it('--deep расширяет scope', async () => {
+    const { io, out } = createIo()
+    await runGranularCli(['tokens', okOptionsFile, 'pkg:Btn', '--deep', '--json'], io)
+    expect(JSON.parse(out.join('')).scope).toBe('deep')
+  })
+
+  it('неизвестное имя даёт 1 и список известных', async () => {
+    const { io, out } = createIo()
+    const code = await runGranularCli(['tokens', okOptionsFile, 'pkg:Nope'], io)
+
+    expect(code).toBe(1)
+    expect(out.join('')).toContain('Known components')
+  })
+
+  it('без имени компонента — ошибка использования', async () => {
+    const { io, err } = createIo()
+    expect(await runGranularCli(['tokens', okOptionsFile], io)).toBe(1)
+    expect(err.join('')).toContain('<providerId:Component>')
+  })
+})
+
 describe('loadGranularOptions: формы экспорта', () => {
   it('принимает default, granularOptions и options', async () => {
     const provider = `{ id: 'p', contractVersion: 1, packageBaseUrl: 'file:///p/', components: [] }`

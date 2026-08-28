@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 import { countDoctorDiagnostics, formatDoctorReport, granularDoctor } from './doctor'
 import { formatExplainReport, granularExplain } from './explain'
+import { formatTokensReport, granularTokens } from './tokens'
 import { formatWhyCssReport, granularWhyCss } from './why-css'
 
 export const GRANULAR_CLI_USAGE = `granular — diagnostics for @feugene/unocss-preset-granular
@@ -14,6 +15,7 @@ Usage:
   granular doctor  <options-file> [--json] [--strict]
   granular explain <options-file> <providerId:Component> [--json]
   granular why-css <options-file> <class> [--json]
+  granular tokens  <options-file> <providerId:Component> [--deep] [--json]
 
   <options-file> is a JS/MJS module exporting the granular options
   (default / \`granularOptions\` / \`options\`) with a \`providers\` array.
@@ -34,10 +36,14 @@ Commands:
              component name is unambiguous.
   why-css  — which component pulled a class into the final CSS: safelist,
              component CSS files, sources in content.filesystem.
+  tokens   — which theme tokens a component declares and consumes: where each
+             value comes from layer by layer, which tokens are shared with
+             other components, and which are defined by no layer at all.
 
 Flags:
   --json    print a structured report instead of text.
   --strict  (doctor only) treat warnings as errors.
+  --deep    (tokens only) include tokens of the component's dependencies.
 
 Exit codes: 0 — OK, 1 — violations found or an error occurred.
 `
@@ -137,7 +143,7 @@ export async function runGranularCli(
     return 1
   }
 
-  if (command !== 'doctor' && command !== 'explain' && command !== 'why-css') {
+  if (command !== 'doctor' && command !== 'explain' && command !== 'why-css' && command !== 'tokens') {
     io.stderr(`Unknown command '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
@@ -147,9 +153,17 @@ export async function runGranularCli(
     return 1
   }
 
-  if (command !== 'doctor' && !subject) {
-    const what = command === 'explain' ? '<providerId:Component>' : '<class>'
-    io.stderr(`Missing ${what} for '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
+  // Карта, а не тернарник: к четвёртой команде цепочка «?:» стала нечитаемой.
+  const SUBJECT_LABEL: Record<string, string | undefined> = {
+    'doctor': undefined,
+    'explain': '<providerId:Component>',
+    'tokens': '<providerId:Component>',
+    'why-css': '<class>',
+  }
+
+  const subjectLabel = SUBJECT_LABEL[command]
+  if (subjectLabel !== undefined && !subject) {
+    io.stderr(`Missing ${subjectLabel} for '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
 
@@ -161,6 +175,14 @@ export async function runGranularCli(
       emit(io, json, report, () => formatExplainReport(report))
       // Неизвестный компонент — ошибка ввода; «не в сборке» это валидный ответ.
       return report.reason === 'unknown' ? 1 : 0
+    }
+
+    if (command === 'tokens') {
+      const report = granularTokens(options, subject, flags.has('--deep') ? 'deep' : 'own')
+      emit(io, json, report, () => formatTokensReport(report, process.cwd()))
+      // Неизвестное имя — ошибка ввода. «Токенов нет» и «токен не определён» —
+      // валидные ответы: гейтом для CI служит `doctor --strict`.
+      return report.available ? 1 : 0
     }
 
     if (command === 'why-css') {

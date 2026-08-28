@@ -76,6 +76,23 @@ They require `@unocss/preset-wind4` (or a preset that enables arbitrary
 values). Make sure `presetMini()`, `presetWind4()` (or equivalent) is in the `presets`
 array **before** `presetGranularNode(...)`.
 
+## "The class is in the CSS but the property does nothing"
+
+The utility is emitted, the selector matches, and still the border has no
+colour or the radius no rounding. The usual cause is a token nobody defines:
+`var(--card)` without a fallback is perfectly valid CSS that resolves to
+nothing — no error, no warning, a green build.
+
+```bash
+npx granular tokens ./granular.options.mjs XTestStyled
+```
+
+The report groups the component's tokens by origin and lists the undefined ones
+under `not defined by any granular layer`. `granular doctor` reports the same
+finding as `token-undefined`, so it can guard CI with `--strict`. Note the
+caveat printed under the group: the token may still be defined outside granular
+(UnoCSS rules or shortcuts, `provider.unocss`, the app's own CSS).
+
 ## "Cross‑provider `dependencies` throw at config load"
 
 `ProviderNotRegisteredError` means your composite provider references
