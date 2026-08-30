@@ -9,6 +9,7 @@ import { runGranularCli } from '../cli'
 let root: string
 let optionsFile: string
 let deadPatternOptionsFile: string
+let declaredElsewhereOptionsFile: string
 
 function createIo(): { io: { stdout: (t: string) => void, stderr: (t: string) => void }, out: string[], err: string[] } {
   const out: string[] = []
@@ -53,6 +54,26 @@ beforeAll(() => {
     '  },',
     '}',
     'export default { providers: [provider], components: \'all\' }',
+    '',
+  ].join('\n'), 'utf8')
+
+  // Тот же пакет, но `--dead` объявлен вторым компонентом, которого нет в
+  // селекции: находкой он быть не должен.
+  declaredElsewhereOptionsFile = join(root, 'declared-elsewhere.options.mjs')
+  writeFileSync(declaredElsewhereOptionsFile, [
+    'const provider = {',
+    '  id: \'pkg\', contractVersion: 1,',
+    `  packageBaseUrl: ${JSON.stringify(baseUrl)},`,
+    '  components: [',
+    '    { name: \'Btn\', safelist: [\'p-[var(--used)]\'] },',
+    '    { name: \'Other\', dynamicTokens: [\'dead\'] },',
+    '  ],',
+    '  theme: {',
+    `    tokensCssUrl: ${JSON.stringify(new URL('tokens.css', baseUrl).href)},`,
+    `    baseCssUrl: ${JSON.stringify(new URL('base.css', baseUrl).href)},`,
+    '  },',
+    '}',
+    'export default { providers: [provider], components: [{ provider: \'pkg\', names: [\'Btn\'] }] }',
     '',
   ].join('\n'), 'utf8')
 
@@ -120,6 +141,19 @@ describe('granular prune', () => {
     const text = out.join('')
     expect(text).toContain('Patterns matching nothing declared')
     expect(text).toContain('typo-*')
+  })
+
+  it('токен, объявленный НЕвыбранным компонентом, находкой не считается', async () => {
+    // Имя лежит в общем чанке, но владелец его объявил — он просто не попал в
+    // эту селекцию, и удалён токен правильно. Без этого условия диагностика
+    // шумит там, где всё сделано верно: измерено на `@feugene/granularity` —
+    // у приложения с одним `GrCard` находками становились оба токена шкалы
+    // слоёв, объявленные восемью оверлейными компонентами.
+    const { io, out } = createIo()
+    await runGranularCli(['prune', declaredElsewhereOptionsFile, '--json'], io)
+    const report = JSON.parse(out.join(''))
+    expect(report.removed).toContain('dead')
+    expect(report.suspects).toEqual([])
   })
 
   it('--json отдаёт разбираемую структуру', async () => {

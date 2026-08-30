@@ -510,6 +510,11 @@ The single case where trimming breaks silently: a shared module assembles
 `components/<Name>/`, and no static channel can reach it. The fix is
 `dynamicTokens` on the component that reads the token.
 
+Two conditions keep this from becoming noise. The file must also assemble
+`var()` — a name alone is not enough. And a token declared in `dynamicTokens`
+by **any** component of the provider is never a suspect: it is declared, it
+simply was not selected for this build.
+
 A name alone is not enough to raise this — the file must also assemble `var()`.
 Without that condition every removed token becomes a finding: a design system
 normally ships a TS mirror of its token registry where each name sits as a

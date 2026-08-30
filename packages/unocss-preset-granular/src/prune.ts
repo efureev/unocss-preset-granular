@@ -1,3 +1,4 @@
+import type { GranularProvider } from './contract'
 import type { InlinedCssKind } from './node-utils/inlinedCss'
 import type { GranularPruneMode, TokenKeepReason } from './node-utils/tokenPrune'
 import type { PresetGranularNodeOptions } from './preset.node'
@@ -186,14 +187,35 @@ const DYNAMIC_ASSEMBLY_RE = /var\(\$\{|(['"`])var\(\1/
  * какого компонента не хватает `dynamicTokens`.
  */
 function findSuspects(
-  providers: readonly { packageBaseUrl: string }[],
+  providers: readonly GranularProvider[],
   removed: readonly string[],
   scanned: ReadonlySet<string>,
 ): TokenPruneSuspect[] {
   if (removed.length === 0)
     return []
 
-  const wanted = new Set(removed)
+  // Токен, который ОБЪЯВИЛ хоть какой-то компонент провайдера, находкой не
+  // является: он просто не попал в эту селекцию, и удалён правильно.
+  //
+  // Без этого условия диагностика шумит ровно там, где всё сделано верно:
+  // имя лежит в общем чанке композабла, а компоненты, которые его читают, в
+  // сборку не входят. Измерено на `@feugene/granularity`: у приложения с
+  // одним `GrCard` находками становились оба токена шкалы слоёв, хотя
+  // объявлены они у восьми оверлейных компонентов.
+  const declaredDynamically: Array<(token: string) => boolean> = []
+  for (const provider of providers) {
+    for (const component of provider.components) {
+      for (const pattern of component.dynamicTokens ?? []) {
+        declaredDynamically.push(pattern.endsWith('*')
+          ? token => token.startsWith(pattern.slice(0, -1))
+          : token => token === pattern)
+      }
+    }
+  }
+
+  const wanted = new Set(removed.filter(token => !declaredDynamically.some(match => match(token))))
+  if (wanted.size === 0)
+    return []
   const found = new Map<string, string>()
 
   for (const provider of providers) {
