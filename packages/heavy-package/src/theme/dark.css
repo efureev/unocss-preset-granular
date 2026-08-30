@@ -1,0 +1,98 @@
+/*
+ * Тёмная тема. Селектор двойной — атрибут и класс: атрибут канонический,
+ * класс оставлен для интеропа с class-стратегией UnoCSS. Обрезка обязана
+ * сохранить прелюдию блока как есть.
+ */
+[data-theme='dark'],
+.dark {
+  /* Raw palette */
+  --xh-slate-50: #f8fafc;
+  --xh-slate-100: #f1f5f9;
+  --xh-slate-300: #cbd5e1;
+  --xh-slate-500: #64748b;
+  --xh-slate-700: #334155;
+  --xh-slate-900: #0f172a;
+  --xh-blue-50: #172554;
+  --xh-blue-100: #1e3a8a;
+  --xh-blue-300: #1d4ed8;
+  --xh-blue-500: #60a5fa;
+  --xh-blue-700: #93c5fd;
+  --xh-blue-900: #dbeafe;
+  --xh-red-50: #450a0a;
+  --xh-red-100: #7f1d1d;
+  --xh-red-300: #b91c1c;
+  --xh-red-500: #f87171;
+  --xh-red-700: #fca5a5;
+  --xh-red-900: #fee2e2;
+  --xh-amber-50: #451a03;
+  --xh-amber-100: #78350f;
+  --xh-amber-300: #b45309;
+  --xh-amber-500: #fbbf24;
+  --xh-amber-700: #fcd34d;
+  --xh-amber-900: #fef3c7;
+  --xh-green-50: #052e16;
+  --xh-green-100: #14532d;
+  --xh-green-300: #15803d;
+  --xh-green-500: #4ade80;
+  --xh-green-700: #86efac;
+  --xh-green-900: #dcfce7;
+
+  /* Semantic roles */
+  --xh-bg: #0f172a;
+  --xh-fg: #f8fafc;
+  --xh-surface: #1e293b;
+  --xh-surface-fg: #f8fafc;
+  --xh-muted: #334155;
+  --xh-muted-fg: #aab6c7;
+  --xh-border: #334155;
+  --xh-accent: #9d8bfa;
+  --xh-accent-fg: #0f172a;
+  --xh-danger: #f87171;
+  --xh-danger-fg: #0f172a;
+  --xh-warn: #fb923c;
+  --xh-warn-fg: #0f172a;
+  --xh-ok: #4ade80;
+  --xh-ok-fg: #0f172a;
+
+  --xh-invalid-brd: var(--xh-danger);
+
+  /* Component roles */
+  --xh-card-bg: #1e293b;
+  --xh-card-fg: #f8fafc;
+  --xh-card-border: #334155;
+  --xh-btn-bg: #334155;
+  --xh-btn-fg: #f8fafc;
+  --xh-btn-border: #475569;
+  --xh-alert-bg: #1e3a8a;
+  --xh-alert-fg: #dbeafe;
+  --xh-alert-accent: #60a5fa;
+  --xh-alert-duration: 200ms;
+  --xh-table-head-bg: #334155;
+  --xh-table-stripe: #1e293b;
+
+  /*
+   * Пара к `--xh-fg-boost` из светлой темы: этот токен объявлен ТОЛЬКО здесь,
+   * а ссылается на тот, что объявлен ТОЛЬКО там. Если обрезка считает
+   * множество сохранённых потемно, светлая тема потеряет `--xh-fg-boost`, и
+   * значение здесь разрешится в пустоту — при зелёной сборке.
+   */
+  --xh-elevated-fg: var(--xh-fg-boost);
+
+  /* Derived interaction roles */
+  --xh-accent-hover: color-mix(in oklab, var(--xh-accent) 92%, var(--xh-fg));
+  --xh-accent-active: color-mix(in oklab, var(--xh-accent) 84%, var(--xh-fg));
+  --xh-danger-soft: color-mix(in oklab, var(--xh-danger) 18%, var(--xh-bg));
+  --xh-warn-soft: color-mix(in oklab, var(--xh-warn) 18%, var(--xh-bg));
+  --xh-ok-soft: color-mix(in oklab, var(--xh-ok) 18%, var(--xh-bg));
+}
+
+@supports not (color: color-mix(in oklab, red, blue)) {
+  [data-theme='dark'],
+  .dark {
+    --xh-accent-hover: #a494fa;
+    --xh-accent-active: #ac9dfa;
+    --xh-danger-soft: #3a1f24;
+    --xh-warn-soft: #3a2517;
+    --xh-ok-soft: #12331f;
+  }
+}

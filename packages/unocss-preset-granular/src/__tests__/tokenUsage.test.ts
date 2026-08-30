@@ -29,6 +29,8 @@ function provider(): GranularProvider {
         cssFiles: [new URL('css.css', baseUrl).href],
         cssFileAssetNames: ['css.css'],
       },
+      // Имя токена собирается в рантайме: `var()` в исходниках нет вовсе.
+      { name: 'Dyn' },
       // Члены группы: общий SFC должен приписаться ОБОИМ.
       { name: 'GroupA', group: 'g' },
       { name: 'GroupB', group: 'g' },
@@ -49,7 +51,7 @@ beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'granular-token-usage-'))
   baseUrl = pathToFileURL(`${root}/`).href
 
-  for (const name of ['Styled', 'Tpl', 'Css', 'GroupA', 'GroupB']) {
+  for (const name of ['Styled', 'Tpl', 'Css', 'Dyn', 'GroupA', 'GroupB']) {
     const dir = join(root, 'components', name)
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'index.js'), 'export default 1\n', 'utf8')
@@ -58,6 +60,22 @@ beforeAll(() => {
   writeFileSync(
     join(root, 'components', 'Tpl', 'tpl.js'),
     'export const cls = "bg-[var(--tpl)] text-[var(--nested,var(--deep))]"\n',
+    'utf8',
+  )
+  // Динамическое имя: `var(${v})` собирается в рантайме, а само имя лежит
+  // строковым литералом. Списано с живого кода `@feugene/granularity`.
+  writeFileSync(
+    join(root, 'components', 'Dyn', 'z.js'),
+    [
+      'const zVar = "--z-dropdown"',
+      // `$` и `{` разъединены намеренно: иначе eslint примет подстановку
+      // внутри обычной строки за забытый шаблонный литерал.
+      `export const z = \`var($${'{'}zVar})\``,
+      'export const style = { "--dyn-bg": "red" }',
+      // Ловушки для ложных срабатываний: не целое имя в кавычках.
+      'export const notAName = "--dyn-fake: 8px"',
+      'export const alsoNot = "border: 1px solid var(--dyn-via-var)"',
+    ].join('\n'),
     'utf8',
   )
   // Экранированный селектор — как его пишет UnoCSS в реальном CSS.
@@ -70,6 +88,34 @@ beforeAll(() => {
 
 afterAll(() => {
   rmSync(root, { recursive: true, force: true })
+})
+
+describe('inspectGranularTokenUsage: канал source-literal', () => {
+  it('имя, собираемое в var() из переменной, находится литералом', () => {
+    // `var(--z-dropdown)` в исходниках нет НИ РАЗУ — только `var(${zVar})`.
+    const entry = index().usage.get('z-dropdown')!.get('pkg:Dyn')!
+    expect(entry.via).toEqual(['source-literal'])
+    expect(entry.files[0]).toContain('z.js')
+  })
+
+  it('ключ объекта инлайн-стиля тоже находится', () => {
+    expect(index().usage.get('dyn-bg')!.get('pkg:Dyn')!.via).toEqual(['source-literal'])
+  })
+
+  it('строка стиля целиком именем токена НЕ считается', () => {
+    // `'--dyn-fake: 8px'` — кавычка не закрывается сразу после имени.
+    expect(index().usage.has('dyn-fake')).toBe(false)
+  })
+
+  it('var() внутри строки идёт своим каналом, а не литеральным', () => {
+    expect(index().usage.get('dyn-via-var')!.get('pkg:Dyn')!.via).toEqual(['source-scan'])
+  })
+
+  it('cSS-файлы каналом литералов не сканируются', () => {
+    // В `css.css` лежит `.bg-\\[var\\(--from-css\\)\\]`; после снятия
+    // экранирования это `var(`-потребление, а не литерал.
+    expect(index().usage.get('from-css')!.get('pkg:Css')!.via).toEqual(['component-css'])
+  })
 })
 
 describe('inspectGranularTokenUsage: каналы', () => {

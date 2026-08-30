@@ -49,6 +49,8 @@ which components and themes to pull in; providers declare what they ship.
     diagnostic report, exit codes, use in CI, programmatic access.
 11. [Migrating `0.4.0` → `0.5.0`](./migration-0.5.md) — breaking changes, new
     capabilities, a step-by-step plan for apps and providers.
+12. [Measuring CSS/JS weight](./measuring-weight.md) — the three benchmark
+    stands, what reaches the bundle, which tokens and classes are unused.
 
 ## What this preset does, in one paragraph
 

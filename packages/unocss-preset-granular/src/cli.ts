@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 import { countDoctorDiagnostics, formatDoctorReport, granularDoctor } from './doctor'
 import { formatExplainReport, granularExplain } from './explain'
+import { formatTokenPruneReport, granularTokenPrune } from './prune'
 import { formatTokensReport, granularTokens } from './tokens'
 import { formatWhyCssReport, granularWhyCss } from './why-css'
 
@@ -16,6 +17,7 @@ Usage:
   granular explain <options-file> <providerId:Component> [--json]
   granular why-css <options-file> <class> [--json]
   granular tokens  <options-file> <providerId:Component> [--deep] [--json]
+  granular prune   <options-file> [--json] [--strict]
 
   <options-file> is a JS/MJS module exporting the granular options
   (default / \`granularOptions\` / \`options\`) with a \`providers\` array.
@@ -36,6 +38,12 @@ Commands:
              component name is unambiguous.
   why-css  — which component pulled a class into the final CSS: safelist,
              component CSS files, sources in content.filesystem.
+  prune    — which tokens the emitted CSS could drop: what would be removed
+             from tokens.css and the theme files, what is kept and why, and
+             the resulting byte delta. Reads the configuration only; it never
+             changes the emission. Enable the trimming itself with
+             \`pruneTokens.mode\` in the preset options.
+             --strict exits 1 when anything would be removed.
   tokens   — which theme tokens a component declares and consumes: where each
              value comes from layer by layer, which tokens are shared with
              other components, and which are defined by no layer at all.
@@ -143,7 +151,7 @@ export async function runGranularCli(
     return 1
   }
 
-  if (command !== 'doctor' && command !== 'explain' && command !== 'why-css' && command !== 'tokens') {
+  if (command !== 'doctor' && command !== 'explain' && command !== 'why-css' && command !== 'tokens' && command !== 'prune') {
     io.stderr(`Unknown command '${command}'.\n\n${GRANULAR_CLI_USAGE}`)
     return 1
   }
@@ -158,6 +166,7 @@ export async function runGranularCli(
     'doctor': undefined,
     'explain': '<providerId:Component>',
     'tokens': '<providerId:Component>',
+    'prune': undefined,
     'why-css': '<class>',
   }
 
@@ -183,6 +192,14 @@ export async function runGranularCli(
       // Неизвестное имя — ошибка ввода. «Токенов нет» и «токен не определён» —
       // валидные ответы: гейтом для CI служит `doctor --strict`.
       return report.available ? 1 : 0
+    }
+
+    if (command === 'prune') {
+      const report = await granularTokenPrune(options)
+      emit(io, json, report, () => formatTokenPruneReport(report, process.cwd()))
+      // Гейт «фундамент вычищен»: непустой список удаляемого означает, что в
+      // CSS уезжают токены, которых никто не потребляет.
+      return flags.has('--strict') && report.removed.length > 0 ? 1 : 0
     }
 
     if (command === 'why-css') {

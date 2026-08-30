@@ -70,6 +70,13 @@ jobs:
       - name: Test package
         run: yarn test:granular
 
+      # Чистые функции измерителя бюджета CSS/JS. `dist` им не нужен, поэтому
+      # шаг стоит здесь, а не в `verify-contract`: измеритель, который врёт,
+      # хуже отсутствия измерителя, и падать он должен раньше сборки.
+      - name: Test repository scripts
+        if: matrix.node == 24
+        run: yarn test:scripts
+
   # Сборка @feugene/unocss-preset-granular. Артефакт используется
   # для валидации (publint) и публикации по тегу `v*`.
   build-unocss-preset-granular:
@@ -137,6 +144,13 @@ jobs:
 
       - name: Verify built CSS against app expectations
         run: yarn verify:apps
+
+      # Бюджет стендов замера. Порога на байты здесь нет намеренно — gzip
+      # невоспроизводим между средами. Гейтятся только булевы факты: запись
+      # `safelist` не дала CSS, токен потребляется без fallback и нигде не
+      # объявлен, ассет не опознан классификатором.
+      - name: Verify CSS/JS budget of the benchmark stands
+        run: yarn sizes:check
 
   # Публикация @feugene/unocss-preset-granular в npm по тегу `v<semver>`.
   #

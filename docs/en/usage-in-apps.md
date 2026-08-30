@@ -36,6 +36,24 @@ only; an app never needs it.
 | `includeExtraRules`                     | If `false`, skip the `presetMini` gap‑fill utilities (`animate-*`, `space-*`, `divide-*`, `backdrop-*`, `object-cover`, `object-center`, `tabular-nums`, `sr-only`, `uppercase` & friends) from `@feugene/unocss-mini-extra-rules`. Default: `true` — components reach for these utilities, and without them the class stays in the markup while no CSS is emitted. |
 | `scan`                                  | Scan options for the `/node` entry (see below).                                      |
 | `expandDirectives`                      | `/node` only. If `true`, expand `@apply`/`@screen`/`theme()` in the injected preflight CSS. Default: `false`. |
+| `pruneTokens`                           | `/node` only. Trim unused token declarations from the inlined CSS. Default: off (see below). |
+
+### `pruneTokens` (node only)
+
+Trims token declarations nothing reaches out of the inlined `tokensCssUrl` and
+theme files. Off by default. Full description — in
+[Themes and tokens](./themes-and-tokens.md).
+
+| Field | Meaning |
+|---|---|
+| `mode` | `'off'` (default) — emission is unchanged, not a byte; `'report'` — the plan is computed and reported, CSS stays as is; `'on'` — the plan is applied. |
+| `keep` | Token names kept unconditionally. A string may end with `*`; a `RegExp` is matched against the whole name without `--`. |
+| `keepPrefixes` | Sugar: `['gr-z-']` ≡ `keep: ['gr-z-*']`. |
+| `appSources` | `{ dirs, extensions }` — sources of the **application** itself. The preset sees provider components and not your markup; without this a `bg-[var(--brand)]` in `App.vue` is invisible to it. |
+| `scanLiterals` | Count token names written as plain string literals in JS/TS/Vue. Default: `true`. |
+
+Roll it out through `'report'`: run `granular prune`, read what would be
+removed, and only then switch to `'on'`.
 
 ### `components` selectors
 

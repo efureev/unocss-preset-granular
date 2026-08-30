@@ -1,12 +1,13 @@
 # The `granular` CLI
 
 The preset ships one executable, `granular`, declared as `bin` in
-`@feugene/unocss-preset-granular`. It has four subcommands: `doctor` prints
+`@feugene/unocss-preset-granular`. It has five subcommands: `doctor` prints
 what the preset actually sees (providers, the transitive component graph, theme
 token blocks, token conflicts, scan globs and layout-contract violations),
-`explain` answers why a particular component ended up in the build, and
+`explain` answers why a particular component ended up in the build,
 `why-css` answers which component pulled a particular class into the CSS,
-and `tokens` answers which theme tokens a component declares and consumes.
+`tokens` answers which theme tokens a component declares and consumes, and
+`prune` answers which token declarations nothing in the build consumes.
 
 > 🇷🇺 Русская версия: [`../ru/cli.md`](../ru/cli.md).
 
@@ -17,6 +18,7 @@ npx granular doctor  ./granular.options.mjs [--json] [--strict]
 npx granular explain ./granular.options.mjs '@your/pkg:XButton' [--json]
 npx granular why-css ./granular.options.mjs 'text-red-500' [--json]
 npx granular tokens  ./granular.options.mjs 'XButton' [--deep] [--json]
+npx granular prune   ./granular.options.mjs [--json] [--strict]
 ```
 
 ## The options file
@@ -419,6 +421,108 @@ value on its own line, without arrows.
 - **`var(--x)` inside a data string or a comment** counts as consumption.
 - **`.cjs`** is not read, exactly as in the dependency check.
 
+## `prune` — what the emitted CSS could drop
+
+`tokens` answers a per-component question. `prune` answers one about the build
+as a whole: which token declarations reach the CSS that nothing consumes.
+
+The command **never changes the emission**. It reads the configuration and
+prints the plan; the trimming itself is switched on by `pruneTokens.mode` in
+the preset options — see [Themes and tokens](./themes-and-tokens.md).
+
+```bash
+npx granular prune ./granular.options.mjs [--json] [--strict]
+```
+
+```text
+granular prune
+==============
+
+Mode: off
+  (trimming is disabled — everything below is what it WOULD do;
+   enable it with pruneTokens.mode in the preset options)
+Providers: @feugene/heavy-package
+Themes: light, dark
+
+Files (4):
+  • provider '@feugene/heavy-package' — theme/tokens.css — 52 declared, 19 kept, 33 removed   3.4 kB → 2.4 kB
+  • provider '@feugene/heavy-package' — theme/base.css — not pruned (base: rules, not declarations)
+  • provider '@feugene/heavy-package' — theme/light.css [light] — 64 declared, 29 kept, 35 removed   3.8 kB → 2.6 kB
+
+Kept (49):
+  consumed by a selected component (42):
+    • --xh-accent
+  used by rules of the inlined CSS (6):
+    • --xh-bg
+  referenced by another kept token (1):
+    • --xh-fg-boost  ← --xh-elevated-fg
+
+Removed (68): --xh-amber-100 --xh-amber-300 …
+
+Total: 11.6 kB → 8.3 kB (-29%).
+Application sources: not configured — the preset did not read a single file of this application.
+```
+
+### Reading the "Kept" groups
+
+The group is the strongest reason the token survived, in this order: consumed
+by a component, used by a component CSS file, used by rules of the inlined
+CSS, found in the application sources, targeted by an override, declared by a
+structural layer, kept by pattern, referenced by another kept token.
+
+`referenced by another kept token` is the transitive closure: a derived role
+written as `color-mix(…, var(--accent), …)` keeps `--accent` alive even when
+nothing mentions it directly.
+
+### The last line matters
+
+`Application sources: not configured` means the preset read nothing of your
+application. It sees provider components and does not see your markup, so a
+`bg-[var(--brand)]` in `App.vue` is invisible to it. Switching `mode` to `'on'`
+in that state is the most common way to lose a token silently.
+
+### A pattern that matches nothing
+
+```text
+⚠ Patterns matching nothing declared (1):
+    • @feugene/granularity:GrPopover → gr-z-dropdow
+```
+
+A typo in `keep` / `keepPrefixes`, or a `dynamicTokens` line left behind after
+the component stopped assembling the name at runtime. It breaks nothing by
+itself — which is exactly why it rots unnoticed.
+
+Two things it deliberately does **not** report: a pattern matched by any token
+counts as live even when another pattern covers the same one, and a declaration
+on a component outside this selection is not a finding — it simply did not
+apply to this build.
+
+### Removed, but the name is assembled at runtime
+
+```text
+⚠ Removed, but the name appears as a literal outside the scanned directories (2):
+    • --gr-z-dropdown  chunks/overlayStack-DH4Z7am1.js
+    • --gr-z-modal     chunks/overlayStack-DH4Z7am1.js
+```
+
+The single case where trimming breaks silently: a shared module assembles
+`var()` at runtime, the bundler hoisted it into a chunk outside
+`components/<Name>/`, and no static channel can reach it. The fix is
+`dynamicTokens` on the component that reads the token.
+
+A name alone is not enough to raise this — the file must also assemble `var()`.
+Without that condition every removed token becomes a finding: a design system
+normally ships a TS mirror of its token registry where each name sits as a
+string. Measured on a real package: 195 findings out of 195 removed tokens
+before the condition, 2 after.
+
+### `--strict`
+
+Exits 1 when anything would be removed. Useful as a gate of the shape "the
+foundation is already clean": in a repository where trimming is on, a growing
+removed list means a component stopped consuming a token — a style regression,
+not a win.
+
 ## Exit codes
 
 | Invocation | Output | Exit code |
@@ -432,6 +536,8 @@ value on its own line, without arrows.
 | `granular why-css <file> <class>` — no source | report on stdout | `1` |
 | `granular tokens <file> <component>` — component known | report on stdout | `0` |
 | `granular tokens <file> <component>` — name unknown or ambiguous | report with the known names | `1` |
+| `granular prune <file>` — plan printed | report on stdout | `0` |
+| `granular prune <file> --strict` — something would be removed | report on stdout | `1` |
 | any command — file missing, unimportable, or exporting no options | message on stderr | `1` |
 | `granular help` / `--help` / `-h` | usage on stdout | `0` |
 | `granular` with no arguments | usage on stdout | `1` |
@@ -494,6 +600,8 @@ added without a major bump. What that means if you consume them from code:
 - `DoctorDiagnosticCode` is an **open** union. Do not write an exhaustive
   `switch` with a `never` branch over it — it will stop compiling on an
   upgrade. Handle the codes you know and let a default branch take the rest.
+- `TokenUsageVia` and `TokenKeepReason` are open in the same sense: channels
+  and keep reasons are added as the analysis learns to see more.
 - Report fields are **required**. If you build a `DoctorReport` by hand (a mock
   in tests), a new field breaks compilation — take the report from
   `granularDoctor` instead of assembling one yourself.

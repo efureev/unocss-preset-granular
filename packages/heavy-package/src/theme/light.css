@@ -1,0 +1,104 @@
+/*
+ * Светлая тема. Селектор `:root` — светлая считается темой по умолчанию.
+ */
+:root {
+  /* Raw palette. Заведомо избыточна: компоненты берут семантику, а не оттенки.
+     Живыми её делает только `XhAlert`, и то шестью значениями из тридцати. */
+  --xh-slate-50: #f8fafc;
+  --xh-slate-100: #f1f5f9;
+  --xh-slate-300: #cbd5e1;
+  --xh-slate-500: #64748b;
+  --xh-slate-700: #334155;
+  --xh-slate-900: #0f172a;
+  --xh-blue-50: #eff6ff;
+  --xh-blue-100: #dbeafe;
+  --xh-blue-300: #93c5fd;
+  --xh-blue-500: #3b82f6;
+  --xh-blue-700: #1d4ed8;
+  --xh-blue-900: #1e3a8a;
+  --xh-red-50: #fef2f2;
+  --xh-red-100: #fee2e2;
+  --xh-red-300: #fca5a5;
+  --xh-red-500: #ef4444;
+  --xh-red-700: #b91c1c;
+  --xh-red-900: #7f1d1d;
+  --xh-amber-50: #fffbeb;
+  --xh-amber-100: #fef3c7;
+  --xh-amber-300: #fcd34d;
+  --xh-amber-500: #f59e0b;
+  --xh-amber-700: #b45309;
+  --xh-amber-900: #78350f;
+  --xh-green-50: #f0fdf4;
+  --xh-green-100: #dcfce7;
+  --xh-green-300: #86efac;
+  --xh-green-500: #22c55e;
+  --xh-green-700: #15803d;
+  --xh-green-900: #14532d;
+
+  /* Semantic roles */
+  --xh-bg: #ffffff;
+  --xh-fg: #0f172a;
+  --xh-surface: #f8fafc;
+  --xh-surface-fg: #0f172a;
+  --xh-muted: #f1f5f9;
+  --xh-muted-fg: #556275;
+  --xh-border: #e2e8f0;
+  --xh-accent: #4f46e5;
+  --xh-accent-fg: #ffffff;
+  --xh-danger: #dc2626;
+  --xh-danger-fg: #ffffff;
+  --xh-warn: #f97316;
+  --xh-warn-fg: #0f172a;
+  --xh-ok: #16a34a;
+  --xh-ok-fg: #ffffff;
+
+  /* Роль, ссылающаяся на роль: обрезка обязана пройти по ссылке, а не решить,
+     что значение — литерал. */
+  --xh-invalid-brd: var(--xh-danger);
+
+  /* Component roles */
+  --xh-card-bg: #ffffff;
+  --xh-card-fg: #0f172a;
+  --xh-card-border: #e2e8f0;
+  --xh-btn-bg: #f1f5f9;
+  --xh-btn-fg: #0f172a;
+  --xh-btn-border: #cbd5e1;
+  --xh-alert-bg: #dbeafe;
+  --xh-alert-fg: #1e3a8a;
+  --xh-alert-accent: #3b82f6;
+  --xh-alert-duration: 200ms;
+  --xh-table-head-bg: #f1f5f9;
+  --xh-table-stripe: #f8fafc;
+
+  /*
+   * Токен, объявленный ТОЛЬКО в светлой теме. На него ссылается
+   * `--xh-elevated-fg`, объявленный только в тёмной. Пара существует ради
+   * одного инварианта: множество сохранённых токенов ГЛОБАЛЬНО по темам,
+   * и обрезка светлой темы не вправе выкинуть то, на что смотрит тёмная.
+   */
+  --xh-fg-boost: #1e293b;
+
+  /* Derived interaction roles */
+  --xh-accent-hover: color-mix(in oklab, var(--xh-accent) 92%, var(--xh-fg));
+  --xh-accent-active: color-mix(in oklab, var(--xh-accent) 84%, var(--xh-fg));
+  --xh-danger-soft: color-mix(in oklab, var(--xh-danger) 18%, var(--xh-bg));
+  --xh-warn-soft: color-mix(in oklab, var(--xh-warn) 18%, var(--xh-bg));
+  --xh-ok-soft: color-mix(in oklab, var(--xh-ok) 18%, var(--xh-bg));
+}
+
+/*
+ * Fallback для браузеров без `color-mix`. Блок ЛЕЖИТ ВНУТРИ at-rule, и это
+ * главный краевой случай фикстуры: плоский парсер блоков
+ * (`parseCssCustomPropertyBlocksSync`) его не видит, поэтому обрезка обязана
+ * быть текстовой и обходить at-rules наравне с блоками верхнего уровня.
+ * Иначе здесь останутся объявления токенов, удалённых из `:root`.
+ */
+@supports not (color: color-mix(in oklab, red, blue)) {
+  :root {
+    --xh-accent-hover: #4a42d6;
+    --xh-accent-active: #453ec7;
+    --xh-danger-soft: #fbe3e3;
+    --xh-warn-soft: #feeee0;
+    --xh-ok-soft: #e3f6ea;
+  }
+}

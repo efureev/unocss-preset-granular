@@ -1,0 +1,102 @@
+/*
+ * Токены, не зависящие от темы. Фикстура: набор подобран так, чтобы каждая
+ * конструкция, на которой обрезка объявлений может сломаться, встречалась
+ * хотя бы раз. Не образец для дизайн-системы — образец для тестов.
+ */
+:root {
+  /* Layout: spacing scale */
+  --xh-space-0: 0px;
+  --xh-space-1: 4px;
+  --xh-space-2: 8px;
+  --xh-space-3: 12px;
+  --xh-space-4: 16px;
+  --xh-space-5: 20px;
+  --xh-space-6: 24px;
+  --xh-space-8: 32px;
+  --xh-space-10: 40px;
+  --xh-space-12: 48px;
+
+  /* Shapes: radii */
+  --xh-radius-sm: 4px;
+  --xh-radius-md: 8px;
+  --xh-radius-lg: 12px;
+  --xh-radius-xl: 16px;
+  --xh-radius-full: 9999px;
+
+  /*
+   * Алиас без префикса пакета. Стоит здесь намеренно: обрезка не вправе
+   * считать общий префикс признаком «своего» токена и обязана обойтись с ним
+   * так же, как с `--xh-*`.
+   */
+  --radius: 0.5rem;
+
+  /* Typography: font sizes */
+  --xh-font-xs: 12px;
+  --xh-font-sm: 14px;
+  --xh-font-md: 16px;
+  --xh-font-lg: 18px;
+  --xh-font-xl: 20px;
+  --xh-font-2xl: 24px;
+
+  /* Typography: line heights */
+  --xh-leading-tight: 1.25;
+  --xh-leading-normal: 1.5;
+  --xh-leading-loose: 1.75;
+
+  /* Typography: weights */
+  --xh-weight-normal: 400;
+  --xh-weight-medium: 500;
+  --xh-weight-bold: 700;
+
+  /*
+   * Шкала слоёв. Адресуется ИЗ JS по имени (`XhOverlay`), а не через `var()`
+   * в разметке: статический скан по `var(` её не видит вовсе.
+   */
+  --xh-z-base: 0;
+  --xh-z-dropdown: 1000;
+  --xh-z-sticky: 900;
+  --xh-z-modal: 1100;
+  --xh-z-toast: 1200;
+
+  /* Motion */
+  --xh-dur-fast: 150ms;
+  --xh-dur-base: 200ms;
+  --xh-dur-slow: 300ms;
+  --xh-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --xh-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --xh-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /*
+   * Многострочное значение с запятыми и вложенными скобками: сканер обязан
+   * дочитать его до `;`, а не оборваться на первой запятой или скобке.
+   */
+  --xh-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --xh-shadow-md:
+    0 4px 8px rgba(15, 23, 42, 0.10),
+    0 8px 24px rgba(15, 23, 42, 0.14);
+  --xh-shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.20);
+
+  /* Borders */
+  --xh-border-thin: 1px;
+  --xh-border-thick: 2px;
+
+  /* Layout: containers */
+  --xh-container-sm: 640px;
+  --xh-container-md: 768px;
+  --xh-container-lg: 1024px;
+
+  /* `;` внутри строкового литерала не завершает объявление. */
+  --xh-quote-sep: "; ";
+
+  /* `;` внутри `url(data:…;base64,…)` — тоже не завершает. */
+  --xh-dot: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=);
+
+  /* Комментарий между именем и `:` не разрывает объявление. */
+  --xh-gap /* сюда */: 8px;
+
+  /* Guaranteed-invalid: пустое значение — тоже объявление. */
+  --xh-empty:;
+
+  /* Последнее объявление блока без `;` — CSS это разрешает. */
+  --xh-tabular: tabular-nums
+}

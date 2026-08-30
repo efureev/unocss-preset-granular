@@ -11,12 +11,17 @@
     "test:granular": "yarn build:unocss-mini-extra-rules && yarn workspace @feugene/unocss-preset-granular test:run",
     "test:unocss-mini-extra-rules": "yarn workspace @feugene/unocss-mini-extra-rules test:run && yarn workspace @feugene/unocss-mini-extra-rules test:types",
     "build:unocss-mini-extra-rules": "yarn workspace @feugene/unocss-mini-extra-rules build",
-    "build:packages": "yarn build:granular && yarn workspace @feugene/simple-package build && yarn workspace @feugene/extra-simple-package build",
-    "build:apps": "yarn workspace @feugene/granular-app-1 build && yarn workspace @feugene/granular-app-2 build && yarn workspace @feugene/granular-app-3 build && yarn workspace @feugene/granular-app-4 build && yarn workspace @feugene/granular-app-5 build && yarn workspace @feugene/granular-app-6 build",
+    "build:packages": "yarn build:granular && yarn workspace @feugene/simple-package build && yarn workspace @feugene/extra-simple-package build && yarn workspace @feugene/heavy-package build",
+    "build:apps": "yarn workspace @feugene/granular-app-1 build && yarn workspace @feugene/granular-app-2 build && yarn workspace @feugene/granular-app-3 build && yarn workspace @feugene/granular-app-4 build && yarn workspace @feugene/granular-app-5 build && yarn workspace @feugene/granular-app-6 build && yarn build:bench",
     "build:all": "yarn build:packages && yarn build:apps",
     "verify:apps": "node scripts/verify-apps.mjs",
     "check:docs": "node scripts/check-docs-parity.mjs",
     "test": "yarn test:unocss-mini-extra-rules && yarn test:granular",
-    "test:all": "yarn test:unocss-mini-extra-rules && yarn test:granular && yarn check:docs && yarn build:all && yarn verify:apps"
+    "test:all": "yarn test:unocss-mini-extra-rules && yarn test:granular && yarn test:scripts && yarn check:docs && yarn build:all && yarn verify:apps && yarn sizes:check",
+    "build:bench": "yarn workspace @feugene/granular-bench-zero build && yarn workspace @feugene/granular-bench-one build && yarn workspace @feugene/granular-bench-pruned build",
+    "sizes": "node scripts/report-css-budget.mjs && node scripts/report-css-budget.mjs --stand bench-pruned --baseline bench-one",
+    "sizes:json": "node scripts/report-css-budget.mjs --json",
+    "sizes:check": "node scripts/report-css-budget.mjs --strict && node scripts/report-css-budget.mjs --stand bench-pruned --strict && node scripts/report-css-budget.mjs --stand bench-zero --strict",
+    "test:scripts": "vitest run --config vitest.config.mjs"
   }
 }

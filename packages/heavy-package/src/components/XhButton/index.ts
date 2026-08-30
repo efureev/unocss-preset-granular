@@ -1,0 +1,5 @@
+export { default } from './XhButton.vue'
+export { default as XhButton } from './XhButton.vue'
+export { xhButtonConfig } from './config'
+export { BASE_CLASS, PAD_STEP, TONE } from './btnStyles'
+export type { XhButtonSize, XhButtonTone } from './btnStyles'

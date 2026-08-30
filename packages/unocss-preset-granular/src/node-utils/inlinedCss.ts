@@ -8,9 +8,22 @@ import { parseCssCustomPropertyBlocksSync } from './tokenDefinitionsFromCss'
 /** Кто дал файл: пакет или приложение. Определяет происхождение его токенов. */
 export type InlinedCssOwner = 'provider' | 'app'
 
+/**
+ * Роль файла в эмиссии.
+ *
+ * Различие несёт нагрузку, а не описательность: обрезка токенов режет
+ * `tokens` и `theme`, но НЕ трогает `base` — там правила сброса, а не
+ * объявления, и «неиспользуемое» правило от нужного статически не отличить.
+ * Раньше роль восстанавливалась по отсутствию поля `theme`, то есть `base` и
+ * `tokens` были неразличимы.
+ */
+export type InlinedCssKind = 'tokens' | 'base' | 'theme'
+
 /** Один файл, который пресет инлайнит целиком. */
 export interface InlinedCssSource {
   url: string
+  /** Роль файла в эмиссии. См. {@link InlinedCssKind}. */
+  kind: InlinedCssKind
   /**
    * Человекочитаемая метка автора — та же, что уходит в `GranularCssReadError`:
    * `provider '<id>'` либо `app-override (themes.tokensFile)`.
@@ -74,10 +87,10 @@ export function resolveInlinedCssSources(
 ): InlinedCssSource[] {
   const sources: InlinedCssSource[] = []
   const seen = new Set<string>()
-  const add = (url: string | undefined, origin: string, owner: InlinedCssOwner, theme?: string): void => {
+  const add = (url: string | undefined, kind: InlinedCssKind, origin: string, owner: InlinedCssOwner, theme?: string): void => {
     if (url && !seen.has(url)) {
       seen.add(url)
-      sources.push(theme === undefined ? { url, origin, owner } : { url, origin, owner, theme })
+      sources.push(theme === undefined ? { url, kind, origin, owner } : { url, kind, origin, owner, theme })
     }
   }
 
@@ -87,23 +100,23 @@ export function resolveInlinedCssSources(
   // берутся по провайдеру и дедуплицируются по итоговому URL.
   const tokensFile = themes?.tokensFile
   if (typeof tokensFile === 'string') {
-    add(tokensFile, 'app-override (themes.tokensFile)', 'app')
+    add(tokensFile, 'tokens', 'app-override (themes.tokensFile)', 'app')
   }
   else {
     for (const p of providers) {
       const { url, owner } = pickUrl(p.id, p.theme?.tokensCssUrl, tokensFile)
-      add(url, owner === 'app' ? `app-override (themes.tokensFile['${p.id}'])` : `provider '${p.id}'`, owner)
+      add(url, 'tokens', owner === 'app' ? `app-override (themes.tokensFile['${p.id}'])` : `provider '${p.id}'`, owner)
     }
   }
 
   const baseFile = themes?.baseFile
   if (typeof baseFile === 'string') {
-    add(baseFile, 'app-override (themes.baseFile)', 'app')
+    add(baseFile, 'base', 'app-override (themes.baseFile)', 'app')
   }
   else {
     for (const p of providers) {
       const { url, owner } = pickUrl(p.id, p.theme?.baseCssUrl, baseFile)
-      add(url, owner === 'app' ? `app-override (themes.baseFile['${p.id}'])` : `provider '${p.id}'`, owner)
+      add(url, 'base', owner === 'app' ? `app-override (themes.baseFile['${p.id}'])` : `provider '${p.id}'`, owner)
     }
   }
 
@@ -119,6 +132,7 @@ export function resolveInlinedCssSources(
     const { url, owner } = pickUrl(providerId, cssUrl, override)
     add(
       url,
+      'theme',
       owner === 'app' ? `app-override (themes.themeFiles['${themeName}'])` : `provider '${providerId}'`,
       owner,
       themeName,

@@ -1,0 +1,23 @@
+{
+  "name": "@feugene/granular-bench-pruned",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@feugene/heavy-package": "^0.1.0",
+    "@unocss/reset": "^66.7.5",
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@feugene/unocss-preset-granular": "^0.16.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.5",
+    "vite": "^8.1.5"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "verify": "node ../../scripts/verify-apps.mjs bench-pruned"
+  }
+}

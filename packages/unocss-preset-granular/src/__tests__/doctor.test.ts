@@ -274,6 +274,13 @@ describe('doctor: token-undefined', () => {
     writeFileSync(join(root, 'components', name, 'index.js'), 'export default 1\n', 'utf8')
   }
   writeFileSync(join(root, 'tokens.css'), ':root { --from-css: 1px }\n', 'utf8')
+  // Компонент ПРИСВАИВАЕТ свою точку кастомизации инлайн-стилем: имя видно
+  // только литералом, объявления от granular ему не требуется.
+  writeFileSync(
+    join(root, 'components', 'A', 'style.js'),
+    'export const s = { "--a-own-hook": "red" }\n',
+    'utf8',
+  )
 
   function optionsWith(theme?: Record<string, unknown>) {
     return {
@@ -290,6 +297,16 @@ describe('doctor: token-undefined', () => {
       components: 'all' as const,
     }
   }
+
+  it('токен, видимый ТОЛЬКО литералом, находкой не считается', () => {
+    // Литерал — это чаще присваивание (`{ '--a-own-hook': v }`,
+    // `setProperty`), а не чтение. Без этой оговорки канал `source-literal`
+    // завалил бы находками каждый пакет с покомпонентными токенами и уронил
+    // бы `doctor --strict` в чужом CI в день своего появления.
+    const report = granularDoctor(optionsWith())
+    const entry = report.undefinedTokens.find(t => t.token === 'a-own-hook')
+    expect(entry).toBeUndefined()
+  })
 
   it('находит токен, которого не задаёт ни один слой', () => {
     const report = granularDoctor(optionsWith())

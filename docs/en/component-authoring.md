@@ -521,7 +521,34 @@ provider.theme.tokenDefinitions        ← base layer from the donor package
 | Tokens scoped to a single component   | `component.tokenDefinitions` in its `config.ts`    |
 | Final app-level tuning                | `themes.tokenOverrides` in `presetGranularNode`    |
 
-## 8. Dependencies between components
+## 8. Tokens addressed at runtime (`dynamicTokens`)
+
+If the component assembles a token name at runtime, no static analysis can see
+it — not the class scan, not the string-literal channel, if the name lives in a
+module the bundler hoists into a shared chunk:
+
+```ts
+// components/shared/overlayZ.ts — shared, ends up outside the scanned dirs
+export const DROPDOWN_Z_VAR = '--gr-z-dropdown'
+export const layerZIndex = (v = DROPDOWN_Z_VAR) => `var(${v})`
+```
+
+An application with `pruneTokens` enabled will then drop the declaration, and
+the failure is silent: `z-index` resolves to `unset` and the panel slides under
+its neighbour. Declare it:
+
+```ts
+export const grPopoverConfig = defineGranularComponent(import.meta.url, {
+  name: 'GrPopover',
+  dynamicTokens: ['gr-z-dropdown'],
+})
+```
+
+Rule of thumb: **wrote `var(` with anything other than a literal name inside —
+declare it.** The field is about consumption, not ownership; a component may
+declare a token it reads from a neighbour.
+
+## 9. Dependencies between components
 
 - Same package — **short** form: `'MyIcon'`.
 - Cross‑package — **qualified**: `'@feugene/simple-package:XTest1'`.
@@ -530,7 +557,7 @@ provider.theme.tokenDefinitions        ← base layer from the donor package
 - Any cross‑provider dep means the donor package must be in
   `peerDependencies` (see [installation.md](./installation.md)).
 
-## 9. Pre‑PR / pre‑release checklist
+## 10. Pre‑PR / pre‑release checklist
 
 - [ ] Folder `src/components/<Name>/` with `<Name>.vue`, `config.ts`,
       `index.ts` created.
@@ -542,6 +569,8 @@ provider.theme.tokenDefinitions        ← base layer from the donor package
 - [ ] `tokenDefinitions` (if any) — keys match provider/app theme
       names; values are valid CSS custom properties.
 - [ ] `dependencies` are correct (short / qualified / object form).
+- [ ] `dynamicTokens` declared for every token whose name the component
+      assembles at runtime (`var(${…})`, `setProperty(name, …)`).
 - [ ] Component re‑exported from `src/index.ts`.
 - [ ] Component config added to `components: [...]` in the provider
       (`src/granular-provider/index.ts`).

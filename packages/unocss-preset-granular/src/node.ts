@@ -50,10 +50,14 @@ export {
 } from './fs/resolveScanDirs'
 export { type TokenUsageVia } from './fs/tokenUsage'
 export * from './index'
+export type { CssDeclarationOccurrence } from './node-utils/cssDeclarations'
+export { scanCssDeclarations } from './node-utils/cssDeclarations'
 export {
   GranularTokenRefError,
   materializeGranularOptions,
 } from './node-utils/materializeRefs'
+export type { PruneCssResult } from './node-utils/pruneCssDeclarations'
+export { pruneCssDeclarations } from './node-utils/pruneCssDeclarations'
 export {
   getGranularThemeManifest,
   GRANULAR_THEMES_MODULE_ID,
@@ -70,6 +74,15 @@ export {
   type TokenDefinitionsFromCssOptions,
   tokenDefinitionsFromCssSync,
 } from './node-utils/tokenDefinitionsFromCss'
+export type {
+  GranularKeepPattern,
+  GranularPruneAppSources,
+  GranularPruneMode,
+  GranularPruneTokensOptions,
+  GranularTokenPrunePlan,
+  TokenKeepReason,
+} from './node-utils/tokenPrune'
+export { planGranularTokenPrune } from './node-utils/tokenPrune'
 export {
   createGranularNodePreflight,
   defineGranular,
@@ -88,6 +101,15 @@ export {
   resolveGranularNode,
   resolvePresetGranularNodePreflights,
 } from './preset.node'
+export type {
+  TokenPruneFileReport,
+  TokenPruneKept,
+  TokenPruneReport,
+} from './prune'
+export {
+  formatTokenPruneReport,
+  granularTokenPrune,
+} from './prune'
 export {
   type GranularThemeActivation,
   type GranularThemeEntry,

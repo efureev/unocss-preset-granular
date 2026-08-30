@@ -1,0 +1,35 @@
+/*
+ * Объявленный `cssFiles` компонента — канал `component-css` индекса
+ * потребления. Файл НЕ импортируется из SFC: его инлайнит пресет по
+ * декларации, и второй импорт продублировал бы правила.
+ */
+.xh-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xh-space-4);
+  padding: var(--xh-space-6);
+  background: var(--xh-surface);
+  color: var(--xh-surface-fg);
+  border: var(--xh-border-thin) solid var(--xh-border);
+  border-radius: var(--xh-radius-lg);
+}
+
+.xh-panel__title {
+  font-size: var(--xh-font-lg);
+  font-weight: var(--xh-weight-bold);
+  line-height: var(--xh-leading-tight);
+}
+
+/* Читает токен, объявленный ТОЛЬКО в тёмной теме, — он, в свою очередь,
+   ссылается на токен, объявленный только в светлой. */
+[data-theme='dark'] .xh-panel__title,
+.dark .xh-panel__title {
+  color: var(--xh-elevated-fg);
+}
+
+.xh-panel__note {
+  font-size: var(--xh-font-sm);
+  color: var(--xh-muted-fg);
+  border-left: var(--xh-border-thick) solid var(--xh-invalid-brd);
+  padding-left: var(--xh-space-2);
+}

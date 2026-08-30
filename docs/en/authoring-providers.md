@@ -65,7 +65,7 @@ packages/<your-package>/
     }
   },
   "peerDependencies": {
-    "@feugene/unocss-preset-granular": "^0.15.0",
+    "@feugene/unocss-preset-granular": "^0.16.0",
     "vue": "^3"
   }
 }
@@ -411,6 +411,45 @@ A package with no components yet is a legitimate first run: with nothing to
 insert and no existing subpath to anchor to, the generator leaves `exports`
 alone. What it will not do is treat a *missing* components directory as zero
 components — a typo in the path would then quietly strip every registry.
+
+## Tokens addressed at runtime — `dynamicTokens`
+
+If a component assembles a token name at runtime, no static analysis will
+find it:
+
+```ts
+const zVar = '--gr-z-dropdown'
+const zIndex = `var(${zVar})` // `var(--gr-z-dropdown)` appears nowhere
+```
+
+Such tokens survive class-name scanning fine, but an application that turns on
+`pruneTokens` will drop their declarations — and the failure is silent: the
+`z-index` resolves to `unset` and a panel slides under its neighbour.
+
+Declare them **on the component that reads them**:
+
+```ts
+export const grPopoverConfig = defineGranularComponent(import.meta.url, {
+  name: 'GrPopover',
+  // Names without `--`; a trailing `*` is allowed.
+  dynamicTokens: ['gr-z-dropdown'],
+})
+```
+
+On the component and not on the provider, for three reasons. A provider-level
+list would hold the token in **every** application, including the ones that
+never pull this component — exactly the overhead granular selection exists to
+remove. The knowledge lives next to the code that creates it, so removing the
+runtime assembly makes the stale line visible. And the consumer cannot know
+that a name is assembled at runtime inside a component they merely picked.
+
+The field is about **consumption**, not ownership: a component may declare a
+token it reads from a neighbour. It is optional and does not affect emission
+without trimming.
+
+`granular prune` warns when a removed token's name appears as a literal in a
+file that assembles `var()` at runtime — that is the missing declaration
+speaking up instead of the CSS breaking silently.
 
 ## What NOT to do
 

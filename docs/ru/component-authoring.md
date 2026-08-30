@@ -510,7 +510,33 @@ provider.theme.tokenDefinitions        ← базовый слой от доно
 | Токены одного компонента              | `component.tokenDefinitions` в его `config.ts`    |
 | Финальная подстройка под приложение   | `themes.tokenOverrides` в `presetGranularNode`    |
 
-## 8. Зависимости между компонентами
+## 8. Токены, адресуемые в рантайме (`dynamicTokens`)
+
+Если компонент собирает имя токена в рантайме, статический анализ его не
+увидит — ни скан классов, ни канал строковых литералов, когда имя лежит в
+модуле, который бандлер выносит в общий чанк:
+
+```ts
+// components/shared/overlayZ.ts — общий, оказывается вне скан-директорий
+export const DROPDOWN_Z_VAR = '--gr-z-dropdown'
+export const layerZIndex = (v = DROPDOWN_Z_VAR) => `var(${v})`
+```
+
+Приложение с включённым `pruneTokens` удалит объявление, и поломка будет
+тихой: `z-index` разрешится в `unset`, панель уедет под соседнюю. Объявляйте:
+
+```ts
+export const grPopoverConfig = defineGranularComponent(import.meta.url, {
+  name: 'GrPopover',
+  dynamicTokens: ['gr-z-dropdown'],
+})
+```
+
+Правило простое: **написали `var(` не с литеральным именем внутри — объявите.**
+Поле про потребление, а не про владение: компонент вправе объявить токен,
+который читает у соседа.
+
+## 9. Зависимости между компонентами
 
 - Внутри своего пакета — **короткая** форма: `'MyIcon'`.
 - Компонент из другого пакета — **qualified**: `'@feugene/simple-package:XTest1'`.
@@ -520,7 +546,7 @@ provider.theme.tokenDefinitions        ← базовый слой от доно
   обязан быть в `peerDependencies` (см.
   [installation.md](./installation.md)).
 
-## 9. Чек‑лист перед PR / релизом
+## 10. Чек‑лист перед PR / релизом
 
 - [ ] Создана папка `src/components/<Name>/` с файлами
       `<Name>.vue`, `config.ts`, `index.ts`.
@@ -533,6 +559,8 @@ provider.theme.tokenDefinitions        ← базовый слой от доно
 - [ ] `tokenDefinitions` (если есть) — ключи совпадают с именами тем
       провайдера/приложения; значения — валидные CSS custom properties.
 - [ ] `dependencies` корректны (короткая / qualified / объектная форма).
+- [ ] `dynamicTokens` объявлены для каждого токена, чьё имя компонент
+      собирает в рантайме (`var(${…})`, `setProperty(name, …)`).
 - [ ] Компонент реэкспортирован из `src/index.ts`.
 - [ ] Конфиг компонента добавлен в `components: [...]`
       провайдера (`src/granular-provider/index.ts`).

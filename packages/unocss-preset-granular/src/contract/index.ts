@@ -49,6 +49,32 @@ export interface GranularComponentDescriptor<Name extends string = string> {
    * Сюда входят ТОЛЬКО СОБСТВЕННЫЕ классы компонента.
    */
   safelist?: readonly string[]
+
+  /**
+   * Токены, к которым компонент обращается ДИНАМИЧЕСКИ: имя собирается в
+   * рантайме (`` `var(${zIndexVar})` ``, `setProperty(name, v)`), и никакой
+   * статический разбор его не найдёт. Имена БЕЗ префикса `--`; допускается
+   * `*` в конце (`'gr-z-*'`).
+   *
+   * Единственный потребитель — обрезка неиспользуемых токенов
+   * (`pruneTokens`): она сохраняет их, пока КОМПОНЕНТ в сборке. На эмиссию
+   * без обрезки поле не влияет никак.
+   *
+   * Объявляется на компоненте, а не на провайдере, по трём причинам:
+   *
+   *   1. провайдерский список держал бы токен в КАЖДОМ приложении, включая
+   *      те, где этого компонента нет, — ровно тот перерасход, ради
+   *      устранения которого существует гранулярный отбор;
+   *   2. знание живёт рядом с кодом, который его порождает: убрали
+   *      динамическую адресацию — видно, что и строку пора убрать.
+   *      Список у провайдера гниёт молча;
+   *   3. потребитель не может знать, что внутри выбранного им компонента имя
+   *      токена собирается в рантайме, и не обязан.
+   *
+   * Поле про ПОТРЕБЛЕНИЕ, а не про владение: компонент вправе объявить
+   * токен, который читает у соседа.
+   */
+  dynamicTokens?: readonly string[]
   /** Абсолютные URL-строки (через `new URL(..., importMetaUrl).href`) на CSS-файлы компонента. */
   cssFiles?: readonly string[]
   /**
@@ -268,6 +294,8 @@ export function defineGranularProvider<P extends GranularProvider>(provider: P):
 
 export interface DefineGranularComponentOptions<Name extends string = string> {
   name: Name
+  /** См. {@link GranularComponentDescriptor.dynamicTokens}. */
+  dynamicTokens?: readonly string[]
   /**
    * Компоненты, которые собранный код ЭТОГО компонента реально импортирует
    * (шаблон, `<script setup>`, композабл, динамический `import()` — всё
@@ -318,6 +346,7 @@ export function defineGranularComponent<Name extends string>(
     name: options.name,
     dependencies: [...(options.dependencies ?? [])],
     safelist: [...(options.safelist ?? [])],
+    dynamicTokens: [...(options.dynamicTokens ?? [])],
     cssFiles: cssFiles.map(file => new URL(file, importMetaUrl).href),
     cssFileAssetNames: cssFiles.map(
       file => `components/${options.name}/${file.replace(/^\.\//, '')}`,

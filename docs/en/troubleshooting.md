@@ -120,6 +120,28 @@ URL didn't change, a full rebuild of the app (or a hard dev‑server
 restart) fixes it. For pure CSS changes it's usually enough to save the
 CSS file — the watcher picks it up and the preflight regenerates.
 
+## "A token resolves to nothing after I enabled `pruneTokens`"
+
+The preset sees provider components. It does **not** see your markup, so a
+`bg-[var(--brand)]` written in `App.vue` does not exist for it, and the
+declaration of `--brand` was dropped as unused.
+
+Three fixes, in order of preference:
+
+1. point the preset at your sources — `pruneTokens.appSources: { dirs: ['./src'] }`;
+2. if the name is assembled at runtime (`var(${nameFromProp})`), no scan will
+   ever see it: keep it explicitly with `pruneTokens.keep` — or, better, have
+   the component declare it in `dynamicTokens`, since that is knowledge of the
+   component author, not of every application;
+3. check what exactly would be removed and why the rest survived:
+
+```bash
+npx granular prune ./granular.options.mjs
+```
+
+Set `pruneTokens.mode` back to `'report'` while you investigate — in that mode
+the plan is computed but the CSS is emitted unchanged.
+
 ## `granular doctor` — diagnostics
 
 When a symptom above doesn't match anything, stop guessing and print what the

@@ -1,0 +1,55 @@
+/*
+ * Глобальный слой пакета: сброс и типографические умолчания.
+ *
+ * Объявлений токенов здесь НЕТ — только правила. Именно поэтому обрезка этот
+ * файл не трогает: он целится в разметку ПРИЛОЖЕНИЯ, а не в набор переменных,
+ * и «неиспользуемое» правило сброса статически не отличить от нужного.
+ *
+ * Зато `var()` отсюда — корни обрезки: эти токены обязаны пережить её при
+ * любой селекции компонентов.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--xh-bg);
+  color: var(--xh-fg);
+  font-size: var(--xh-font-md);
+  line-height: var(--xh-leading-normal);
+}
+
+hr {
+  border: 0;
+  border-top: var(--xh-border-thin) solid var(--xh-border);
+}
+
+:where(a, button) {
+  background-color: transparent;
+  transition: color var(--xh-dur-fast) var(--xh-ease-out);
+}
+
+:where(a):hover {
+  color: var(--xh-accent);
+}
+
+:where(code, pre, kbd) {
+  border-radius: var(--xh-radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

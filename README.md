@@ -98,6 +98,7 @@ Full documentation lives in [`./docs`](./docs) — in **English** and **Russian*
 - [Troubleshooting & recipes](./docs/en/troubleshooting.md)
 - [The `granular` CLI](./docs/en/cli.md)
 - [Migrating `0.4.0` → `0.5.0`](./docs/en/migration-0.5.md)
+- [Measuring CSS/JS weight](./docs/en/measuring-weight.md)
 
 🇷🇺 **Русский** — [`./docs/ru/README.md`](./docs/ru/README.md)
 
@@ -142,12 +143,18 @@ structured report. Full reference: [The `granular` CLI](./docs/en/cli.md).
   [`packages/extra-simple-package`](./packages/extra-simple-package) — two
   reference granular providers (the extra one declares cross‑provider
   `dependencies` on the simple one).
+- [`packages/heavy-package`](./packages/heavy-package) — a fixture provider
+  with a full design-system foundation (`tokens.css`, `base.css`,
+  `light`/`dark`), used by the weight benchmarks.
 - [`apps/app-1..6`](./apps) — six demo apps, each covering one scenario:
   minimal auto‑scan (`app-1`), `safelist` + theme token overrides without the
   file scan (`app-2`), a transitive donor provider and cross‑package component
   dependencies (`app-3`), nested SFCs plus a third‑party rule set (`app-4`),
   runtime theme switching (`app-5`), app‑owned themes replacing the provider's
   `light`/`dark` (`app-6`).
+- [`apps/bench-zero`, `apps/bench-one`, `apps/bench-pruned`](./apps) — three
+  benchmark stands: the zero mark, the price of one component, and the effect
+  of token trimming. See [Measuring CSS/JS weight](./docs/en/measuring-weight.md).
 
 They are the only place where the whole chain — provider build → preset →
 UnoCSS → CSS — runs end to end, so they double as the contract's integration

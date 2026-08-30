@@ -1,0 +1,27 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@feugene/unocss-preset-granular": [
+        "../../packages/unocss-preset-granular/src/index.ts"
+      ],
+      "@feugene/unocss-preset-granular/node": [
+        "../../packages/unocss-preset-granular/src/node.ts"
+      ],
+      "@feugene/unocss-preset-granular/contract": [
+        "../../packages/unocss-preset-granular/src/contract/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "vite-env.d.ts",
+    "uno.config.ts",
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

@@ -102,6 +102,7 @@ export default defineConfig({
 - [Рецепты и отладка](./docs/ru/troubleshooting.md)
 - [CLI `granular`](./docs/ru/cli.md)
 - [Миграция `0.4.0` → `0.5.0`](./docs/ru/migration-0.5.md)
+- [Замер веса CSS/JS](./docs/ru/measuring-weight.md)
 
 🇬🇧 **English** — [`./docs/en/README.md`](./docs/en/README.md)
 
@@ -146,12 +147,18 @@ npx granular tokens  ./granular.options.mjs XTokenized --deep
   [`packages/extra-simple-package`](./packages/extra-simple-package) — два
   эталонных granular‑провайдера (extra декларирует cross‑provider
   `dependencies` на simple).
+- [`packages/heavy-package`](./packages/heavy-package) — провайдер‑фикстура с
+  полноценным фундаментом дизайн‑системы (`tokens.css`, `base.css`,
+  `light`/`dark`), на нём стоят стенды замера веса.
 - [`apps/app-1..6`](./apps) — шесть демо‑приложений, по сценарию на каждое:
   минимальный автоскан (`app-1`), `safelist` + переопределение токенов темы без
   файлового скана (`app-2`), транзитивный донор и кросс‑пакетные зависимости
   компонентов (`app-3`), вложенные SFC плюс сторонний набор правил (`app-4`),
   переключение тем в рантайме (`app-5`), собственные темы приложения вместо
   провайдерских `light`/`dark` (`app-6`).
+- [`apps/bench-zero`, `apps/bench-one`, `apps/bench-pruned`](./apps) — три
+  стенда замера: нулевая отметка, цена одного компонента и эффект обрезки
+  токенов. См. [Замер веса CSS/JS](./docs/ru/measuring-weight.md).
 
 Только в них цепочка «сборка провайдера → пресет → UnoCSS → CSS» проходит
 целиком, поэтому они же служат интеграционным тестом контракта:

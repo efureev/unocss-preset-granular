@@ -1,12 +1,13 @@
 # CLI `granular`
 
 Пресет ставит один исполняемый файл — `granular`, объявленный как `bin` в
-`@feugene/unocss-preset-granular`. У него четыре подкоманды: `doctor` печатает то,
+`@feugene/unocss-preset-granular`. У него пять подкоманд: `doctor` печатает то,
 что пресет видит на самом деле (провайдеров, транзитивный граф компонентов,
 блоки токенов тем, конфликты токенов, скан-globs и нарушения
 layout-контракта), `explain` отвечает, почему в сборке оказался конкретный
 компонент, `why-css` — какой компонент притащил в CSS конкретный класс,
-а `tokens` — какие токены тем компонент объявляет и потребляет.
+`tokens` — какие токены тем компонент объявляет и потребляет, а
+`prune` — какие объявления токенов в сборке никто не потребляет.
 
 > 🇬🇧 English version: [`../en/cli.md`](../en/cli.md).
 
@@ -17,6 +18,7 @@ npx granular doctor  ./granular.options.mjs [--json] [--strict]
 npx granular explain ./granular.options.mjs '@your/pkg:XButton' [--json]
 npx granular why-css ./granular.options.mjs 'text-red-500' [--json]
 npx granular tokens  ./granular.options.mjs 'XButton' [--deep] [--json]
+npx granular prune   ./granular.options.mjs [--json] [--strict]
 ```
 
 ## Файл опций
@@ -408,6 +410,108 @@ Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ie
 - **`var(--x)` внутри строки-данных или комментария** засчитается как потребление.
 - **`.cjs`** не читается — ровно как в проверке зависимостей.
 
+## `prune` — что можно не эмитить
+
+`tokens` отвечает на покомпонентный вопрос. `prune` — на вопрос про сборку
+целиком: какие объявления токенов уезжают в CSS, не будучи никем потреблены.
+
+Команда **никогда не меняет эмиссию**. Она читает конфигурацию и печатает
+план; саму обрезку включает `pruneTokens.mode` в опциях пресета — см.
+[Темы и токены](./themes-and-tokens.md).
+
+```bash
+npx granular prune ./granular.options.mjs [--json] [--strict]
+```
+
+```text
+granular prune
+==============
+
+Mode: off
+  (trimming is disabled — everything below is what it WOULD do;
+   enable it with pruneTokens.mode in the preset options)
+Providers: @feugene/heavy-package
+Themes: light, dark
+
+Files (4):
+  • provider '@feugene/heavy-package' — theme/tokens.css — 52 declared, 19 kept, 33 removed   3.4 kB → 2.4 kB
+  • provider '@feugene/heavy-package' — theme/base.css — not pruned (base: rules, not declarations)
+  • provider '@feugene/heavy-package' — theme/light.css [light] — 64 declared, 29 kept, 35 removed   3.8 kB → 2.6 kB
+
+Kept (49):
+  consumed by a selected component (42):
+    • --xh-accent
+  used by rules of the inlined CSS (6):
+    • --xh-bg
+  referenced by another kept token (1):
+    • --xh-fg-boost  ← --xh-elevated-fg
+
+Removed (68): --xh-amber-100 --xh-amber-300 …
+
+Total: 11.6 kB → 8.3 kB (-29%).
+Application sources: not configured — the preset did not read a single file of this application.
+```
+
+### Как читать группы «Kept»
+
+Группа — это сильнейшая причина, по которой токен уцелел, в порядке:
+потребляется компонентом, используется CSS-файлом компонента, используется
+правилами инлайнимого CSS, найден в исходниках приложения, в него целится
+override, объявлен структурным слоем, сохранён шаблоном, на него ссылается
+другой сохранённый токен.
+
+`referenced by another kept token` — это транзитивное замыкание: производная
+роль вида `color-mix(…, var(--accent), …)` держит `--accent` живым, даже если
+напрямую его никто не поминает.
+
+### Последняя строка не декоративна
+
+`Application sources: not configured` означает, что пресет не прочитал ни
+одного файла вашего приложения. Он видит компоненты провайдера и не видит вашу
+разметку, поэтому `bg-[var(--brand)]` в `App.vue` для него не существует.
+Переводить `mode` в `'on'` в этом состоянии — самый частый способ потерять
+токен молча.
+
+### Шаблон, не совпавший ни с чем
+
+```text
+⚠ Patterns matching nothing declared (1):
+    • @feugene/granularity:GrPopover → gr-z-dropdow
+```
+
+Опечатка в `keep` / `keepPrefixes` либо строка `dynamicTokens`, оставшаяся
+после того, как компонент перестал собирать имя в рантайме. Само по себе
+ничего не ломает — потому и гниёт незамеченным.
+
+Две вещи находкой намеренно НЕ считаются: шаблон, совпавший хоть с одним
+токеном, живой даже когда тот же токен покрывает и соседний шаблон; и
+объявление компонента вне этой селекции — оно просто не применилось к сборке.
+
+### Удалён, но имя собирается в рантайме
+
+```text
+⚠ Removed, but the name appears as a literal outside the scanned directories (2):
+    • --gr-z-dropdown  chunks/overlayStack-DH4Z7am1.js
+    • --gr-z-modal     chunks/overlayStack-DH4Z7am1.js
+```
+
+Единственный случай, где обрезка ломается молча: общий модуль собирает `var()`
+в рантайме, бандлер вынес его в чанк вне `components/<Name>/`, и ни один
+статический канал туда не дотягивается. Лечится `dynamicTokens` у компонента,
+который этот токен читает.
+
+Одного имени для находки мало — файл обязан ТУТ ЖЕ собирать `var()`. Без этого
+условия находкой становится каждый удаляемый токен: у дизайн-системы обычно
+есть TS-зеркало реестра, где каждое имя лежит строкой. Измерено на реальном
+пакете: 195 находок из 195 удаляемых до условия, 2 после.
+
+### `--strict`
+
+Выходит с кодом 1, если удалять есть что. Годится гейтом вида «фундамент уже
+вычищен»: в репозитории с включённой обрезкой растущий список удаляемого
+означает, что компонент перестал потреблять токен, то есть регрессию стиля,
+а не победу.
+
 ## Коды выхода
 
 | Вызов | Вывод | Код |
@@ -421,6 +525,8 @@ Scanned: 6 safelist entr(ies), 0 CSS file(s), 13 source file(s) in 8 director(ie
 | `granular why-css <file> <class>` — источников нет | отчёт в stdout | `1` |
 | `granular tokens <file> <component>` — компонент известен | отчёт в stdout | `0` |
 | `granular tokens <file> <component>` — имя неизвестно или неоднозначно | отчёт со списком известных | `1` |
+| `granular prune <file>` — план напечатан | отчёт в stdout | `0` |
+| `granular prune <file> --strict` — есть что удалять | отчёт в stdout | `1` |
 | любая команда — файла нет, не импортируется или не экспортирует опции | сообщение в stderr | `1` |
 | `granular help` / `--help` / `-h` | справка в stdout | `0` |
 | `granular` без аргументов | справка в stdout | `1` |
@@ -485,6 +591,8 @@ granularTokens(granularOptions, '@your/pkg:XButton', 'deep') // TokensReport
 - `DoctorDiagnosticCode` — **открытый** union. Не пишите по нему исчерпывающий
   `switch` с `never`-веткой: он перестанет компилироваться на апгрейде.
   Обрабатывайте известные коды, остальные — общей веткой.
+- `TokenUsageVia` и `TokenKeepReason` открыты в том же смысле: каналы и
+  причины сохранения добавляются по мере того, как анализ учится видеть больше.
 - Поля отчёта **обязательные**. Если вы конструируете `DoctorReport` вручную
   (мок в тестах), добавление поля сломает компиляцию — берите отчёт из
   `granularDoctor`, а не собирайте его руками.

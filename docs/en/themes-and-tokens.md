@@ -322,6 +322,63 @@ presetGranularNode({
 })
 ```
 
+## Pruning unused tokens
+
+The preset is selective about components, but the **foundation is not**:
+`tokensCssUrl` and the theme files are inlined whole, no matter how many
+components were selected. On a real design system that means an application
+taking one card gets 212 declared custom properties and needs 17 of them.
+
+`pruneTokens` drops the declarations nothing reaches.
+
+```ts
+presetGranularNode({
+  providers: [provider],
+  components: [{ provider: '@your/pkg', names: ['Card'] }],
+  pruneTokens: {
+    mode: 'report', // 'off' (default) | 'report' | 'on'
+    appSources: { dirs: ['./src'] },
+    keep: ['brand-*'],
+  },
+})
+```
+
+### What counts as used
+
+A token survives if any of this holds, plus the transitive closure over token
+values (a kept token keeps everything its own value references):
+
+- a selected component consumes it — through `safelist`, its declared
+  `cssFiles`, its sources, or its name as a plain string in JS;
+- the rules of the inlined CSS reference it (`base.css` is such a file);
+- `themes.tokenOverrides` targets it;
+- a structural theme layer declares it;
+- it is found in `pruneTokens.appSources`;
+- it matches `keep` / `keepPrefixes` or a selected component's `dynamicTokens`.
+
+The keep-set is **global across themes**: a token used only through a value in
+the dark theme survives in the light one too.
+
+### What is never pruned
+
+`base.css` — those are reset rules, not declarations, and an unused rule is not
+statically distinguishable from a needed one. Component CSS — already selective
+by construction. Structural theme blocks — already contributed only by
+selected components.
+
+### Roll out through `report`
+
+The preset sees provider components and does **not** see your markup. A
+`bg-[var(--brand)]` written in `App.vue` does not exist for it, and without
+`appSources` that token leaves the CSS while the build stays green.
+
+```bash
+granular prune ./granular.options.mjs
+```
+
+Read the removed list, add what is missing to `appSources` or `keep`, and only
+then switch `mode` to `'on'`. Details of the report — in [the CLI](./cli.md).
+
 ## `tokenDefinitionsFromCss*` — upgrading themes to structural tokens
 
 If a provider ships themes as plain CSS (`:root { --brd: #000; }`), it can

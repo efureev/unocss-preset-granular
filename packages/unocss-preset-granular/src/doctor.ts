@@ -360,6 +360,14 @@ function computeUndefinedTokens(
     if (defined.has(token))
       continue
     for (const [component, entry] of byComponent) {
+      // Токен, видимый ТОЛЬКО литералом, — это, как правило, ПРИСВАИВАНИЕ
+      // (ключ инлайн-стиля, `setProperty`), а не потребление: компонент сам
+      // задаёт свою точку кастомизации, и объявления от granular ей не нужно.
+      // Без этой оговорки канал `source-literal` завалил бы находками каждый
+      // пакет с покомпонентными токенами — и уронил бы `doctor --strict`
+      // в чужом CI ровно в тот день, когда канал появился.
+      if (entry.via.length === 1 && entry.via[0] === 'source-literal')
+        continue
       found.push({ token, component, via: entry.via, hasFallback: entry.hasFallback })
     }
   }

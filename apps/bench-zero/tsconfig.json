@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "vite.config.ts",
+    "vite-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.vue"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

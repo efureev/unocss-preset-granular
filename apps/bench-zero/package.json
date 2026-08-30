@@ -1,0 +1,20 @@
+{
+  "name": "@feugene/granular-bench-zero",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@unocss/reset": "^66.7.5",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.5"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "verify": "node ../../scripts/verify-apps.mjs bench-zero"
+  }
+}

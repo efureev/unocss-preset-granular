@@ -3,6 +3,7 @@ import type { Preflight, Preset } from '@unocss/core'
 import type { GranularProvider } from './contract'
 import type { EffectiveThemeBlock } from './core/tokenLayers'
 import type { ScanDirsInspection } from './fs/resolveScanDirs'
+import type { GranularPruneTokensOptions, PrunableSection } from './node-utils/tokenPrune'
 import type { PresetGranularOptions } from './preset'
 import { resolveGranularLayer } from './core/layer'
 import { collectTokenLayers } from './core/tokenLayers'
@@ -11,6 +12,8 @@ import { readCss, resolveComponentCssFile, resolveCssFilePath } from './fs/readC
 import { resolveComponentScanDirs } from './fs/resolveScanDirs'
 import { resolveInlinedCssSources } from './node-utils/inlinedCss'
 import { materializeGranularOptions } from './node-utils/materializeRefs'
+import { pruneCssDeclarations } from './node-utils/pruneCssDeclarations'
+import { planGranularTokenPrune } from './node-utils/tokenPrune'
 import {
   presetGranular,
 
@@ -68,6 +71,20 @@ export interface PresetGranularNodeOptions extends PresetGranularOptions {
    * Если их нет — CSS возвращается без изменений с одним `console.warn`.
    */
   expandDirectives?: boolean
+
+  /**
+   * Обрезка неиспользуемых токенов в CSS, который node-слой инлайнит целиком
+   * (`tokensCssUrl` и файлы тем).
+   *
+   * По умолчанию ВЫКЛЮЧЕНА, и это не осторожность, а следствие: пресет видит
+   * компоненты провайдеров и не видит разметку приложения, поэтому любая
+   * обрезка — утверждение о коде, которого он не читал. Включать после
+   * прогона в режиме `report` и с `appSources`.
+   *
+   * `base.css` не обрезается никогда: там правила сброса, а не объявления, и
+   * «неиспользуемое» правило от нужного статически не отличить.
+   */
+  pruneTokens?: GranularPruneTokensOptions
 }
 
 /**
@@ -234,6 +251,7 @@ interface NodeCssSections {
  */
 async function collectNodeCssSections(
   options: PresetGranularNodeOptions,
+  generator?: unknown,
 ): Promise<NodeCssSections> {
   const resolution = resolveGranularNode(options)
 
@@ -242,11 +260,15 @@ async function collectNodeCssSections(
   const inlined = resolveInlinedCssSources(resolution.providers, resolution.themes.items, options.themes)
 
   // 1. Tokens & Base (с учётом app-override, глобальный — один раз).
-  const baseTokens = await Promise.all(
-    inlined.filter(src => src.theme === undefined).map(({ url, origin }) => readCssFrom(
-      resolveCssFilePath(url),
-      { origin, section: 'base/tokens' },
-    )),
+  //
+  // Секции держатся ВМЕСТЕ со своим `InlinedCssSource`: обрезке нужно знать,
+  // что перед ней — файл токенов (режется) или файл base (нет), а `Promise.all`
+  // по одним только текстам это соответствие теряет.
+  const baseTokenSections: PrunableSection[] = await Promise.all(
+    inlined.filter(src => src.theme === undefined).map(async source => ({
+      source,
+      css: await readCssFrom(resolveCssFilePath(source.url), { origin: source.origin, section: 'base/tokens' }),
+    })),
   )
 
   // 2. Theme token blocks (structural tokenDefinitions + tokenOverrides).
@@ -271,11 +293,11 @@ async function collectNodeCssSections(
   // семейства могут ссылаться на один файл темы (или быть сведены к нему через
   // `themes.themeFiles`), и без дедупа он инлайнился бы столько раз, сколько
   // провайдеров на него сослалось.
-  const themeFiles = await Promise.all(
-    inlined.filter(src => src.theme !== undefined).map(({ url, origin, theme }) => readCssFrom(
-      resolveCssFilePath(url),
-      { origin, section: 'theme', subject: theme },
-    )),
+  const themeFileSections: PrunableSection[] = await Promise.all(
+    inlined.filter(src => src.theme !== undefined).map(async source => ({
+      source,
+      css: await readCssFrom(resolveCssFilePath(source.url), { origin: source.origin, section: 'theme', subject: source.theme }),
+    })),
   )
 
   // 4. Component CSS.
@@ -287,7 +309,60 @@ async function collectNodeCssSections(
     )),
   )
 
-  return { baseTokens, themeTokens, themeFiles, components }
+  // 5. Раскрытие `@apply`/`@screen`/`theme()` — ДО обрезки, а не после.
+  //
+  // Раньше директивы раскрывались в `createGranularNodePreflight`, то есть
+  // над уже собранным текстом. С обрезкой такой порядок стал неверным:
+  // `@apply` разворачивается в утилиты, которые вправе сослаться на токен
+  // через `var()`, а решение «этот токен никому не нужен» к тому моменту уже
+  // принято. Токен уехал бы из CSS, а ссылка на него — появилась.
+  const expand = async (css: string): Promise<string> =>
+    options.expandDirectives ? expandCssDirectives(css, generator) : css
+
+  const [expandedBaseTokens, expandedThemeFiles, expandedComponents] = await Promise.all([
+    Promise.all(baseTokenSections.map(async section => ({ ...section, css: await expand(section.css) }))),
+    Promise.all(themeFileSections.map(async section => ({ ...section, css: await expand(section.css) }))),
+    Promise.all(components.map(expand)),
+  ])
+
+  // 6. Обрезка неиспользуемых токенов.
+  //
+  // Ранний выход ДО построения плана — не оптимизация, а обещание: при
+  // выключенной обрезке эмиссия не меняется ни на байт и не читает ни одного
+  // лишнего файла. На этом стоят 68 подстрочных проверок `verify:apps`.
+  const mode = options.pruneTokens?.mode ?? 'off'
+  const untouched: NodeCssSections = {
+    baseTokens: expandedBaseTokens.map(section => section.css),
+    themeTokens,
+    themeFiles: expandedThemeFiles.map(section => section.css),
+    components: expandedComponents,
+  }
+
+  // Выход ДО построения плана — не оптимизация, а обещание: при выключенной
+  // обрезке эмиссия не меняется ни на байт и не читает ни одного лишнего
+  // файла. На этом стоят подстрочные проверки `verify:apps` у восьми
+  // приложений, ни одно из которых обрезку не включает.
+  if (mode === 'off' || mode === 'report')
+    return untouched
+
+  const plan = planGranularTokenPrune(
+    options,
+    resolution,
+    inspectGranularScanDirs(options).dirs,
+    { inlined: [...expandedBaseTokens, ...expandedThemeFiles], componentCss: expandedComponents },
+  )
+
+  // Режется только то, что объявляет токены: `base` — правила сброса, они
+  // целятся в разметку приложения; компонентный CSS уже селективен по выбору.
+  const prune = (section: PrunableSection): string =>
+    section.source.kind === 'base' ? section.css : pruneCssDeclarations(section.css, plan.isKept).css
+
+  return {
+    baseTokens: expandedBaseTokens.map(prune),
+    themeTokens,
+    themeFiles: expandedThemeFiles.map(prune),
+    components: expandedComponents,
+  }
 }
 
 /**
@@ -296,8 +371,9 @@ async function collectNodeCssSections(
  */
 export async function getGranularNodeCss(
   options: PresetGranularNodeOptions,
+  generator?: unknown,
 ): Promise<string> {
-  const s = await collectNodeCssSections(options)
+  const s = await collectNodeCssSections(options, generator)
   return [...s.baseTokens, ...s.themeTokens, ...s.themeFiles, ...s.components]
     .filter(Boolean)
     .join('\n')
@@ -378,12 +454,9 @@ export function createGranularNodePreflight(
 ): Preflight {
   return {
     layer,
-    getCSS: async (ctx) => {
-      const css = await getGranularNodeCss(options)
-      if (!options.expandDirectives)
-        return css
-      return expandCssDirectives(css, ctx?.generator)
-    },
+    // Директивы раскрывает `collectNodeCssSections` — посекционно и ДО
+    // обрезки; здесь остаётся только передать ей генератор.
+    getCSS: async ctx => getGranularNodeCss(options, ctx?.generator),
   }
 }
 

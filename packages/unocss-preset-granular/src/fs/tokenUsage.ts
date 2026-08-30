@@ -19,8 +19,11 @@ import { canonicalize, componentDirPath, groupSharedDirPath } from './resolveSca
  *   - `component-css` — токен встречается в объявленном `cssFiles`.
  *   - `source-scan` — токен найден в исходниках компонента, попадающих в
  *     `content.filesystem`. Разбор текстовый, см. оговорки ниже.
+ *   - `source-literal` — ИМЯ токена найдено в исходниках строковым литералом,
+ *     без `var(`. Самый слабый канал: чаще он означает ПРИСВАИВАНИЕ, а не
+ *     чтение (см. {@link VAR_LITERAL_RE}).
  */
-export type TokenUsageVia = 'safelist' | 'component-css' | 'source-scan'
+export type TokenUsageVia = 'safelist' | 'component-css' | 'source-scan' | 'source-literal'
 
 /** Потребление одного токена одним компонентом. */
 export interface ComponentTokenUsage {
@@ -71,6 +74,41 @@ export interface TokenUsageIndex {
  * UnoCSS он ещё и записан не как CSS.
  */
 const VAR_USE_RE = /var\(\s*--([\w-]+)\s*(,)?/g
+
+/**
+ * Имя токена, записанное строковым литералом ЦЕЛИКОМ: `'--gr-z-modal'`,
+ * `"--gr-alert-bg"`, `` `--gr-x` ``.
+ *
+ * Покрывает три записи, которых `VAR_USE_RE` не видит в принципе:
+ *
+ *   1. ключ объекта инлайн-стиля — `{ '--gr-alert-bg': colors.bg }`;
+ *   2. аргумент `setProperty('--gr-x', v)` / `getPropertyValue('--gr-x')`;
+ *   3. имя, подставляемое в `var()` через переменную: `` `var(${zIndexVar})` ``,
+ *      где `zIndexVar = '--gr-z-dropdown'`. Живой пример — `@feugene/granularity`,
+ *      `composables/internal/overlayStack.ts`: `var(--gr-z-dropdown)` в
+ *      исходниках не встречается НИ РАЗУ, а токен потребляется.
+ *
+ * Кавычка обязана закрыться сразу после имени — это и есть защита от ложных
+ * срабатываний: `'--gr-x: 8px'` (целая строка стиля) и
+ * `'border: 1px solid var(--gr-x)'` сюда не попадают, а второе уже поймано
+ * `VAR_USE_RE`.
+ *
+ * Канал применяется ТОЛЬКО к JS/TS/Vue. В CSS `--x` — это объявление, а не
+ * ссылка, и включение CSS сделало бы «потребителем» любой файл темы.
+ */
+const VAR_LITERAL_RE = /(['"`])(--[\w-]+)\1/g
+
+/** Имена токенов, записанные строковым литералом целиком. */
+function extractTokenLiterals(text: string): Set<string> {
+  const found = new Set<string>()
+  VAR_LITERAL_RE.lastIndex = 0
+  let match = VAR_LITERAL_RE.exec(text)
+  while (match !== null) {
+    found.add(match[2].slice(2))
+    match = VAR_LITERAL_RE.exec(text)
+  }
+  return found
+}
 
 /** Имена токенов и признак fallback из произвольного текста. */
 function extractTokenUses(text: string): Map<string, boolean> {
@@ -216,7 +254,7 @@ export function inspectGranularTokenUsage(
   // сканировал папку дважды, а не ради принадлежности.
   const scannable = new Set(scanDirs.map(d => d.dir))
   const extensions = resolveScanExtensions(options.scan ?? {})
-  const visited = new Map<string, Array<[file: string, uses: Map<string, boolean>]>>()
+  const visited = new Map<string, Array<[file: string, uses: Map<string, boolean>, literals: Set<string>]>>()
 
   for (const { provider, descriptor } of resolution.resolved.entries) {
     const key = `${provider.id}:${descriptor.name}`
@@ -254,7 +292,11 @@ export function inspectGranularTokenUsage(
           try {
             // Намеренно обычное чтение, а не `readCssSync`: тот кэширует, и
             // исходники компонентов вытеснили бы из LRU реально горячий CSS.
-            parsed.push([file, extractTokenUses(readFileSync(file, 'utf8'))])
+            const text = readFileSync(file, 'utf8')
+            // Канал литералов — только по коду. В CSS `--x` это объявление,
+            // и включение CSS сделало бы потребителем любой файл темы.
+            const literals = file.endsWith('.css') ? new Set<string>() : extractTokenLiterals(text)
+            parsed.push([file, extractTokenUses(text), literals])
           }
           catch {
             continue
@@ -265,9 +307,15 @@ export function inspectGranularTokenUsage(
         scanned.sourceFiles += parsed.length
       }
 
-      for (const [file, uses] of parsed) {
+      for (const [file, uses, literals] of parsed) {
         for (const [token, hasFallback] of uses)
           record(token, key, 'source-scan', file, hasFallback)
+        for (const token of literals) {
+          // Записывается ВСЕГДА, даже если тот же токен найден и через
+          // `var()`: каналы отвечают на разные вопросы, и схлопывать их
+          // значит терять «это имя вообще-то собирается в рантайме».
+          record(token, key, 'source-literal', file, false)
+        }
       }
     }
   }
